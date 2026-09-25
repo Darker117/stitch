@@ -1,55 +1,48 @@
-# Stitch
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
+    <img src="docs/logo-light.png" alt="Stitch" width="420">
+  </picture>
+</p>
 
-A local-first Windows studio that stitches together a **Higgsfield-style media generator** (images, MiniMax H3 video with native sound, music, voices, and locked characters) and an **AI Dungeon-style story engine**. Everything renders on your own GPUs through ComfyUI. Story text comes from OpenAI, Anthropic, OpenRouter, Gemini, Ollama, LM Studio or any OpenAI-compatible server.
+<p align="center"><b>Your own AI studio and storyteller, running on your PC.</b></p>
 
-## What's inside
-- **New chat:** an assistant that plans and makes images, H3 videos, music, voice lines, characters and stories through tools. You can turn on "ask before generating", and model thinking stays behind a "Show thinking" toggle.
-- **Generate:** Image, Video, Audio and Voice tabs, with live latent previews, prompt enhancement and locked characters as the cast.
-- **Characters (Character lock):** one reference image becomes a full sheet (angles, expressions, lighting) plus a cloned voice. Stories and videos reuse it automatically.
-- **Stories:** templates, the scenario editor (plot components, story cards, the three opening types), and the player. The player has themes, memory, auto-summaries and Inspect Input, and it can See / Animate / Narrate turns with your locked characters.
-- **Studio:** a multi-track video editor for cutting generations, voice lines and music together, with ffmpeg export.
-- **Skills:** built-in workflows, plus any ComfyUI workflow imported as a one-click skill.
-- **Connectors:** local and cloud text models, ComfyUI instances, and voice providers (Stitch Voice / Qwen3-TTS, ElevenLabs, OpenAI, Azure).
-- **Settings:**
-  - GPU layout: choose which GPUs to use and which runs images, video, audio or voice.
-  - Wallpaper Engine backgrounds, with accents that follow the wallpaper.
-  - Models folder, library folder and ffmpeg.
+<p align="center">
+  <a href="https://github.com/Darker117/stitch/releases/latest"><b>⬇ Download for Windows</b></a>
+</p>
 
-## Requirements
-- Windows 10/11, NVIDIA GPU(s).
-- ComfyUI (Stability Matrix is detected automatically) with the models you want. The built-in presets cover Krea 2, Qwen Image 2.1 (+ Edit), Flux 2 Klein, Flux Kontext, Anima, SDXL/Illustrious, FastH3 / H3 Reference, ACE-Step 1.5 and Stable Audio 3. Presets whose files are missing show what they need.
-- ffmpeg on PATH (`winget install Gyan.FFmpeg`) for video posters and Studio export.
-- Optional: LM Studio / Ollama for local text, and API keys for cloud providers.
+<p align="center">
+  <img src="docs/screenshots/story.png" alt="Playing a story with generated scenes" width="900">
+</p>
 
-## Install
-Download `Stitch-Setup-<version>.exe` from the [latest release](https://github.com/Darker117/stitch/releases/latest) and run it. Setup installs Stitch for your account (no admin rights), adds Start Menu and desktop shortcuts and launches it. The first-run welcome finds ComfyUI, your GPUs and your text models.
+## What is Stitch?
 
-The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC" the first time — choose **More info → Run anyway**.
+Stitch brings two creative tools together in one desktop app:
 
-## Updates
-Stitch checks GitHub Releases when it starts and every few hours, downloads new versions in the background and shows **Update ready → Restart now / Later**. "Later" installs the update the next time you quit. **Settings → Updates** has the current version, a **Check for updates** button, release notes and the auto-download switch.
+- **A studio** for making images, video, music and voices.
+- **A story engine** where you play through interactive adventures that illustrate, animate and narrate themselves as you go.
 
-## Develop
-```bash
-npm install
-npm run dev        # hot-reloading app
-npm run typecheck  # main + renderer
-npm run icons      # regenerate icons + installer art from resources/icon.svg and the logo SVGs
-npm run dist       # build the Windows installer into dist/
-```
-See `CLAUDE.md` for architecture and conventions.
+The idea that ties them together is **consistency**. Create a character once and they stay the same everywhere — in every picture, every clip, every voice line and every story you play with them.
 
-## Releasing an update
-Commit your changes, then:
-```bash
-npm run release          # 0.1.0 → 0.1.1 (release:minor / release:major for bigger bumps)
-```
-That bumps the version, tags it and pushes. GitHub Actions (`.github/workflows/release.yml`) then typechecks, builds the installer, drafts a release with notes from your commit messages, uploads the installer + `latest.yml`, and publishes it. Every installed copy picks it up on its next check.
+Everything is generated locally on your own graphics card, so your characters, stories and creations stay on your machine.
 
-To rebuild a release that failed, run the **Release** workflow manually from the Actions tab with the tag name.
+## Download
 
-**No GitHub Actions?** (e.g. the account's Actions are paused) — publish from your PC instead, right after `npm run release`:
-```bash
-npm run publish:local    # drafts the release, builds + uploads the installer, publishes it
-```
-It needs the GitHub CLI signed in (`gh auth login`).
+Get the latest installer from the [**Releases**](https://github.com/Darker117/stitch/releases/latest) page and run `Stitch-Setup-<version>.exe`.
+
+Stitch keeps itself up to date: when a new version comes out it downloads in the background and asks before restarting.
+
+> Windows may show a SmartScreen warning because the installer isn't signed yet. Choose **More info → Run anyway**.
+
+You'll need Windows 10 or 11 and an NVIDIA graphics card.
+
+## A look inside
+
+| | |
+|:---:|:---:|
+| <img src="docs/screenshots/home.png" alt="Home" width="440"><br>Describe what you want to make | <img src="docs/screenshots/stories.png" alt="Stories" width="440"><br>Pick a story and play |
+| <img src="docs/screenshots/characters.png" alt="Character lock" width="440"><br>Lock a character once, reuse them everywhere | <img src="docs/screenshots/appearance.png" alt="Appearance settings" width="440"><br>Make it yours — themes and live wallpapers |
+
+---
+
+<sub>Building from source? See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).</sub>
