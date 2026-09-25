@@ -1,0 +1,75 @@
+# Builds the Windows installer and publishes a GitHub Release whenever a
+# version tag (v1.2.3) is pushed — `npm run release` does the bump, tag and push.
+# The installed app checks these releases (electron-updater) and offers to
+# restart into the new version.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)build, e.g. v0.1.0
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check the tag matches package.json
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if [ "v$v" != "$TAG" ]; then
+            echo "::error::package.json is $v but the tag is $TAG. Use 'npm run release' so they match."
+            exit 1
+          fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Draft the release with notes from the commits
+        shell: bash
+        run: |
+          prev=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)
+          range=${prev:+$prev..}$TAG
+          git log --no-merges --pretty='- %s' "$range" | grep -v -E '^- (Release )?v?[0-9]+\.[0-9]+\.[0-9]+$' > notes.md || true
+          [ -s notes.md ] || echo "- Maintenance release" > notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --draft=true --title "Stitch $VERSION" --notes-file notes.md
+          else
+            gh release create "$TAG" --draft --title "Stitch $VERSION" --notes-file notes.md
+          fi
+
+      - name: Build installer and upload to the draft
+        run: npm run dist:publish
+
+      - name: Publish the release
+        shell: bash
+        run: gh release edit "$TAG" --draft=false --latest

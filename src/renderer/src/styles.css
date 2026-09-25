@@ -1,0 +1,401 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
+@import '@fontsource/ibm-plex-serif/400.css';
+@import '@fontsource/ibm-plex-serif/500.css';
+@import '@fontsource/ibm-plex-serif/600.css';
+@import '@fontsource/ibm-plex-serif/400-italic.css';
+
+/* Registered colour tokens so accent changes glide instead of snapping. */
+@property --accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f08a6c;
+}
+@property --accent-2 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #8c84e6;
+}
+@property --tint {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #1b1830;
+}
+
+/* ── Design tokens ───────────────────────────────────────────────────────────
+   Accent colours are written at runtime from the theme (sunset palette or a
+   colour picked from the user's wallpaper). Everything else derives from them. */
+:root {
+  --accent: #f08a6c;
+  --accent-2: #8c84e6;
+  --accent-fg: #140f1c;
+  --tint: #1b1830;
+
+  --sunset-1: #6d65b8;
+  --sunset-2: #8f78b2;
+  --sunset-3: #ad849d;
+  --sunset-4: #cc7b62;
+  --sunset-5: #c85d56;
+  --sunset-6: #aa3b51;
+  --sunset-7: #8e3452;
+  --sunset-8: #312b47;
+
+  --bg: #07060b;
+  --bg-raised: #0d0b13;
+  --panel: rgb(17 15 25 / 0.72);
+  --panel-strong: rgb(14 12 21 / 0.86);
+  --glass-blur: 22px;
+  --panel-solid: #110f18;
+  --panel-hi: rgb(255 255 255 / 0.035);
+  --panel-hover: rgb(255 255 255 / 0.06);
+  --line: rgb(255 255 255 / 0.075);
+  --line-strong: rgb(255 255 255 / 0.13);
+  --fg: #eeebf5;
+  --fg-2: #aaa4b9;
+  --fg-3: #6d687c;
+  --danger: #f06f7e;
+  --success: #6fd4a4;
+  --warning: #f2c36b;
+
+  --grad: linear-gradient(120deg, var(--accent-2) 0%, color-mix(in oklab, var(--accent-2) 45%, var(--accent)) 50%, var(--accent) 100%);
+  --grad-soft: linear-gradient(120deg, color-mix(in oklab, var(--accent-2) 22%, transparent), color-mix(in oklab, var(--accent) 22%, transparent));
+  --ring: 0 0 0 1px color-mix(in oklab, var(--accent) 55%, transparent), 0 0 0 4px color-mix(in oklab, var(--accent) 16%, transparent);
+  --shadow-pop: 0 24px 60px -12px rgb(0 0 0 / 0.65), 0 0 0 1px var(--line);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --titlebar: 40px;
+  transition:
+    --accent 1.6s cubic-bezier(0.22, 1, 0.36, 1),
+    --accent-2 1.6s cubic-bezier(0.22, 1, 0.36, 1),
+    --tint 1.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-raised: var(--bg-raised);
+  --color-panel: var(--panel);
+  --color-solid: var(--panel-solid);
+  --color-hi: var(--panel-hi);
+  --color-hover: var(--panel-hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-fg: var(--accent-fg);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-sunset-1: var(--sunset-1);
+  --color-sunset-2: var(--sunset-2);
+  --color-sunset-3: var(--sunset-3);
+  --color-sunset-4: var(--sunset-4);
+  --color-sunset-5: var(--sunset-5);
+  --color-sunset-6: var(--sunset-6);
+  --color-sunset-7: var(--sunset-7);
+  --color-sunset-8: var(--sunset-8);
+
+  --font-sans: 'Inter Variable', 'Segoe UI Variable Text', system-ui, sans-serif;
+  --font-serif: 'IBM Plex Serif', Georgia, serif;
+  --font-mono: 'JetBrains Mono Variable', 'Cascadia Code', monospace;
+
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
+  --radius-3xl: 24px;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    color-scheme: dark;
+    background: var(--bg);
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--fg);
+    background: var(--bg);
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    user-select: none;
+  }
+  input,
+  textarea,
+  [contenteditable='true'],
+  .selectable {
+    user-select: text;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--accent) 38%, transparent);
+    color: #fff;
+  }
+  button {
+    cursor: default;
+  }
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--ring);
+  }
+  img,
+  video {
+    -webkit-user-drag: none;
+  }
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.12) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.1);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(255 255 255 / 0.2);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Utilities ──────────────────────────────────────────────────────────── */
+@utility drag {
+  -webkit-app-region: drag;
+}
+@utility no-drag {
+  -webkit-app-region: no-drag;
+}
+@utility glass {
+  background: var(--panel);
+  backdrop-filter: blur(var(--glass-blur, 22px)) saturate(150%);
+  border: 1px solid var(--line);
+}
+@utility glass-strong {
+  background: var(--panel-strong, rgb(14 12 21 / 0.86));
+  backdrop-filter: blur(calc(var(--glass-blur, 22px) + 8px)) saturate(155%);
+  border: 1px solid var(--line-strong);
+}
+@utility text-grad {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility bg-grad {
+  background: var(--grad);
+}
+@utility bg-grad-soft {
+  background: var(--grad-soft);
+}
+@utility hairline {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+@utility label-caps {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+@utility display {
+  font-weight: 650;
+  letter-spacing: -0.028em;
+  line-height: 1.08;
+}
+@utility scroll-fade {
+  mask-image: linear-gradient(to bottom, transparent 0, black 18px, black calc(100% - 18px), transparent 100%);
+}
+
+/* Subtle film grain over the whole app, like the reference. */
+.grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* Animated gradient border used on focused prompt boxes and active cards. */
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.glow-border {
+  position: relative;
+}
+.glow-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--angle), transparent 0deg, var(--accent-2) 70deg, var(--accent) 140deg, transparent 220deg);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s var(--ease-out);
+  animation: spin-angle 5s linear infinite;
+  pointer-events: none;
+}
+.glow-border[data-active='true']::before,
+.glow-border:focus-within::before {
+  opacity: 1;
+}
+@keyframes spin-angle {
+  to {
+    --angle: 360deg;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.shimmer {
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.03) 25%, rgb(255 255 255 / 0.08) 50%, rgb(255 255 255 / 0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Markdown in chat replies ───────────────────────────────────────────── */
+.prose-stitch {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--fg);
+}
+.prose-stitch > * + * {
+  margin-top: 0.7em;
+}
+.prose-stitch h1,
+.prose-stitch h2,
+.prose-stitch h3 {
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  margin-top: 1.1em;
+}
+.prose-stitch h1 {
+  font-size: 1.35em;
+}
+.prose-stitch h2 {
+  font-size: 1.18em;
+}
+.prose-stitch h3 {
+  font-size: 1.05em;
+}
+.prose-stitch ul,
+.prose-stitch ol {
+  padding-left: 1.3em;
+}
+.prose-stitch ul {
+  list-style: disc;
+}
+.prose-stitch ol {
+  list-style: decimal;
+}
+.prose-stitch li + li {
+  margin-top: 0.25em;
+}
+.prose-stitch li::marker {
+  color: var(--fg-3);
+}
+.prose-stitch strong {
+  font-weight: 650;
+}
+.prose-stitch a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.prose-stitch code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  padding: 0.12em 0.4em;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.07);
+  border: 1px solid var(--line);
+}
+.prose-stitch pre {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.35);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+}
+.prose-stitch pre code {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.prose-stitch blockquote {
+  border-left: 2px solid color-mix(in oklab, var(--accent) 60%, transparent);
+  padding-left: 12px;
+  color: var(--fg-2);
+}
+.prose-stitch table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.prose-stitch th,
+.prose-stitch td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+}
+.prose-stitch hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ── Wallpaper backgrounds ─────────────────────────────────────────────── */
+[data-bg='media'] {
+  --fg-2: #bdb7cb;
+  --fg-3: #8d879d;
+}
+[data-bg='media'] .sidebar-scrim {
+  background: linear-gradient(90deg, rgb(8 7 13 / 0.62), rgb(8 7 13 / 0.38));
+  backdrop-filter: blur(calc(var(--glass-blur, 16px) * 0.75)) saturate(140%);
+  border-right: 1px solid var(--line);
+}

@@ -1,0 +1,143 @@
+{
+  "name": "stitch",
+  "productName": "Stitch",
+  "version": "0.1.0",
+  "description": "Local AI studio and story engine — consistent characters, scenes, video, audio and voices for interactive adventures.",
+  "main": "./out/main/index.js",
+  "author": "Darker117",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "dist": "electron-vite build && electron-builder --win --x64",
+    "postinstall": "install-electron",
+    "icons": "node scripts/make-icons.mjs",
+    "dist:publish": "electron-vite build && electron-builder --win --x64 --publish always",
+    "release": "npm version patch -m \"Release v%s\" && git push --follow-tags",
+    "release:minor": "npm version minor -m \"Release v%s\" && git push --follow-tags",
+    "release:major": "npm version major -m \"Release v%s\" && git push --follow-tags"
+  },
+  "devDependencies": {
+    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@fontsource/ibm-plex-serif": "^5.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "clsx": "^2.1.1",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "lucide-react": "^1.48.0",
+    "motion": "^13.4.3",
+    "png-to-ico": "^3.0.2",
+    "radix-ui": "^1.6.7",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-markdown": "^10.1.0",
+    "react-router": "^7.18.4",
+    "remark-gfm": "^4.0.1",
+    "sharp": "^0.35.4",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "zustand": "^5.0.15"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "nanoid": "^6.0.1"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "electron-winstaller@5.4.0": true
+  },
+  "build": {
+    "appId": "com.stitch.studio",
+    "productName": "Stitch",
+    "copyright": "Stitch",
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "resources/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "resources/voice-server",
+        "to": "voice-server",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!.venv/**"
+        ]
+      }
+    ],
+    "asar": true,
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico",
+      "artifactName": "Stitch-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Stitch",
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "installerHeaderIcon": "resources/icon.ico",
+      "installerSidebar": "resources/installer-sidebar.bmp",
+      "uninstallerSidebar": "resources/uninstaller-sidebar.bmp",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "uninstallDisplayName": "Stitch",
+      "include": "resources/installer.nsh",
+      "installerHeader": "resources/installer-header.bmp",
+      "menuCategory": false,
+      "warningsAsErrors": true
+    },
+    "electronDist": "node_modules/electron/dist",
+    "electronVersion": "44.4.5",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Darker117",
+        "repo": "stitch",
+        "releaseType": "draft"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Darker117/stitch.git"
+  },
+  "homepage": "https://github.com/Darker117/stitch"
+}
