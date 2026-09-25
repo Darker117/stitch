@@ -47,3 +47,9 @@ npm run release          # 0.1.0 → 0.1.1 (release:minor / release:major for bi
 That bumps the version, tags it and pushes. GitHub Actions (`.github/workflows/release.yml`) then typechecks, builds the installer, drafts a release with notes from your commit messages, uploads the installer + `latest.yml`, and publishes it. Every installed copy picks it up on its next check.
 
 To rebuild a release that failed, run the **Release** workflow manually from the Actions tab with the tag name.
+
+**No GitHub Actions?** (e.g. the account's Actions are paused) — publish from your PC instead, right after `npm run release`:
+```bash
+npm run publish:local    # drafts the release, builds + uploads the installer, publishes it
+```
+It needs the GitHub CLI signed in (`gh auth login`).

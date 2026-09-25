@@ -17,7 +17,8 @@
     "dist:publish": "electron-vite build && electron-builder --win --x64 --publish always",
     "release": "npm version patch -m \"Release v%s\" && git push --follow-tags",
     "release:minor": "npm version minor -m \"Release v%s\" && git push --follow-tags",
-    "release:major": "npm version major -m \"Release v%s\" && git push --follow-tags"
+    "release:major": "npm version major -m \"Release v%s\" && git push --follow-tags",
+    "publish:local": "node scripts/publish-local.mjs"
   },
   "devDependencies": {
     "@fontsource-variable/archivo": "^5.3.0",
