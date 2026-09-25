@@ -1,5 +1,6 @@
 // Play controller: turns, streaming, retry/alternates, undo/redo, edits and
-// per-turn media (See / Animate / Narrate).
+// per-turn media (See / Animate / Narrate). Story scripts' Input hook runs
+// before a player action is added, their Output hook before a reply is saved.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { nanoid } from 'nanoid'
 import type { ActionType, Adventure, GenJob, StoryAction } from '@shared/types'
@@ -12,6 +13,7 @@ import type { ContextResult } from '../engine/context'
 import { animateAction, narrateAction, seeAction } from '../engine/media'
 import { runTurn, upkeep, type TurnHandle } from '../engine/turn'
 import { cleanOutput, isAiAction } from '../engine/text'
+import { prepareScripts, runInputScripts, runOutputScripts, ScriptStopError } from '../engine/scripts/play'
 
 export type TurnMode = 'do' | 'say' | 'story' | 'see'
 
@@ -92,6 +94,12 @@ export function usePlay(advId: string | undefined, flush: () => Promise<void>): 
   const mounted = useRef(true)
   const initFresh = useRef(false)
   const running = useRef(false)
+  const [scripting, setScripting] = useState(false)
+
+  // Warm the script sandbox when the adventure has scripts.
+  useEffect(() => {
+    if (advId) prepareScripts(latest(advId))
+  }, [advId])
 
   // Highlight the newest AI passage from the previous session too.
   useEffect(() => {
@@ -270,6 +278,8 @@ export function usePlay(advId: string | undefined, flush: () => Promise<void>): 
       } catch (err) {
         if (stopped.current && partial.current.trim()) {
           text = cleanOutput(partial.current, { raw: adv.settings.rawOutput }) || partial.current.trim()
+        } else if (err instanceof ScriptStopError) {
+          toast.info('A script stopped this turn', err.message)
         } else if (!stopped.current && mounted.current) {
           toast.error('The story model failed', errorText(err))
         }
@@ -278,6 +288,8 @@ export function usePlay(advId: string | undefined, flush: () => Promise<void>): 
       }
       if (!mounted.current) return
       if (text === null && stopped.current && partial.current.trim()) text = partial.current.trim()
+      // Output hook: scripts may rewrite (or swallow) the reply before it is kept.
+      if (text) text = (await runOutputScripts(advId, history, text)).trim()
       if (text) {
         const final = text
         await db.update('adventures', advId, (cur) => {
@@ -340,11 +352,31 @@ export function usePlay(advId: string | undefined, flush: () => Promise<void>): 
         await generate()
         return
       }
-      await append(makeAction(mode as ActionType, text))
+      let type = mode as ActionType
+      let body = text
+      // Input hook: scripts may rewrite the action, or stop the turn.
+      running.current = true
+      setScripting(true)
+      try {
+        await flush()
+        const res = await runInputScripts(advId, type, body)
+        if (res?.stop) {
+          if (!res.messaged) toast.info('A script stopped this turn')
+          return
+        }
+        if (res) {
+          type = res.type
+          body = res.text
+        }
+      } finally {
+        running.current = false
+        if (mounted.current) setScripting(false)
+      }
+      if (body.trim()) await append(makeAction(type, body))
       setFreshId(undefined)
       await generate()
     },
-    [advId, append, generate, see]
+    [advId, append, generate, see, flush]
   )
 
   const continueStory = useCallback(async () => {
@@ -431,7 +463,7 @@ export function usePlay(advId: string | undefined, flush: () => Promise<void>): 
 
   return {
     streaming,
-    busy: !!streaming,
+    busy: !!streaming || scripting,
     freshId,
     lastCtx,
     pending,

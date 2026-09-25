@@ -301,7 +301,7 @@ function CivitaiDetail({ initial, local }: { initial: CivitaiModel; local: Local
   const autoFolder = folderForCivitai(model.type, version?.baseModel, file?.type)
   const kind = kindForCivitaiType(model.type)
   const installed = local.find((m) => m.meta?.versionId === version?.id)
-  const active = Object.values(downloads).find((d) => d.versionId === version?.id && d.status === 'downloading')
+  const active = Object.values(downloads).find((d) => d.versionId === version?.id && (d.status === 'downloading' || d.status === 'queued'))
   const lastDone = Object.values(downloads)
     .filter((d) => d.versionId === version?.id && d.status === 'error')
     .sort((a, b) => b.startedAt - a.startedAt)[0]

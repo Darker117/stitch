@@ -24,6 +24,7 @@ Local-first desktop studio: Higgsfield-style image/video/audio/voice generation 
   - `components/media.tsx` — AssetThumb, AssetLightbox, AssetPicker, DropZone, MediaSlot, MediaList, `importFiles`, `pickAndImport`.
   - `components/shell/*` — Background, Sidebar, JobTray, Toaster, CommandPalette, `page.tsx` (Page, PageHeader, Hero).
   - `features/<area>/` — one folder per section; routes live in `App.tsx`.
+  - `features/stories/engine/scripts/` — AI Dungeon-compatible story scripts: `sandbox.worker.ts` (fresh hardened worker per hook run, 1.5 s timeout), `runtime.ts` (AID globals ⇄ adventure cards/actions/`scriptState`), `play.ts` (Input/Context/Output hooks used by `usePlay`/`turn.ts`), `builtin/` (bundled MIT scripts with their LICENSE), `api.ts` (stable entry points + `AID_SCRIPTING_GUIDE` for other features). UI in `features/stories/components/scripts/`.
 
 ## Conventions
 - Every IPC channel is declared in `src/shared/ipc.ts` (`IpcInvoke` / `IpcEvents`) and registered with `handle()` in main. Add channels with a small targeted edit; never rewrite the file.

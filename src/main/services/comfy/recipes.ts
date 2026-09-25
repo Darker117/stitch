@@ -10,6 +10,8 @@ export interface Requirement {
   name?: string
   /** …or any file matching this pattern. */
   match?: RegExp
+  /** Catch-all (e.g. "any SDXL checkpoint"): only counts as a use when no more specific recipe claims the file. */
+  anyFile?: boolean
   optional?: boolean
 }
 
@@ -42,16 +44,51 @@ const seedOf = (v: unknown): number => {
 }
 
 /** Choose a model file: the explicit param, else the first file matching preferences. */
+/** Model files Civitai flags as NSFW. Automatic picks avoid them when anything else fits. */
+let flagged = new Set<string>()
+const baseName = (m: string): string => m.split(/[\\/]/).pop()!.toLowerCase()
+
+export function setFlaggedModels(names: Iterable<string>): void {
+  flagged = new Set([...names].map(baseName))
+}
+
+export function isFlaggedModel(name: string): boolean {
+  return flagged.has(baseName(name))
+}
+
+/**
+ * The file a recipe loads: the user's explicit choice, else the official
+ * default when it's installed, else the first pattern match — preferring
+ * files that aren't flagged NSFW.
+ */
 function pick(models: Models, folder: string, explicit: unknown, prefer: RegExp[], fallback: string): string {
   const available = models[folder] ?? []
   const e = str(explicit)
   if (e && (available.includes(e) || !available.length)) return e
-  for (const re of prefer) {
-    const hit = available.find((m) => re.test(m))
-    if (hit) return hit
+  if (fallback && available.includes(fallback)) return fallback
+  for (const safeOnly of [true, false]) {
+    for (const re of prefer) {
+      const hit = available.find((m) => re.test(m) && (!safeOnly || !isFlaggedModel(m)))
+      if (hit) return hit
+    }
   }
   return fallback
 }
+
+/** Would this recipe's automatic model pick land on an NSFW-flagged file? */
+export function autoPickFlagged(r: RecipeDef, models: Models): boolean {
+  if (!flagged.size) return false
+  try {
+    const defaults: Params = Object.fromEntries(r.params.filter((p) => p.default !== undefined).map((p) => [p.key, p.default]))
+    const g = r.build({ ...defaults, prompt: 'test' }, models)
+    return Object.values(g.nodes).some((n) => ['unet_name', 'ckpt_name'].some((k) => typeof n.inputs[k] === 'string' && isFlaggedModel(n.inputs[k] as string)))
+  } catch {
+    return false
+  }
+}
+
+/** Checkpoints that aren't audio models (Stable Audio, YuE, ACE-Step all ship as "checkpoints" too). */
+const NOT_AUDIO_CKPT = /^(?!.*(stable_audio|yue|ace_?step|audio)).+$/i
 
 const ASPECT_OPTIONS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '21:9'].map((v) => ({ value: v, label: v }))
 
@@ -401,10 +438,10 @@ const sdxl: RecipeDef = {
     { key: 'sampler', label: 'Sampler', type: 'select', default: 'euler_ancestral', advanced: true, options: ['euler_ancestral', 'euler', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_sde'].map((v) => ({ value: v, label: v })) },
     P.seed()
   ],
-  requires: [{ folder: 'checkpoints', label: 'SDXL checkpoint', match: /./ }],
+  requires: [{ folder: 'checkpoints', label: 'SDXL checkpoint', match: NOT_AUDIO_CKPT, anyFile: true }],
   build(p, m) {
     const g = new Graph()
-    const ck = g.add('CheckpointLoaderSimple', { ckpt_name: pick(m, 'checkpoints', p.model, [/illustrious/i, /./], '') })
+    const ck = g.add('CheckpointLoaderSimple', { ckpt_name: pick(m, 'checkpoints', p.model, [/illustrious/i, NOT_AUDIO_CKPT], '') })
     let model: [string, number] = out(ck, 0)
     let clip: [string, number] = out(ck, 1)
     // SDXL LoRAs patch the text encoder too.
@@ -666,7 +703,59 @@ const stableAudio: RecipeDef = {
   }
 }
 
-export const RECIPES: RecipeDef[] = [krea2, klein, qwenT2i, qwenEdit, kontext, anima, sdxl, h3Fast, h3Ref, aceStep, stableAudio]
+/**
+ * YuE2 (multimodal-art-projection, Sept 2026) through ComfyUI's native nodes
+ * (comfy_extras/nodes_yue2.py, ComfyUI ≥ 0.36). Mirrors the official
+ * "YuE2: Text to Music" template: optional ABC planning → music conditioning
+ * → 32-step dpm_2 render → audio VAE, all from one checkpoint.
+ */
+const yue2: RecipeDef = {
+  id: 'yue2-music',
+  name: 'YuE2 Songs',
+  kind: 'audio',
+  mode: 'text',
+  family: 'YuE',
+  baseModelMatch: 'yue',
+  description: 'Complete songs with sung vocals from your lyrics and a style description. Plans melody and chords first, up to 6 minutes.',
+  estSeconds: 300,
+  params: [
+    { key: 'prompt', label: 'Style & genre', type: 'prompt', required: true, help: 'Genre, mood, instruments, vocal type, language and BPM — e.g. “English, warm piano pop, expressive female vocals, 88 BPM”' },
+    { key: 'lyrics', label: 'Lyrics', type: 'text', default: '', help: 'Tag sections with [Verse], [Chorus], [Bridge]… The song follows the lyrics’ structure and length.' },
+    { key: 'duration', label: 'Max length (s)', type: 'number', default: 180, min: 20, max: 360, step: 10, help: 'An upper limit — the song ends when the lyrics do.' },
+    { key: 'plan', label: 'Plan melody & chords first', type: 'bool', default: true, advanced: true, help: 'Writes an ABC score before rendering: better structure, a little slower.' },
+    { key: 'mode', label: 'Planning', type: 'select', default: 'full', advanced: true, options: [{ value: 'full', label: 'Melody + chords' }, { value: 'melody', label: 'Melody only' }] },
+    P.steps(32, 80),
+    P.seed()
+  ],
+  requires: [{ folder: 'checkpoints', label: 'YuE2 checkpoint', match: /yue2/i }],
+  build(p, m) {
+    const g = new Graph()
+    const ck = g.add('CheckpointLoaderSimple', { ckpt_name: pick(m, 'checkpoints', undefined, [/yue2.*bf16/i, /yue2/i], 'yue2_3b_int8_convrot.safetensors') })
+    const seed = seedOf(p.seed)
+    const style = str(p.prompt)
+    const lyrics = str(p.lyrics)
+    const mode = str(p.mode, 'full') === 'melody' ? 'melody' : 'full'
+    // No score → the music node switches to "off" mode on its own.
+    const abc: [string, number] | string =
+      p.plan === false
+        ? ''
+        : out(g.add('YuE2GenerateABC', { clip: out(ck, 1), style, lyrics, seed, mode, max_abc_tokens: 8192, temperature: 0.7, top_p: 0.9, top_k: 30, repetition_penalty: 1.005, penalty_window: 100 }))
+    const music = g.add('YuE2GenerateMusic', {
+      clip: out(ck, 1), style, lyrics, abc, seed, mode, max_duration: num(p.duration, 180), temperature: 1, top_p: 0.95, top_k: 100, repetition_penalty: 1.2
+    })
+    const neg = g.add('ConditioningZeroOut', { conditioning: out(music, 0) })
+    const latent = g.add('EmptyYuE2LatentAudio', { seconds: out(music, 1), batch_size: 1 })
+    const s = g.add('KSampler', {
+      model: out(ck, 0), positive: out(music, 0), negative: out(neg), latent_image: out(latent),
+      seed, steps: num(p.steps, 32), cfg: 1, sampler_name: 'dpm_2', scheduler: 'sgm_uniform', denoise: 1
+    })
+    const audio = g.add('VAEDecodeAudio', { samples: out(s), vae: out(ck, 2) })
+    g.add('SaveAudioMP3', { audio: out(audio), filename_prefix: 'stitch/song', quality: 'V0' })
+    return g
+  }
+}
+
+export const RECIPES: RecipeDef[] = [krea2, klein, qwenT2i, qwenEdit, kontext, anima, sdxl, h3Fast, h3Ref, aceStep, yue2, stableAudio]
 
 export function recipeById(id: string): RecipeDef | undefined {
   return RECIPES.find((r) => r.id === id)

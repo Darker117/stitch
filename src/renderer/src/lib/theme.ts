@@ -24,6 +24,19 @@ export function applyTheme(t: ThemeSettings): void {
   document.documentElement.dataset.bg = media ? 'media' : 'plain'
 }
 
+/**
+ * Decorative art is drawn in the sunset palette. Map one of those colours onto
+ * the live accents (warm → accent, cool → accent-2, dark → the tinted panel),
+ * keeping its lightness, so art follows the theme and wallpaper accents.
+ */
+export function themedHue(hex: string): string {
+  const { h, s, l } = rgbToHsl(hexToRgb(hex))
+  if (l < 0.3 || s < 0.12) return 'color-mix(in oklab, var(--accent-2) 16%, var(--panel-solid))'
+  const token = h < 50 || h > 290 ? 'var(--accent)' : 'var(--accent-2)'
+  const dark = Math.round(Math.max(0, Math.min(55, (0.62 - l) * 120)))
+  return `color-mix(in oklab, ${token}, black ${dark}%)`
+}
+
 /** Wallpapers get airier glass by default so they read through the UI. */
 export function glassFor(t: ThemeSettings): number {
   if (typeof t.glass === 'number' && t.glass >= 0) return t.glass

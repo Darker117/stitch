@@ -55,6 +55,8 @@ export interface AppSettings {
   gpu: GpuSettings
   /** Optional models folder the user picked. Scanned by Stitch and handed to ComfyUI. */
   modelsDir?: string
+  /** More model folders the user installed into (Download → "Choose folder"). Scanned and handed to ComfyUI too. */
+  extraModelDirs?: string[]
   /** Path to a ComfyUI install (auto-detected from Stability Matrix). */
   comfyDir?: string
   /** Launch managed ComfyUI instances when Stitch starts. */
@@ -65,6 +67,8 @@ export interface AppSettings {
   defaultLlm?: { connectorId: ID; model: string }
   defaultVoice?: { connectorId: ID }
   userName: string
+  /** The player's persona: used as the default player in stories and shown in the sidebar. */
+  persona?: { personality?: string; avatarAssetId?: ID }
   onboardingDone: boolean
   /** Civitai browsing preferences (the API key itself lives in encrypted secrets under id "civitai"). */
   civitai: { hideNsfw: boolean }
@@ -104,7 +108,7 @@ export type LlmKind =
   | 'gemini'
   | 'openai-compatible'
 
-export type VoiceKind = 'local-qwen' | 'elevenlabs' | 'openai-tts' | 'azure'
+export type VoiceKind = 'local-qwen' | 'local-kokoro' | 'local-pocket' | 'elevenlabs' | 'openai-tts' | 'azure'
 
 export type ConnectorCategory = 'llm' | 'comfy' | 'voice'
 
@@ -178,8 +182,8 @@ export interface Asset {
   characterIds?: ID[]
   tags?: string[]
   favorite?: boolean
-  /** Where it was made from, e.g. an adventure turn. */
-  origin?: { type: 'adventure' | 'character' | 'chat' | 'studio' | 'timeline'; id: ID; sub?: ID }
+  /** Where it was made from, e.g. an adventure turn. `sub: 'cover'` on a scenario/adventure sets its cover. */
+  origin?: { type: 'adventure' | 'scenario' | 'character' | 'chat' | 'studio' | 'timeline'; id: ID; sub?: ID }
 }
 
 // ─── Generation ──────────────────────────────────────────────────────────────
@@ -243,6 +247,8 @@ export interface RecipeInfo {
   builtin: boolean
   /** Regex (source) matched against Civitai base-model names to filter compatible models/LoRAs. */
   baseModelMatch?: string
+  /** Its automatic model pick is a file Civitai flags NSFW (only NSFW finetunes of this family are installed). */
+  autoNsfw?: boolean
 }
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'error' | 'canceled'
@@ -401,8 +407,43 @@ export interface Scenario {
   creatorFields: CreatorField[]
   plot: PlotComponents
   cards: StoryCard[]
-  contentRating: 'everyone' | 'teen' | 'mature' | 'unrated'
+  /** Legacy — no longer edited; kept so older scenarios still load. */
+  contentRating?: 'everyone' | 'teen' | 'mature' | 'unrated'
   template?: string
+  /** Master switch for this scenario's scripts (Details → Scripts Enabled). */
+  scriptsEnabled?: boolean
+  /** Scripts attached to this scenario, in run order (top runs first). */
+  scripts?: ScriptRef[]
+}
+
+// ─── Story scripts (AI Dungeon-compatible) ───────────────────────────────────
+
+/**
+ * A reusable script in the AI Dungeon format: a shared Library plus Input,
+ * Context and Output modifiers, each plain JavaScript using the
+ * `const modifier = (text) => ({ text }); modifier(text)` pattern and the
+ * AID globals (state, info, history, storyCards, addStoryCard, log, stop…).
+ */
+export interface StoryScript {
+  id: ID
+  name: string
+  author?: string
+  description?: string
+  /** 'builtin' ships with Stitch, 'import' came from a file/URL, 'user' was written here or by the composer. */
+  source: 'builtin' | 'import' | 'user'
+  sourceUrl?: string
+  license?: string
+  library: string
+  input: string
+  context: string
+  output: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ScriptRef {
+  scriptId: ID
+  enabled: boolean
 }
 
 export type ActionType = 'start' | 'do' | 'say' | 'story' | 'continue' | 'see'
@@ -483,9 +524,17 @@ export interface Adventure {
   memories: MemoryEntry[]
   /** Actions before this index are folded into plot.storySummary by auto summarization. */
   summaryUpTo?: number
-  player: { name: string; characterId?: ID; choices: Record<string, string> }
+  /** `persona` is the profile personality, kept only while the player plays as themselves. */
+  player: { name: string; characterId?: ID; persona?: string; choices: Record<string, string> }
   settings: AdventureSettings
-  contentRating: Scenario['contentRating']
+  contentRating?: Scenario['contentRating']
+  /**
+   * Scripts for this adventure, in run order. Entries with `fromScenario` were
+   * copied from the scenario: they can be disabled here but not removed.
+   */
+  scripts?: (ScriptRef & { fromScenario?: boolean })[]
+  /** The AID `state` object scripts share across turns (persisted per adventure). */
+  scriptState?: Record<string, unknown>
   /** Last full context sent to the model — for "Inspect input". */
   lastInput?: { system: string; messages: { role: string; content: string }[]; tokens: number; droppedCards: number }
 }
@@ -730,10 +779,135 @@ export interface DownloadState {
   folder: string
   received: number
   total: number
-  status: 'downloading' | 'done' | 'error' | 'canceled'
+  status: 'queued' | 'downloading' | 'done' | 'error' | 'canceled'
   error?: string
   path?: string
   startedAt: number
+  /** Where the file comes from. */
+  source?: 'civitai' | 'huggingface'
+  /** Install batch (recipe or catalog entry id) this file belongs to. */
+  group?: string
+  /** Transient detail, e.g. "Resuming…" or "Verifying checksum…". */
+  note?: string
+}
+
+// ─── Model catalog, installs & manager ───────────────────────────────────────
+
+/** One downloadable file from the curated catalog (Hugging Face). */
+export interface CatalogFile {
+  /** Model folder key: a ComfyUI folder (diffusion_models, vae…) or a Stitch runtime folder ('yue'). */
+  folder: string
+  /** Name as the loader references it (relative to the folder, forward slashes). */
+  name: string
+  /** Hugging Face repo id. */
+  repo: string
+  /** Path inside the repo. */
+  path: string
+  revision?: string
+  size: number
+  sha256?: string
+  /** Needs a Hugging Face token whose account accepted the licence. */
+  gated?: boolean
+}
+
+export interface CatalogEntry {
+  id: string
+  name: string
+  description: string
+  /** Recipes this download makes runnable. */
+  recipes: string[]
+  files: CatalogFile[]
+  license?: string
+  /** Model page. */
+  url?: string
+}
+
+export interface ModelsHome {
+  /** Default base folder for downloads. */
+  path: string
+  layout: 'stability-matrix' | 'comfyui'
+  source: 'settings' | 'stability-matrix' | 'app'
+  /** A ComfyUI you run yourself sees this folder without extra setup. */
+  externalComfySees: boolean
+}
+
+export interface InstallPlanFile extends CatalogFile {
+  /** Requirement label, e.g. "ACE 1.5 VAE". */
+  label: string
+  /** installed = ComfyUI sees it · hidden = on disk but ComfyUI doesn't list it yet. */
+  status: 'installed' | 'hidden' | 'missing' | 'queued' | 'downloading'
+  /** Where it will be saved on disk. */
+  dest?: string
+  downloadId?: string
+}
+
+export interface InstallPlan {
+  recipeId: string
+  /** Catalog entry the files come from (the recipe's default unless one was asked for). */
+  entryId?: string
+  /** Every catalog entry that can make this recipe runnable (default first). */
+  alternatives: { id: string; name: string; description: string; bytes: number }[]
+  files: InstallPlanFile[]
+  /** Bytes still to download. */
+  bytes: number
+  /** Missing requirements the catalog has no source for. */
+  unknown: string[]
+  gated: boolean
+  hasHfToken: boolean
+  home: ModelsHome
+}
+
+export interface InstallRequest {
+  recipeId?: string
+  entryId?: string
+  /** Base models folder to install into; omitted = the default models path. */
+  dest?: string
+}
+
+export type ModelLocationKind = 'settings' | 'stability-matrix' | 'comfyui' | 'comfy-extra' | 'app' | 'extra' | 'voice'
+
+export interface ModelLocation {
+  id: string
+  kind: ModelLocationKind
+  label: string
+  path: string
+  exists: boolean
+  /** New downloads go here by default. */
+  isDefault: boolean
+  /** Bytes of model files Stitch found here. */
+  bytes: number
+  files: number
+  /** Free / total bytes on the drive. */
+  free?: number
+  total?: number
+  /** Stitch added it (Download → Choose folder) and can forget it. */
+  removable: boolean
+}
+
+export interface ModelUse {
+  id: string
+  name: string
+}
+
+export interface ManagedModel {
+  path: string
+  locationId: string
+  folder: string
+  /** Name as loaders reference it. */
+  name: string
+  kind: ModelKind
+  size: number
+  /** An interrupted download (`.part`) — resumable, or remove it to free the space. */
+  partial?: boolean
+  usedBy: ModelUse[]
+  catalogId?: string
+  meta?: ModelMeta
+}
+
+export interface ModelInventory {
+  locations: ModelLocation[]
+  models: ManagedModel[]
+  scannedAt: number
 }
 
 // ─── Misc ────────────────────────────────────────────────────────────────────
@@ -749,6 +923,7 @@ export type CollectionName =
   | 'skills'
   | 'timelines'
   | 'jobs'
+  | 'scripts'
 
 export interface CollectionMap {
   connectors: Connector
@@ -761,6 +936,7 @@ export interface CollectionMap {
   skills: SkillDoc
   timelines: Timeline
   jobs: GenJob
+  scripts: StoryScript
 }
 
 export interface DbChange {

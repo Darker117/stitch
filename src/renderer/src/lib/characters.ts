@@ -43,11 +43,14 @@ export function slotsFor(detail: Character['sheetDetail']): SlotDef[] {
 
 /** Edit recipe used for sheets & scenes: Qwen 2.1 Edit, else Flux 2 Klein. */
 export function pickEditRecipe(recipes: RecipeInfo[] = useGen.getState().recipes): RecipeInfo | undefined {
-  return recipes.find((r) => r.id === 'qwen21-edit' && r.available) ?? recipes.find((r) => r.id === 'flux2-klein' && r.available)
+  const ok = (r: RecipeInfo): boolean => !!r.available && !r.autoNsfw
+  return recipes.find((r) => r.id === 'qwen21-edit' && ok(r)) ?? recipes.find((r) => r.id === 'flux2-klein' && ok(r)) ?? recipes.find((r) => r.id === 'qwen21-edit' && r.available) ?? recipes.find((r) => r.id === 'flux2-klein' && r.available)
 }
 
 export function pickTextImageRecipe(recipes: RecipeInfo[] = useGen.getState().recipes): RecipeInfo | undefined {
-  return ['krea2-t2i', 'flux2-klein', 'qwen21-t2i', 'anima-t2i', 'sdxl-checkpoint'].map((id) => recipes.find((r) => r.id === id && r.available)).find(Boolean)
+  // Automatic picks skip recipes whose only installed models are NSFW finetunes, unless nothing else is available.
+  const order = ['krea2-t2i', 'flux2-klein', 'qwen21-t2i', 'anima-t2i', 'sdxl-checkpoint']
+  return order.map((id) => recipes.find((r) => r.id === id && r.available && !r.autoNsfw)).find(Boolean) ?? order.map((id) => recipes.find((r) => r.id === id && r.available)).find(Boolean)
 }
 
 /** Best identity references for a character, most useful first. */

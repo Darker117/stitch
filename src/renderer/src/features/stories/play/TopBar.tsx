@@ -11,7 +11,8 @@ import { Avatar } from '@/components/ui/misc'
 import { cn, pluralize } from '@/lib/utils'
 import { ease } from '@/lib/motion'
 import { modelLabel, type LlmChoice } from '@/lib/llm'
-import { CoverArt, FlameMark } from '../components/art'
+import { LogoMark } from '@/components/shell/logo'
+import { CoverArt } from '../components/art'
 import { CharacterLinkPicker } from '../components/cards'
 import { useCharacterFace } from '../hooks'
 import { ModelChooser } from './ModelChooser'
@@ -115,7 +116,7 @@ export function TopBar({
           trigger={
             <button className="group flex h-9 max-w-[360px] items-center gap-2.5 rounded-xl border border-line bg-[var(--panel)] pr-3.5 pl-1 backdrop-blur-xl transition hover:border-line-strong">
               <span className="grid size-7 place-items-center rounded-lg bg-[color-mix(in_oklab,var(--fg)_7%,transparent)] transition-transform duration-300 group-hover:scale-105">
-                <FlameMark size={18} />
+                <LogoMark size={19} />
               </span>
               <span className="truncate font-serif text-[14px] font-semibold" style={{ color: 'var(--st-text)' }}>
                 {adv.title || 'Untitled adventure'}

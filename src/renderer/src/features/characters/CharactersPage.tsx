@@ -25,7 +25,7 @@ const PREVIEW_SLOTS: SheetSlot[] = ['front', 'three-quarter-left', 'three-quarte
 export function SheetBoard({ images, className, animate = true }: { images?: Partial<Record<SheetSlot, string>>; className?: string; animate?: boolean }): React.JSX.Element {
   const [hi, setHi] = useState(4)
   return (
-    <div className={cn('rounded-2xl border border-line bg-[#0d0c12]/80 p-5', className)}>
+    <div className={cn('rounded-2xl border border-line bg-[color-mix(in_oklab,var(--panel-solid)_70%,transparent)] p-5', className)}>
       <div className="mb-4 flex items-center justify-between font-mono text-[9.5px] tracking-[0.22em] text-fg-3">
         <span>CHARACTER SHEET</span>
         <span className="text-accent">LOCKED</span>

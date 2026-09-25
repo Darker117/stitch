@@ -32,7 +32,7 @@ export function AspectGlyph({ w, h, size = 26, active }: { w: number; h: number;
 
 export function PosterFallback({ className, small }: { className?: string; small?: boolean }): React.JSX.Element {
   return (
-    <div className={cn('relative grid size-full place-items-center overflow-hidden bg-[#0d0b14]', className)}>
+    <div className={cn('relative grid size-full place-items-center overflow-hidden bg-[color-mix(in_oklab,var(--panel-solid)_55%,black)]', className)}>
       <div className="absolute inset-0 bg-grad opacity-[0.16]" />
       <div className="absolute -inset-1/2 bg-[radial-gradient(circle_at_30%_30%,color-mix(in_oklab,var(--accent-2)_35%,transparent),transparent_55%)]" />
       <Clapperboard className={cn('relative text-fg-2/70', small ? 'size-3.5' : 'size-7')} strokeWidth={1.5} />

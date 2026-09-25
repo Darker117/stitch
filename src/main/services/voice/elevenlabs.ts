@@ -1,7 +1,7 @@
 // ElevenLabs: voice library, TTS and instant voice cloning.
 import { readFileSync } from 'node:fs'
 import { basename, extname } from 'node:path'
-import type { VoiceInfo } from '@shared/ipc'
+import type { VoiceInfo, VoiceLibraryQuery } from '@shared/ipc'
 import type { VoiceConnector } from '@shared/types'
 import { concatBytes, fetchOk, requireKey, splitForApi, type SynthArgs, type SynthOut, type VoiceProvider } from './common'
 
@@ -49,6 +49,122 @@ async function listVoices(c: VoiceConnector, key: string): Promise<VoiceInfo[]> 
   return out
 }
 
+// ─── Voice library (shared voices) ───────────────────────────────────────────
+
+interface SharedVoice {
+  public_owner_id: string
+  voice_id: string
+  name: string
+  accent?: string
+  gender?: string
+  age?: string
+  descriptive?: string
+  use_case?: string
+  category?: string
+  language?: string | null
+  locale?: string | null
+  description?: string | null
+  preview_url?: string | null
+  cloned_by_count?: number
+  free_users_allowed?: boolean
+  is_added_by_user?: boolean | null
+}
+
+/** GET /v1/shared-voices — the public ElevenLabs voice library. */
+export async function elevenLibrary(c: VoiceConnector, key: string | undefined, q: Omit<VoiceLibraryQuery, 'connectorId'>): Promise<{ voices: VoiceInfo[]; hasMore: boolean; total?: number }> {
+  const k = requireKey(c, key)
+  const params = new URLSearchParams({ page_size: '30', page: String(q.page ?? 0) })
+  if (q.search?.trim()) params.set('search', q.search.trim())
+  if (q.gender) params.set('gender', q.gender)
+  if (q.age) params.set('age', q.age)
+  if (q.accent) params.set('accent', q.accent)
+  if (q.language) params.set('language', q.language)
+  if (q.useCase) params.append('use_cases', q.useCase)
+  if (q.category) params.set('category', q.category)
+  if (q.sort) params.set('sort', q.sort)
+  const res = await fetchOk(`${base(c)}/v1/shared-voices?${params}`, { headers: { 'xi-api-key': k } }, P, 30_000)
+  const j = (await res.json()) as { voices?: SharedVoice[]; has_more?: boolean; total_count?: number }
+  const voices: VoiceInfo[] = (j.voices ?? []).map((v) => {
+    const labels: Record<string, string> = {}
+    for (const [key_, val] of [
+      ['gender', v.gender],
+      ['age', v.age],
+      ['accent', v.accent],
+      ['language', v.language],
+      ['use_case', v.use_case],
+      ['descriptive', v.descriptive],
+      ['category', v.category]
+    ] as const) {
+      if (typeof val === 'string' && val) labels[key_] = val.replace(/_/g, ' ')
+    }
+    if (v.cloned_by_count) labels.used = `${v.cloned_by_count.toLocaleString()} adds`
+    if (v.is_added_by_user) labels.added = 'yes'
+    return {
+      id: v.voice_id,
+      name: v.name,
+      description: v.description?.trim() || [v.descriptive, v.use_case, v.accent].filter(Boolean).join(' · ').replace(/_/g, ' ') || undefined,
+      previewUrl: v.preview_url ?? undefined,
+      labels,
+      ownerId: v.public_owner_id
+    }
+  })
+  return { voices, hasMore: !!j.has_more, total: j.total_count }
+}
+
+/** POST /v1/voices/add/{public_user_id}/{voice_id} — add a library voice to "My voices". */
+export async function elevenAddShared(c: VoiceConnector, key: string | undefined, ownerId: string, voiceId: string, name: string): Promise<string> {
+  const k = requireKey(c, key)
+  const res = await fetchOk(
+    `${base(c)}/v1/voices/add/${encodeURIComponent(ownerId)}/${encodeURIComponent(voiceId)}`,
+    { method: 'POST', headers: { 'xi-api-key': k, 'content-type': 'application/json' }, body: JSON.stringify({ new_name: name || 'Library voice' }) },
+    P,
+    30_000
+  )
+  const j = (await res.json()) as { voice_id?: string }
+  cache.delete(c.id)
+  if (!j.voice_id) throw new Error('ElevenLabs did not return a voice id')
+  return j.voice_id
+}
+
+export const ELEVEN_MODELS: { value: string; label: string; hint?: string }[] = [
+  { value: 'eleven_multilingual_v2', label: 'Multilingual v2', hint: 'Stable, lifelike' },
+  { value: 'eleven_v3', label: 'Eleven v3', hint: 'Most expressive · audio tags' },
+  { value: 'eleven_flash_v2_5', label: 'Flash v2.5', hint: 'Fast & cheap' },
+  { value: 'eleven_turbo_v2_5', label: 'Turbo v2.5', hint: 'Low latency, good quality' }
+]
+
+const modelCache = new Map<string, { at: number; models: { value: string; label: string; hint?: string }[] }>()
+
+/** GET /v1/models — text-to-speech models this account can use (falls back to a known list). */
+export async function elevenModels(c: VoiceConnector, key: string | undefined): Promise<{ value: string; label: string; hint?: string }[]> {
+  const hit = modelCache.get(c.id)
+  if (hit && Date.now() - hit.at < 30 * 60_000) return hit.models
+  if (!key) return ELEVEN_MODELS
+  try {
+    const res = await fetchOk(`${base(c)}/v1/models`, { headers: { 'xi-api-key': key } }, P, 20_000)
+    const list = (await res.json()) as { model_id: string; name?: string; description?: string; can_do_text_to_speech?: boolean; requires_alpha_access?: boolean; languages?: unknown[] }[]
+    const known = new Map(ELEVEN_MODELS.map((m) => [m.value, m]))
+    const models = list
+      .filter((m) => m.can_do_text_to_speech !== false && !m.requires_alpha_access && m.model_id)
+      .map((m) => ({
+        value: m.model_id,
+        label: known.get(m.model_id)?.label ?? m.name?.replace(/^Eleven\s*/i, '') ?? m.model_id,
+        hint: known.get(m.model_id)?.hint ?? (Array.isArray(m.languages) && m.languages.length ? `${m.languages.length} languages` : undefined)
+      }))
+    // Known models first in our order; the rest keep the API's order (sort is stable).
+    const rank = (v: string): number => {
+      const i = ELEVEN_MODELS.findIndex((x) => x.value === v)
+      return i < 0 ? ELEVEN_MODELS.length : i
+    }
+    models.sort((a, b) => rank(a.value) - rank(b.value))
+    if (!models.length) return ELEVEN_MODELS
+    modelCache.set(c.id, { at: Date.now(), models })
+    return models
+  } catch {
+    return ELEVEN_MODELS
+  }
+}
+
 /** eleven_v3 understands inline audio tags like [whispers] — map delivery notes onto them. */
 function v3Tags(instructions: string | undefined): string {
   if (!instructions?.trim()) return ''
@@ -93,7 +209,8 @@ export const elevenlabsProvider: VoiceProvider = {
       )
       parts.push(new Uint8Array(await res.arrayBuffer()))
     }
-    return { bytes: concatBytes(parts), ext: 'mp3', model, voiceId, kbps: 128, note: !v3 && a.instructions ? 'Delivery notes need eleven_v3 on ElevenLabs.' : undefined }
+    const voiceName = cache.get(a.c.id)?.voices.find((v) => v.id === voiceId)?.name
+    return { bytes: concatBytes(parts), ext: 'mp3', model, voiceId, voiceName, kbps: 128, note: !v3 && a.instructions ? 'Delivery notes need eleven_v3 on ElevenLabs.' : undefined }
   },
 
   async clone(c, key, name, sample, sampleText) {

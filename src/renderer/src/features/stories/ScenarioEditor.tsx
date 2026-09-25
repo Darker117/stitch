@@ -6,9 +6,9 @@ import type { Scenario } from '@shared/types'
 import { Page } from '@/components/shell/page'
 import { Button, IconButton } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/controls'
-import { EmptyState, Skeleton, Spinner } from '@/components/ui/misc'
+import { EmptyState, ProgressRing, Skeleton, Spinner } from '@/components/ui/misc'
 import { errorText } from '@/lib/api'
-import { ease } from '@/lib/motion'
+import { ease, spring } from '@/lib/motion'
 import { db, useCollectionLoaded, useDoc } from '@/stores/db'
 import { toast } from '@/stores/toast'
 import { StoryStyles } from './components/StoryStyles'
@@ -16,9 +16,12 @@ import { StoryCardsBoard } from './components/cards'
 import { PlotComponentsEditor } from './components/plot'
 import { OpeningEditor } from './components/opening'
 import { StoryDetails } from './components/details'
+import { CoverArt } from './components/art'
+import { FrostHeader } from './components/frost'
+import { useCoverProgress } from './engine/cover'
 import { startAdventure } from './engine/adventure'
 import type { StoryInfo } from './engine/ai'
-import { saveFile } from './engine/io'
+import { exportScenarioBackup, saveFile } from './engine/io'
 import { cardTypeLabel } from './engine/defaults'
 import { useAutosave, type SaveState, type StoryChange } from './hooks'
 
@@ -52,6 +55,24 @@ function rootOf(s: Scenario): Scenario {
     cur = p
   }
   return cur
+}
+
+/** Small cover thumbnail in the header; shows cover-painting progress. */
+function HeaderCover({ scenario, onClick }: { scenario: Scenario; onClick: () => void }): React.JSX.Element {
+  const target = useMemo(() => ({ collection: 'scenarios' as const, id: scenario.id }), [scenario.id])
+  const progress = useCoverProgress(target)
+  const running = progress.phase !== 'idle'
+  return (
+    <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} transition={spring} onClick={onClick} title={running ? 'Painting the cover…' : 'Cover (Details)'} className="group relative shrink-0">
+      <CoverArt coverAssetId={scenario.coverAssetId} template={scenario.template} title={scenario.title} compact className="h-10 w-16 rounded-[10px] ring-1 ring-line-strong">
+        {running && (
+          <div className="absolute inset-0 grid place-items-center bg-black/45">
+            <ProgressRing value={progress.phase === 'painting' ? progress.value : undefined} size={18} />
+          </div>
+        )}
+      </CoverArt>
+    </motion.button>
+  )
 }
 
 /** Keyed by id so moving between a scenario and its choices starts fresh. */
@@ -126,7 +147,7 @@ function Editor({ id }: { id: string | undefined }): React.JSX.Element {
   }
 
   const exportBackup = (): void => {
-    void saveFile(scenario.title || 'scenario', JSON.stringify({ kind: 'stitch-scenario', version: 1, scenario, children: descendants(scenario.id) }, null, 2), 'json')
+    void exportScenarioBackup(scenario, descendants(scenario.id))
   }
   const exportText = (): void => {
     const parts = [
@@ -145,44 +166,45 @@ function Editor({ id }: { id: string | undefined }): React.JSX.Element {
   return (
     <Page>
       <StoryStyles />
-      <div className="mx-auto max-w-[780px] px-6 pb-24">
-        {/* Header card */}
-        <div className="sticky top-0 z-20 -mx-2 px-2 pt-5 pb-3">
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease }} className="glass-strong rounded-[20px] p-4 shadow-[0_24px_50px_-28px_rgb(0_0_0/0.9)]">
-            <div className="flex items-center gap-3">
-              {isChild && (
-                <IconButton label={`Back to ${parent?.title || 'parent'}`} variant="secondary" onClick={() => void finish()}>
-                  <ArrowLeft className="size-4" />
-                </IconButton>
-              )}
-              <Pencil className="size-4.5 text-fg-2" />
-              <div className="min-w-0">
-                <h1 className="font-serif text-[21px] leading-tight font-semibold tracking-tight">{isChild ? 'Edit Choice' : 'Edit Scenario'}</h1>
-                {isChild && <div className="truncate text-[11.5px] text-fg-3">Part of “{parent?.title || 'Untitled'}”</div>}
-              </div>
-              <SavedIndicator state={state} />
-              <div className="flex-1" />
-              <Button variant="secondary" icon={<Play className="size-3.5 fill-current" />} loading={starting} onClick={() => void play()}>
-                Play
-              </Button>
-              <Button variant="primary" className="min-w-[92px] tracking-wide uppercase" onClick={() => void finish()}>
-                Finish
-              </Button>
-            </div>
-            <div className="mt-3.5">
-              <Segmented
-                caps
-                value={tab}
-                onChange={setTab}
-                items={[
-                  { value: 'plot', label: setup ? 'Setup' : 'Plot', icon: setup ? <Settings /> : <SlidersHorizontal /> },
-                  { value: 'cards', label: 'Story cards', icon: <LayoutGrid />, count: scenario.cards.length },
-                  { value: 'details', label: 'Details', icon: <List /> }
-                ]}
-              />
-            </div>
-          </motion.div>
+      {/* Frosted sticky header — the page diffuses underneath as it scrolls. */}
+      <FrostHeader width={780}>
+        <div className="flex items-center gap-3">
+          {isChild && (
+            <IconButton label={`Back to ${parent?.title || 'parent'}`} variant="secondary" onClick={() => void finish()}>
+              <ArrowLeft className="size-4" />
+            </IconButton>
+          )}
+          <HeaderCover scenario={scenario} onClick={() => setTab('details')} />
+          <div className="min-w-0">
+            <h1 className="flex items-center gap-2 font-serif text-[21px] leading-tight font-semibold tracking-tight">
+              {isChild ? 'Edit Choice' : 'Edit Scenario'}
+              <Pencil className="size-3.5 text-fg-3" />
+            </h1>
+            <div className="truncate text-[11.5px] text-fg-3">{isChild ? `Part of “${parent?.title || 'Untitled'}”` : scenario.title || 'Untitled scenario'}</div>
+          </div>
+          <SavedIndicator state={state} />
+          <div className="flex-1" />
+          <Button variant="secondary" icon={<Play className="size-3.5 fill-current" />} loading={starting} onClick={() => void play()}>
+            Play
+          </Button>
+          <Button variant="primary" className="min-w-[92px] tracking-wide uppercase" onClick={() => void finish()}>
+            Finish
+          </Button>
         </div>
+        <div className="mt-3.5">
+          <Segmented
+            caps
+            value={tab}
+            onChange={setTab}
+            items={[
+              { value: 'plot', label: setup ? 'Setup' : 'Plot', icon: setup ? <Settings /> : <SlidersHorizontal /> },
+              { value: 'cards', label: 'Story cards', icon: <LayoutGrid />, count: scenario.cards.length },
+              { value: 'details', label: 'Details', icon: <List /> }
+            ]}
+          />
+        </div>
+      </FrostHeader>
+      <div className="mx-auto max-w-[780px] px-6 pb-24">
 
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={`${id}-${tab}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.28, ease }} className="pt-2">

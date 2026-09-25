@@ -33,6 +33,7 @@ export const useGen = create<GenState>((set, get) => ({
     if (inited) return
     inited = true
     on('gen:job', (job) => set((s) => ({ jobs: { ...s.jobs, [job.id]: job } })))
+    on('models:changed', () => void get().refreshRecipes())
     on('comfy:status', (comfy) => {
       const wasOnline = get().comfy.some((c) => c.online)
       set({ comfy })

@@ -1,19 +1,23 @@
 // Model library + Civitai: local files with Stability Matrix sidecars,
-// identify-by-hash, browse/search, key management and downloads.
-import { shell } from 'electron'
+// identify-by-hash, browse/search, key management and downloads — plus the
+// curated Hugging Face catalog (install missing recipe models), the model
+// manager and the optional Hugging Face token.
 import { existsSync } from 'node:fs'
-import { unlink } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import type { ModelMeta } from '@shared/types'
 import { emit, handle } from '../ipc'
-import { setSecret } from '../settings'
+import { getSecret, getSettings, setSecret } from '../settings'
 import { allInstances } from './comfy'
 import { refreshModels } from './comfy/jobs'
 import { CivitaiError, civitaiKey, getModel, listBaseModels, me, searchModels, versionByHash } from './models/civitai'
-import { cancelDownload, isDownloading, listDownloads, startDownload } from './models/downloads'
+import { cancelDownload, listDownloads, startDownload } from './models/downloads'
 import { sha256File } from './models/hash'
 import { insideRoots, invalidateLibrary, listLocal, MODEL_EXT, metaFromCmInfo, stemOf } from './models/library'
 import { buildCmInfo, pickPreview, savePreview, writeCmInfo } from './models/sidecar'
+import { CATALOG, install, installPlan } from './models/catalog'
+import { HfError, hfWhoami } from './models/hf'
+import { modelsHome } from './models/home'
+import { comfyYamlSnippet, forgetDir, invalidateInventory, modelInventory, trashModel } from './models/manager'
 
 /** Tell ComfyUI instances (and through them, recipes) to re-read their model lists. */
 function refreshComfy(): void {
@@ -22,6 +26,7 @@ function refreshComfy(): void {
 
 function changed(): void {
   invalidateLibrary()
+  invalidateInventory()
   emit('models:changed', null)
   refreshComfy()
 }
@@ -57,24 +62,14 @@ async function identify(path: string): Promise<ModelMeta | null> {
   return list.find((m) => m.path.toLowerCase() === full.toLowerCase())?.meta ?? metaFromCmInfo(info, stem)
 }
 
+/** Delete = move to the Recycle Bin (model + sidecars). Never a permanent delete. */
 async function remove(path: string): Promise<void> {
-  const full = resolve(path)
-  if (!MODEL_EXT.test(full) || !insideRoots(full)) throw new Error('Stitch only deletes model files inside your models folders.')
-  if (isDownloading(full)) throw new Error('That file is still downloading — cancel the download instead.')
-  const stem = stemOf(full)
-  const extras = ['.cm-info.json', '.civitai.info', '.preview.jpeg', '.preview.jpg', '.preview.png', '.preview.webp', '.preview.gif', '.preview.mp4', '.preview.webm'].map((s) => stem + s)
-  for (const p of [full, ...extras]) {
-    if (!existsSync(p)) continue
-    try {
-      await shell.trashItem(p)
-    } catch {
-      await unlink(p)
-    }
-  }
+  await trashModel(path)
   changed()
 }
 
 let status: { key: string; username?: string } | null = null
+let hfStatus: { token: string; username?: string } | null = null
 
 export function registerModels(): void {
   handle('models:local', (refresh) => listLocal(!!refresh))
@@ -126,4 +121,53 @@ export function registerModels(): void {
   handle('civitai:download', (req) => startDownload(req, refreshComfy))
   handle('civitai:cancelDownload', (id) => cancelDownload(id))
   handle('civitai:downloads', () => listDownloads())
+
+  handle('models:home', () => modelsHome())
+  handle('models:catalog', () => CATALOG)
+  handle('models:installPlan', (recipeId, entryId) => installPlan(recipeId, entryId))
+  handle('models:install', (req) => {
+    const extrasBefore = JSON.stringify(getSettings().extraModelDirs ?? [])
+    const started = install(req, refreshComfy)
+    // A newly remembered folder changes what the library scans.
+    if (JSON.stringify(getSettings().extraModelDirs ?? []) !== extrasBefore) changed()
+    return started
+  })
+  handle('models:inventory', (refresh) => modelInventory(!!refresh))
+  handle('models:trash', (path) => remove(path))
+  handle('models:forgetDir', (path) => {
+    forgetDir(path)
+    changed()
+  })
+  handle('models:comfyYaml', () => comfyYamlSnippet())
+
+  handle('hf:status', async () => {
+    const token = getSecret('huggingface')
+    if (!token) return { hasToken: false }
+    if (hfStatus?.token === token) return { hasToken: true, username: hfStatus.username }
+    try {
+      const u = await hfWhoami(token)
+      hfStatus = { token, username: u.name }
+      return { hasToken: true, username: u.name }
+    } catch {
+      return { hasToken: true }
+    }
+  })
+  handle('hf:setToken', async (raw) => {
+    const token = raw?.trim()
+    hfStatus = null
+    if (!token) {
+      setSecret('huggingface', null)
+      return { ok: true, message: 'Hugging Face token removed.' }
+    }
+    try {
+      const u = await hfWhoami(token)
+      setSecret('huggingface', token)
+      hfStatus = { token, username: u.name }
+      return { ok: true, message: u.name ? `Connected as ${u.name}.` : 'Token saved and verified.' }
+    } catch (err) {
+      if (err instanceof HfError && err.status === 401) return { ok: false, message: 'Hugging Face rejected this token. Create a read token at huggingface.co/settings/tokens.' }
+      setSecret('huggingface', token)
+      return { ok: true, message: `Saved, but Hugging Face couldn't verify it right now (${err instanceof Error ? err.message : String(err)}).` }
+    }
+  })
 }

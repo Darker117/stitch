@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { BookOpen, Copy, Ellipsis, FileJson, Layers, List, Pencil, Play, Plus, Sparkles, Trash2, Upload, Users } from 'lucide-react'
+import { BookOpen, Copy, Ellipsis, FileJson, ImagePlus, Images, Layers, LayoutTemplate, List, MessagesSquare, Pencil, Play, Plus, Sparkles, Trash2, Upload, Users, WandSparkles } from 'lucide-react'
 import type { Adventure, Scenario } from '@shared/types'
 import { Page } from '@/components/shell/page'
 import { Button, IconButton } from '@/components/ui/button'
@@ -12,7 +12,11 @@ import { cn, pluralize, timeAgo } from '@/lib/utils'
 import { ease, rise, spring, stagger } from '@/lib/motion'
 import { db, useCollectionLoaded } from '@/stores/db'
 import { toast, useToasts } from '@/stores/toast'
-import { CoverArt, FlameMark, TemplateArt } from './components/art'
+import { LogoMark } from '@/components/shell/logo'
+import { AssetPicker } from '@/components/media'
+import { CoverArt, TemplateArt } from './components/art'
+import { CoverProgressLayer, useCanPaint, useCoverActions } from './components/cover'
+import { setCover, useCoverProgress } from './engine/cover'
 import { StoryStyles } from './components/StoryStyles'
 import { deleteScenarioTree, duplicateScenarioTree, scenarioTree, startAdventure } from './engine/adventure'
 import { importScenarioBackup, saveFile } from './engine/io'
@@ -53,7 +57,7 @@ function HeroStack({ scenarios }: { scenarios: Scenario[] }): React.JSX.Element 
           className="group absolute top-1/2 left-1/2 -mt-[105px] -ml-[150px] h-[210px] w-[300px] overflow-hidden rounded-[20px] shadow-[0_30px_70px_-20px_rgb(0_0_0/0.85)] ring-1 ring-white/10"
           style={{ zIndex: pose[i].z }}
         >
-          {s ? <CoverArt coverAssetId={s.coverAssetId} template={s.template} className="absolute inset-0" compact /> : <TemplateArt template={fallback[i]} className="absolute inset-0" compact />}
+          {s ? <CoverArt coverAssetId={s.coverAssetId} template={s.template} title={s.title} className="absolute inset-0" compact /> : <TemplateArt template={fallback[i]} className="absolute inset-0" compact />}
           <div className="absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.75),transparent)] p-3.5 pt-10">
             <div className="truncate font-serif text-[15px] font-semibold text-white">{s?.title || TEMPLATES.find((t) => t.id === fallback[i])?.name}</div>
           </div>
@@ -71,7 +75,7 @@ function AdventureCard({ a, onPlay }: { a: Adventure; onPlay: () => void }): Rea
   return (
     <motion.div variants={rise} layout className="group relative w-[300px] shrink-0">
       <motion.button whileHover={{ y: -4 }} whileTap={{ scale: 0.985 }} transition={spring} onClick={onPlay} className="block w-full text-left">
-        <CoverArt coverAssetId={a.coverAssetId} template={scenario?.template} compact className="aspect-[16/10] w-full rounded-[18px] ring-1 ring-line transition-shadow duration-300 group-hover:shadow-[0_24px_50px_-20px_color-mix(in_oklab,var(--accent)_50%,transparent)]">
+        <CoverArt coverAssetId={a.coverAssetId ?? scenario?.coverAssetId} template={scenario?.template} title={a.title} compact className="aspect-[16/10] w-full rounded-[18px] ring-1 ring-line transition-shadow duration-300 group-hover:shadow-[0_24px_50px_-20px_color-mix(in_oklab,var(--accent)_50%,transparent)]">
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.85)_8%,rgb(0_0_0/0.25)_55%,transparent)]" />
           <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 p-4">
             <div className="truncate font-serif text-[17px] font-semibold text-white">{a.title || 'Untitled adventure'}</div>
@@ -124,30 +128,63 @@ function AdventureCard({ a, onPlay }: { a: Adventure; onPlay: () => void }): Rea
 function ScenarioCard({ s, onPlay, playing }: { s: Scenario; onPlay: () => void; playing: boolean }): React.JSX.Element {
   const navigate = useNavigate()
   const badge = OPENING_BADGE[s.openingType]
+  const target = useMemo(() => ({ collection: 'scenarios' as const, id: s.id }), [s.id])
+  const progress = useCoverProgress(target)
+  const cover = useCoverActions(target, s.projectId)
+  const canPaint = useCanPaint()
+  const [picker, setPicker] = useState(false)
+  const running = progress.phase !== 'idle'
   return (
     <motion.div variants={rise} layout className="group relative flex flex-col overflow-hidden rounded-[18px] border border-line bg-white/[0.03] transition-[border-color,box-shadow,transform] duration-300 hover:-translate-y-1 hover:border-line-strong hover:shadow-[0_24px_50px_-24px_rgb(0_0_0/0.9)]">
-      <button onClick={() => navigate(`/stories/scenario/${s.id}`)} className="block text-left">
-        <CoverArt coverAssetId={s.coverAssetId} template={s.template} compact className="aspect-[16/9] w-full">
-          <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.45),transparent_50%)]" />
-          <div className="absolute top-2.5 left-2.5 flex gap-1.5">
-            <Badge className="gap-1 bg-black/45 text-white/90 backdrop-blur-md [&>svg]:size-3">
-              {badge.icon}
-              {badge.label}
-            </Badge>
+      <div className="relative">
+        <button onClick={() => navigate(`/stories/scenario/${s.id}`)} className="block w-full text-left">
+          <CoverArt coverAssetId={s.coverAssetId} template={s.template} title={s.title} compact className="aspect-[16/9] w-full">
+            <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.45),transparent_50%)]" />
+            <div className="absolute top-2.5 left-2.5 flex gap-1.5">
+              <Badge className="gap-1 bg-black/45 text-white/90 backdrop-blur-md [&>svg]:size-3">
+                {badge.icon}
+                {badge.label}
+              </Badge>
+            </div>
+            <CoverProgressLayer progress={progress} compact />
+          </CoverArt>
+        </button>
+        {!s.coverAssetId && !running && (
+          <div className="absolute right-2.5 bottom-2.5 translate-y-1 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 has-[[data-state=open]]:translate-y-0 has-[[data-state=open]]:opacity-100">
+            <Menu
+              align="end"
+              trigger={
+                <button className="flex h-7 items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-2.5 text-[11px] font-medium text-white/85 backdrop-blur-md transition hover:bg-black/60 hover:text-white">
+                  <ImagePlus className="size-3.5" /> Add cover
+                </button>
+              }
+            >
+              <MenuItem icon={<WandSparkles />} onSelect={cover.paint} disabled={!canPaint} hint={canPaint ? undefined : 'ComfyUI offline'}>
+                Paint from story
+              </MenuItem>
+              <MenuItem icon={<Upload />} onSelect={() => void cover.upload()}>
+                Upload image
+              </MenuItem>
+              <MenuItem icon={<Images />} onSelect={() => setPicker(true)}>
+                Choose from library
+              </MenuItem>
+            </Menu>
           </div>
-        </CoverArt>
-      </button>
+        )}
+      </div>
       <div className="flex flex-1 flex-col gap-1.5 p-4">
         <div className="truncate font-serif text-[16.5px] font-semibold">{s.title || 'Untitled scenario'}</div>
         <p className="line-clamp-2 min-h-[2.6em] text-[12px] leading-snug text-fg-2">{s.description || 'No description yet.'}</p>
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-fg-3">
-          <span className="flex items-center gap-1">
+        <div className="mt-1 flex items-center gap-2 overflow-hidden text-[11px] whitespace-nowrap text-fg-3">
+          <span className="flex shrink-0 items-center gap-1">
             <Layers className="size-3" /> {pluralize(s.cards.length, 'card')}
           </span>
           {s.tags.slice(0, 2).map((t) => (
-            <span key={t}>#{t}</span>
+            <span key={t} className="min-w-0 truncate">
+              #{t}
+            </span>
           ))}
-          <span className="ml-auto">{timeAgo(s.updatedAt)}</span>
+          <span className="ml-auto shrink-0 pl-1">{timeAgo(s.updatedAt)}</span>
         </div>
         <div className="mt-3 flex items-center gap-2">
           <Button size="sm" variant="primary" icon={<Play className="size-3 fill-current" />} loading={playing} onClick={onPlay} className="flex-1">
@@ -166,6 +203,16 @@ function ScenarioCard({ s, onPlay, playing }: { s: Scenario; onPlay: () => void;
           >
             <MenuItem icon={<Copy />} onSelect={() => void duplicateScenarioTree(s.id)}>
               Duplicate
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<WandSparkles />} onSelect={cover.paint} disabled={!canPaint || running} hint={canPaint ? undefined : 'ComfyUI offline'}>
+              {s.coverAssetId ? 'Paint a new cover' : 'Paint a cover'}
+            </MenuItem>
+            <MenuItem icon={<Upload />} onSelect={() => void cover.upload()}>
+              Upload cover
+            </MenuItem>
+            <MenuItem icon={<Images />} onSelect={() => setPicker(true)}>
+              Cover from library
             </MenuItem>
             <MenuSeparator />
             <MenuItem
@@ -192,6 +239,7 @@ function ScenarioCard({ s, onPlay, playing }: { s: Scenario; onPlay: () => void;
           </Menu>
         </div>
       </div>
+      <AssetPicker open={picker} onClose={() => setPicker(false)} kinds={['image', 'video']} onPick={(a) => a[0] && void setCover(target, a[0].id)} title="Choose a cover" />
     </motion.div>
   )
 }
@@ -234,7 +282,7 @@ export function StoriesHome(): React.JSX.Element {
         <div className="relative z-10 grid min-h-[330px] grid-cols-[1.05fr_1fr] items-center gap-6 px-10 py-10">
           <motion.div variants={stagger(0.06, 0.05)} initial="initial" animate="animate" className="flex flex-col gap-4">
             <motion.div variants={rise} className="label-caps flex items-center gap-2 text-fg-2">
-              <FlameMark size={16} /> Stories
+              <LogoMark size={16} /> Stories
             </motion.div>
             <motion.h1 variants={rise} className="max-w-[520px] font-serif text-[40px] leading-[1.08] font-semibold tracking-tight">
               Play a story. <span className="text-grad">See it, hear it,</span> keep it.
@@ -245,6 +293,9 @@ export function StoriesHome(): React.JSX.Element {
             <motion.div variants={rise} className="mt-2 flex gap-2">
               <Button variant="primary" size="lg" icon={<Plus className="size-4" />} onClick={() => navigate('/stories/new')}>
                 New story
+              </Button>
+              <Button variant="glass" size="lg" icon={<MessagesSquare className="size-4" />} onClick={() => navigate('/stories/compose')}>
+                Compose
               </Button>
               <Button
                 variant="glass"
@@ -286,9 +337,24 @@ export function StoriesHome(): React.JSX.Element {
             icon={<BookOpen />}
             action={
               scenarios.length > 0 && (
-                <Button size="sm" variant="secondary" icon={<Plus className="size-3.5" />} onClick={() => navigate('/stories/new')}>
-                  New
-                </Button>
+                <Menu
+                  align="end"
+                  trigger={
+                    <Button size="sm" variant="secondary" icon={<Plus className="size-3.5" />}>
+                      New
+                    </Button>
+                  }
+                >
+                  <MenuItem icon={<LayoutTemplate />} onSelect={() => navigate('/stories/new')}>
+                    From a template
+                  </MenuItem>
+                  <MenuItem icon={<WandSparkles />} onSelect={() => navigate('/stories/new?mode=ai')}>
+                    Generate with AI
+                  </MenuItem>
+                  <MenuItem icon={<MessagesSquare />} onSelect={() => navigate('/stories/compose')}>
+                    Scenario Composer
+                  </MenuItem>
+                </Menu>
               )
             }
           >
@@ -314,10 +380,30 @@ export function StoriesHome(): React.JSX.Element {
                 </span>
                 <div>
                   <div className="font-serif text-[18px] font-semibold">Start your first story</div>
-                  <div className="text-[12.5px] text-fg-2">Pick a world to begin — everything stays editable.</div>
+                  <div className="text-[12.5px] text-fg-2">Describe it, build it with the AI, or pick a world — everything stays editable.</div>
                 </div>
               </div>
-              <motion.div variants={stagger(0.05, 0.1)} initial="initial" animate="animate" className="mt-6 grid grid-cols-5 gap-3">
+              <motion.div variants={stagger(0.05, 0.05)} initial="initial" animate="animate" className="mt-6 grid grid-cols-2 gap-3">
+                {[
+                  { icon: <WandSparkles />, title: 'Generate with AI', body: 'A sentence in, a complete scenario out.', to: '/stories/new?mode=ai' },
+                  { icon: <MessagesSquare />, title: 'Scenario Composer', body: 'Build it together — cast, opening, rules and scripts.', to: '/stories/compose' }
+                ].map((a) => (
+                  <motion.button
+                    key={a.title}
+                    variants={rise}
+                    whileHover={{ y: -3 }}
+                    onClick={() => navigate(a.to)}
+                    className="group flex items-center gap-3.5 rounded-2xl border border-line bg-white/[0.03] p-4 text-left transition-colors hover:border-line-strong hover:bg-white/[0.06]"
+                  >
+                    <span className="grid size-10 place-items-center rounded-xl bg-grad text-white [&>svg]:size-[18px]">{a.icon}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-serif text-[15.5px] font-semibold">{a.title}</span>
+                      <span className="block text-[12px] text-fg-2">{a.body}</span>
+                    </span>
+                  </motion.button>
+                ))}
+              </motion.div>
+              <motion.div variants={stagger(0.05, 0.1)} initial="initial" animate="animate" className="mt-3 grid grid-cols-5 gap-3">
                 {TEMPLATES.filter((t) => t.id !== 'random').slice(0, 5).map((t) => (
                   <motion.button key={t.id} variants={rise} whileHover={{ y: -3 }} onClick={() => void quick(t.id)} className={cn('group relative aspect-[4/3] overflow-hidden rounded-2xl text-left ring-1 ring-line')}>
                     <TemplateArt template={t.id} compact className="absolute inset-0" />

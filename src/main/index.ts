@@ -12,6 +12,7 @@ import { registerEditor } from './services/editor'
 import { registerLlm } from './services/llm'
 import { registerModels } from './services/models'
 import { registerSkills } from './services/skills'
+import { registerScripts } from './services/scripts'
 import { registerSystem } from './services/system'
 import { registerUpdater } from './services/updater'
 import { registerVoice, shutdownVoice } from './services/voice'
@@ -145,6 +146,7 @@ void app.whenReady().then(() => {
   registerVoice()
   registerWallpaper()
   registerSkills()
+  registerScripts()
   registerEditor()
   registerModels()
   registerUpdater()

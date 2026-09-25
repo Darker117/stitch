@@ -14,10 +14,15 @@ export const fade: Variants = {
   exit: { opacity: 0, transition: { duration: 0.18, ease } }
 }
 
-/** Page enter/exit — opacity, a few pixels of travel and a whisper of blur. */
+/**
+ * Page enter/exit — opacity, a few pixels of travel and a whisper of blur.
+ * The filter is cleared once the page has entered: any lingering `filter`
+ * (even blur(0px)) turns the page into a backdrop root and switches off
+ * backdrop-filter glass inside it (frosted sticky headers, pills).
+ */
 export const page: Variants = {
   initial: { opacity: 0, y: 10, filter: 'blur(6px)' },
-  animate: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.45, ease } },
+  animate: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.45, ease }, transitionEnd: { filter: 'none' } },
   exit: { opacity: 0, y: -6, filter: 'blur(4px)', transition: { duration: 0.2, ease } }
 }
 

@@ -1,31 +1,37 @@
-// Voice studio — the "Voice" tab of Generate. Script + delivery + voice on the
-// left, a voice lab for designing/cloning, and the clip history on the right.
+// Voice studio — the "Voice" tab of Generate. Engine cards (Qwen3-TTS, Kokoro,
+// Pocket TTS, ElevenLabs…) with install status, the engine's voices, the script +
+// delivery, a voice lab for designing/cloning, and the clip history on the right.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { AudioLines, ChevronDown, CornerUpLeft, Download, Drama, FlaskConical, FolderOpen, Mic, Play, Power, Save, Trash2, UserRound, Wand2 } from 'lucide-react'
+import { AudioLines, ChevronDown, CornerUpLeft, Download, Drama, FlaskConical, FolderOpen, HardDrive, Mic, MoreHorizontal, Play, Power, Save, Trash2, UserRound, Wand2 } from 'lucide-react'
 import { create } from 'zustand'
-import type { Asset, Character, CharacterVoice, ID, VoiceKind } from '@shared/types'
+import type { VoiceEngineInfo } from '@shared/ipc'
+import type { Asset, Character, CharacterVoice, ID, VoiceConnector, VoiceKind } from '@shared/types'
 import { errorText, fileUrl, invoke } from '@/lib/api'
 import { cn, formatDuration, timeAgo } from '@/lib/utils'
 import { ease, rise, spring, springSoft, stagger } from '@/lib/motion'
 import {
   DELIVERY_PRESETS,
   VOICE_KIND_LABEL,
-  VOICE_MODELS,
   describeVoice,
   engineStateLabel,
   estimateSpeechSeconds,
+  isLocalKind,
+  prettyVoiceId,
   saveVoicePreset,
+  sizeLabel,
   speak,
   useResolvedConnector,
   useVoiceConnectors,
-  useVoiceEngine
+  useVoiceEngine,
+  useVoiceEngines,
+  useVoiceModels
 } from '@/lib/voice'
 import { db, useCollection, useDoc } from '@/stores/db'
-import { toast, useToasts } from '@/stores/toast'
+import { toast } from '@/stores/toast'
 import { PendingWave, WavePlayer } from '@/components/audio'
-import { DesignForm, ProviderIcon, SampleInput, VoicePicker } from '@/components/voice-picker'
+import { DesignForm, EngineCards, ProviderIcon, RemoveEngineDialog, SampleInput, VoicePicker, useEngineForKind, useNotifyEngine } from '@/components/voice-picker'
 import { Orb } from '@/components/ui/orb'
 import { Button, Chip, IconButton } from '@/components/ui/button'
 import { Input, SearchField, Textarea } from '@/components/ui/input'
@@ -99,12 +105,8 @@ async function saveVoiceToCharacter(c: Character, voice: CharacterVoice): Promis
 }
 
 function useNotify(): (title: string, err: unknown) => void {
-  const navigate = useNavigate()
-  return (title, err) => {
-    const body = errorText(err)
-    if (/not installed|voice engine|Connectors/i.test(body)) useToasts.getState().push({ title, body, tone: 'error', ms: 9000, action: { label: 'Open Connectors', run: () => navigate('/connectors') } })
-    else toast.error(title, body)
-  }
+  const notify = useNotifyEngine()
+  return (title, err) => notify(err, title)
 }
 
 /** "Use / Save to character / Keep as preset" for a designed or cloned sample. */
@@ -206,18 +208,20 @@ function SpeakingAs({ character }: { character?: Character }): React.JSX.Element
 function deliveryHint(kind: VoiceKind | undefined, voice: CharacterVoice, model: string | undefined, instructions: string): string | undefined {
   if (!instructions.trim()) return undefined
   if (kind === 'local-qwen' && voice.sampleAssetId) return 'Cloned voices take their delivery from the sample — delivery notes steer preset speakers and designed voices.'
+  if (kind === 'local-kokoro') return 'Kokoro reads delivery notes only as pace — “slow” or “fast”.'
+  if (kind === 'local-pocket') return 'Pocket TTS takes its delivery from the voice — clone a sample spoken the way you want.'
   if (kind === 'elevenlabs' && !/v3/.test(model ?? '')) return 'ElevenLabs follows delivery notes with Eleven v3 (as audio tags).'
   if (kind === 'openai-tts' && /^tts-1/.test(model ?? '')) return 'tts-1 ignores delivery notes — pick gpt-4o-mini-tts.'
   if (kind === 'azure') return 'Azure maps delivery notes to speaking styles the voice supports.'
   return undefined
 }
 
-function ScriptCard({ busy, onGenerate, character, kind, model }: { busy: boolean; onGenerate: () => void; character?: Character; kind?: VoiceKind; model?: string }): React.JSX.Element {
+function ScriptCard({ busy, onGenerate, character, kind, model, blocked }: { busy: boolean; onGenerate: () => void; character?: Character; kind?: VoiceKind; model?: string; blocked?: string }): React.JSX.Element {
   const text = useStudio((s) => s.text)
   const instructions = useStudio((s) => s.instructions)
   const voice = useStudio((s) => s.voice)
   const secs = estimateSpeechSeconds(text)
-  const hint = deliveryHint(kind, voice, model, instructions)
+  const hint = blocked ?? deliveryHint(kind, voice, model, instructions)
   return (
     <div className="glass hairline glow-border rounded-[20px]" data-active={busy}>
       <div className="flex items-center gap-2 px-4 pt-3.5">
@@ -262,14 +266,14 @@ function ScriptCard({ busy, onGenerate, character, kind, model }: { busy: boolea
           <Kbd>Ctrl</Kbd>
           <Kbd>↵</Kbd>
         </span>
-        <Button variant="primary" size="lg" icon={<AudioLines className="size-4" />} disabled={!text.trim()} onClick={onGenerate} className="rounded-xl">
+        <Button variant="primary" size="lg" icon={<AudioLines className="size-4" />} disabled={!text.trim() || !!blocked} onClick={onGenerate} className="rounded-xl">
           Generate
         </Button>
       </div>
       <AnimatePresence initial={false}>
         {hint && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease }} className="overflow-hidden">
-            <div className="px-4 pb-3 text-[11px] text-fg-3">{hint}</div>
+            <div className={cn('px-4 pb-3 text-[11px]', blocked ? 'text-warning/90' : 'text-fg-3')}>{hint}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -277,8 +281,8 @@ function ScriptCard({ busy, onGenerate, character, kind, model }: { busy: boolea
   )
 }
 
-function LabCard({ character, onUse }: { character?: Character; onUse: (voice: CharacterVoice) => void }): React.JSX.Element {
-  const lab = useStudio((s) => s.lab)
+function LabCard({ character, onUse, engine }: { character?: Character; onUse: (voice: CharacterVoice) => void; engine: VoiceConnector }): React.JSX.Element {
+  const labMode = useStudio((s) => s.lab)
   const cloneSample = useStudio((s) => s.cloneSample)
   const cloneText = useStudio((s) => s.cloneText)
   const designResult = useStudio((s) => s.designResult)
@@ -292,8 +296,13 @@ function LabCard({ character, onUse }: { character?: Character; onUse: (voice: C
   const [cloning, setCloning] = useState(false)
   const notify = useNotify()
   const baseName = character ? `${character.name}` : 'New voice'
+  // Design is Qwen3-TTS only; Pocket TTS and ElevenLabs clone.
+  const canDesign = engine.kind === 'local-qwen'
+  const lab: LabMode = canDesign ? labMode : 'clone'
+  const cloneTarget = engine.kind === 'local-pocket' || engine.kind === 'local-qwen' ? engine : local
+  const needsTranscript = engine.kind === 'local-qwen'
 
-  const cloneVoice: CharacterVoice = { connectorId: local?.id, sampleAssetId: cloneSample, sampleText: cloneText.trim() || undefined, language }
+  const cloneVoice: CharacterVoice = { connectorId: cloneTarget?.id, sampleAssetId: cloneSample, sampleText: needsTranscript ? cloneText.trim() || undefined : undefined, language }
   const designVoice: CharacterVoice | undefined = designed && designMeta ? { connectorId: local?.id, sampleAssetId: designed.id, sampleText: designMeta.sampleText, design: designMeta.design, language } : undefined
 
   const cloneToEleven = async (): Promise<void> => {
@@ -315,16 +324,23 @@ function LabCard({ character, onUse }: { character?: Character; onUse: (voice: C
       <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-[14px] font-semibold tracking-tight">
           <FlaskConical className="size-4 text-accent" /> Voice lab
+          <span className="text-[11.5px] font-normal text-fg-3">· {engine.kind === 'elevenlabs' ? 'ElevenLabs' : VOICE_KIND_LABEL[cloneTarget?.kind ?? 'local-qwen']}</span>
         </h2>
-        <Segmented<LabMode>
-          size="sm"
-          value={lab}
-          onChange={(v) => setStudio({ lab: v })}
-          items={[
-            { value: 'design', label: 'Design a voice', icon: <Wand2 /> },
-            { value: 'clone', label: 'Clone from sample', icon: <Mic /> }
-          ]}
-        />
+        {canDesign ? (
+          <Segmented<LabMode>
+            size="sm"
+            value={lab}
+            onChange={(v) => setStudio({ lab: v })}
+            items={[
+              { value: 'design', label: 'Design a voice', icon: <Wand2 /> },
+              { value: 'clone', label: 'Clone from sample', icon: <Mic /> }
+            ]}
+          />
+        ) : (
+          <span className="flex items-center gap-1.5 text-[12px] font-medium text-fg-2">
+            <Mic className="size-3.5 text-fg-3" /> Clone from sample
+          </span>
+        )}
       </div>
       <AnimatePresence mode="wait" initial={false}>
         {lab === 'design' ? (
@@ -344,16 +360,16 @@ function LabCard({ character, onUse }: { character?: Character; onUse: (voice: C
             <SampleInput
               assetId={cloneSample}
               onAsset={(a) => setStudio({ cloneSample: a?.id })}
-              transcript={cloneText}
-              onTranscript={(t) => setStudio({ cloneText: t })}
+              transcript={needsTranscript ? cloneText : undefined}
+              onTranscript={needsTranscript ? (t) => setStudio({ cloneText: t }) : undefined}
               name={character?.name}
             />
             <AnimatePresence>
               {sample && (
                 <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease }} className="flex flex-wrap gap-2">
-                  <ResultActions asset={sample} voice={cloneVoice} defaultName={baseName} onUse={() => onUse(cloneVoice)} />
+                  {engine.kind !== 'elevenlabs' && <ResultActions asset={sample} voice={cloneVoice} defaultName={baseName} onUse={() => onUse(cloneVoice)} />}
                   {eleven && (
-                    <Button size="sm" variant="ghost" loading={cloning} icon={<ProviderIcon kind="elevenlabs" className="size-3.5" />} onClick={() => void cloneToEleven()}>
+                    <Button size="sm" variant={engine.kind === 'elevenlabs' ? 'primary' : 'ghost'} loading={cloning} icon={<ProviderIcon kind="elevenlabs" className="size-3.5" />} onClick={() => void cloneToEleven()}>
                       Clone into ElevenLabs
                     </Button>
                   )}
@@ -374,7 +390,7 @@ function EngineStrip(): React.JSX.Element | null {
   const connectors = useVoiceConnectors()
   const navigate = useNavigate()
   const [pending, setPending] = useState(false)
-  if (!connectors.some((c) => c.kind === 'local-qwen')) return null
+  if (!connectors.some((c) => isLocalKind(c.kind))) return null
   const state = engineStateLabel(status)
   const act = async (fn: 'voice:engineStart' | 'voice:engineStop'): Promise<void> => {
     setPending(true)
@@ -393,17 +409,17 @@ function EngineStrip(): React.JSX.Element | null {
           <StatusDot state={state.tone} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[12px] font-medium">
-              Stitch Voice <span className="font-normal text-fg-3">· {state.label}</span>
+              Local voice engine <span className="font-normal text-fg-3">· {state.label}</span>
             </div>
             <AnimatePresence mode="wait" initial={false}>
               <motion.div key={status?.activity?.label ?? status?.device ?? ''} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.18 }} className="truncate text-[10.5px] text-fg-3">
-                {status?.activity?.label ?? (status?.installed ? status.device : 'Local cloning & design on your GPU')}
+                {status?.activity?.label ?? (status?.installed ? status.device : 'Install Qwen3-TTS, Kokoro or Pocket TTS on the left')}
               </motion.div>
             </AnimatePresence>
           </div>
           {!status?.installed ? (
             <Button size="xs" variant="secondary" onClick={() => navigate('/connectors')}>
-              Set up
+              Details
             </Button>
           ) : status.running ? (
             <IconButton label="Stop engine (frees VRAM)" size="xs" onClick={() => void act('voice:engineStop')} disabled={pending || status.busy === 'generating'}>
@@ -454,8 +470,8 @@ function PendingClip({ p }: { p: Pending }): React.JSX.Element {
 
 function ClipCard({ asset, fresh, onReuse }: { asset: Asset; fresh: boolean; onReuse: (a: Asset) => void }): React.JSX.Element {
   const character = useDoc('characters', asset.characterIds?.[0])
-  const p = (asset.params ?? {}) as { provider?: VoiceKind; voice?: CharacterVoice; instructions?: string; resolvedVoice?: string; model?: string }
-  const voiceTitle = p.resolvedVoice && !p.voice?.sampleAssetId ? p.resolvedVoice.replace(/_/g, ' ') : describeVoice(p.voice).title
+  const p = (asset.params ?? {}) as { provider?: VoiceKind; voice?: CharacterVoice; instructions?: string; resolvedVoice?: string; voiceName?: string; model?: string }
+  const voiceTitle = p.voiceName ?? (p.resolvedVoice && !p.voice?.sampleAssetId ? prettyVoiceId(p.resolvedVoice) : describeVoice(p.voice).title)
   const download = async (): Promise<void> => {
     const ext = asset.path.split('.').pop() ?? 'wav'
     const dest = await invoke('sys:saveDialog', { defaultPath: `${safeName(asset.name)}.${ext}`, filters: [{ name: 'Audio', extensions: [ext] }] })
@@ -570,6 +586,74 @@ function History({ pending, fresh, onReuse }: { pending: Pending[]; fresh?: ID; 
   )
 }
 
+// ─── Engine details (size, weights, remove) ──────────────────────────────────
+
+function EngineDetails({ engine }: { engine: VoiceEngineInfo }): React.JSX.Element | null {
+  const status = useVoiceEngine()
+  const [confirm, setConfirm] = useState(false)
+  const notify = useNotify()
+  if (engine.kind !== 'local' || !engine.installed) return null
+  const weights = engine.weights ?? []
+  const onDisk = weights.filter((w) => w.downloaded).length
+  const downloading = status?.activity?.model && weights.some((w) => w.id === status.activity?.model) ? status.activity : undefined
+  const busy = status?.busy === 'installing'
+  const download = (id: string): void => {
+    invoke('voice:engineDownload', id).catch((err) => notify('Download failed', err))
+  }
+  return (
+    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease }} className="flex min-h-7 flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11.5px] text-fg-3">
+      <span className="flex items-center gap-1.5">
+        <HardDrive className="size-3" /> {sizeLabel(engine.sizeBytes)} on disk
+      </span>
+      <span className="text-fg-3/60">·</span>
+      <span>{engine.license}</span>
+      <span className="text-fg-3/60">·</span>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span key={downloading?.label ?? onDisk} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.18 }} className={cn('truncate', downloading && 'text-accent')}>
+          {downloading
+            ? `${downloading.label}${downloading.progress !== undefined ? ` · ${Math.round(downloading.progress * 100)}%` : ''}`
+            : !weights.length
+              ? 'Weights download on first use'
+              : onDisk === weights.length
+                ? weights.length > 1
+                  ? `${onDisk} models on disk`
+                  : 'Voices on disk'
+                : onDisk
+                  ? `${onDisk} of ${weights.length} models on disk`
+                  : 'Weights download on first use'}
+        </motion.span>
+      </AnimatePresence>
+      <div className="flex-1" />
+      <Menu
+        align="end"
+        trigger={
+          <IconButton label={`${engine.name} options`} size="xs" disabled={busy}>
+            <MoreHorizontal className="size-3.5" />
+          </IconButton>
+        }
+      >
+        <MenuLabel>{engine.name}</MenuLabel>
+        {weights
+          .filter((w) => !w.downloaded)
+          .map((w) => (
+            <MenuItem key={w.id} icon={<Download />} onSelect={() => download(w.id)} disabled={!!status?.activity?.model}>
+              Download {w.label.replace(/^.*·\s*/, '')}
+            </MenuItem>
+          ))}
+        {engine.homepage && (
+          <MenuItem icon={<FolderOpen />} onSelect={() => engine.path && void invoke('sys:showInFolder', engine.path)} disabled={!engine.path}>
+            Show files
+          </MenuItem>
+        )}
+        <MenuItem icon={<Trash2 />} danger onSelect={() => setConfirm(true)}>
+          Remove {engine.name}…
+        </MenuItem>
+      </Menu>
+      <RemoveEngineDialog engine={engine} open={confirm} onOpenChange={setConfirm} />
+    </motion.div>
+  )
+}
+
 // ─── Panel ───────────────────────────────────────────────────────────────────
 
 export function VoicePanel({ className }: { className?: string }): React.JSX.Element {
@@ -581,13 +665,17 @@ export function VoicePanel({ className }: { className?: string }): React.JSX.Ele
   const character = useDoc('characters', characterId)
   const connector = useResolvedConnector(voice)
   const kind = connector?.kind
-  const modelOptions = kind ? VOICE_MODELS[kind] : []
+  const engine = useEngineForKind(kind)
+  const allConnectors = useCollection('connectors')
+  const navigate = useNavigate()
+  const modelOptions = useVoiceModels(connector)
   const model = kind ? (models[kind] ?? connector?.model ?? modelOptions[0]?.value) : undefined
+  const blocked = engine && !engine.installed ? (engine.kind === 'local' ? `Install ${engine.name} above to generate with it.` : `Add your ${engine.name} API key in Connectors to generate with it.`) : undefined
   const [pending, setPending] = useState<Pending[]>([])
   const [fresh, setFresh] = useState<ID>()
   const scroller = useRef<HTMLDivElement>(null)
   const notify = useNotify()
-  const engine = useVoiceEngine()
+  const engineStatus = useVoiceEngine()
   const busy = pending.length > 0
 
   useEffect(() => {
@@ -600,7 +688,7 @@ export function VoicePanel({ className }: { className?: string }): React.JSX.Ele
     const line = text.trim()
     if (!line || !connector) return
     const id = Math.random().toString(36).slice(2)
-    setPending((p) => [{ id, text: line, startedAt: Date.now(), local: kind === 'local-qwen' }, ...p])
+    setPending((p) => [{ id, text: line, startedAt: Date.now(), local: isLocalKind(kind) }, ...p])
     try {
       const asset = await speak({
         connectorId: connector.id,
@@ -634,8 +722,31 @@ export function VoicePanel({ className }: { className?: string }): React.JSX.Ele
     toast.success('Voice selected', character ? `Save it to ${character.name} from the voice card.` : undefined)
   }
 
+  /** Switch engines: keep the sample/design/language, drop the engine-specific voice id. */
+  const selectEngine = async (e: VoiceEngineInfo): Promise<void> => {
+    let id = e.connectorId
+    if (!id) {
+      const existing = allConnectors.find((c): c is VoiceConnector => c.category === 'voice' && c.kind === e.connectorKind)
+      if (e.kind === 'cloud' && !existing) {
+        navigate('/connectors')
+        return
+      }
+      if (existing) {
+        id = existing.id
+        // Picking a turned-off engine turns its connector back on.
+        if (!existing.enabled) await invoke('connectors:save', { ...existing, enabled: true }, undefined)
+      } else {
+        // A local engine whose connector was deleted: bring it back so speech can be routed to it.
+        const saved = await invoke('connectors:save', { id: '', name: e.name, category: 'voice', kind: e.connectorKind, hasKey: false, enabled: true, createdAt: Date.now() }, undefined)
+        id = saved.id
+      }
+    }
+    if (id === connector?.id) return
+    setStudio({ voice: { ...voice, connectorId: id, voiceId: undefined } })
+  }
+
   const voiceDiffers = character && JSON.stringify(character.voice ?? {}) !== JSON.stringify({ ...voice, connectorId: voice.connectorId ?? connector?.id })
-  const orbState = busy ? 'generating' : engine?.busy === 'loading-model' ? 'thinking' : 'idle'
+  const orbState = busy ? 'generating' : engineStatus?.busy === 'loading-model' ? 'thinking' : 'idle'
 
   return (
     <div className={cn('flex h-full min-h-0 w-full', className)}>
@@ -649,13 +760,18 @@ export function VoicePanel({ className }: { className?: string }): React.JSX.Ele
               <h1 className="display text-[22px]">
                 Voice <span className="text-grad">studio</span>
               </h1>
-              <p className="mt-0.5 text-[12.5px] text-fg-3">Narration, dialogue and character voices — cloned on your GPU or from the cloud, identical everywhere they speak.</p>
+              <p className="mt-0.5 text-[12.5px] text-fg-3">Narration, dialogue and character voices — local on your PC or from the cloud, identical everywhere they speak.</p>
             </div>
           </motion.header>
 
-          <motion.div variants={rise}>
-            <ScriptCard busy={busy} onGenerate={() => void generate()} character={character} kind={kind} model={model} />
-          </motion.div>
+          <motion.section variants={rise} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between px-1">
+              <span className="label-caps">Engine</span>
+              <span className="text-[11px] text-fg-3">Local engines run on your PC · cloud engines use your API key</span>
+            </div>
+            <EngineCards value={kind} onSelect={(e) => void selectEngine(e)} />
+            <AnimatePresence initial={false}>{engine && <EngineDetails key={engine.id} engine={engine} />}</AnimatePresence>
+          </motion.section>
 
           <motion.section variants={rise} className="glass hairline rounded-[20px] p-4">
             <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
@@ -687,6 +803,7 @@ export function VoicePanel({ className }: { className?: string }): React.JSX.Ele
               value={voice}
               onChange={(v) => setStudio({ voice: v })}
               lab={false}
+              hideProviders
               name={character?.name}
               characterIds={character ? [character.id] : undefined}
               previewText={text.trim() ? text.trim().slice(0, 160) : undefined}
@@ -694,8 +811,16 @@ export function VoicePanel({ className }: { className?: string }): React.JSX.Ele
           </motion.section>
 
           <motion.div variants={rise}>
-            <LabCard character={character} onUse={useVoice} />
+            <ScriptCard busy={busy} onGenerate={() => void generate()} character={character} kind={kind} model={model} blocked={blocked} />
           </motion.div>
+
+          <AnimatePresence initial={false}>
+            {connector && (kind === 'local-qwen' || kind === 'local-pocket' || kind === 'elevenlabs') && !blocked && (
+              <motion.div key="lab" variants={rise} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6, transition: { duration: 0.18 } }} transition={springSoft}>
+                <LabCard character={character} onUse={useVoice} engine={connector} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
 

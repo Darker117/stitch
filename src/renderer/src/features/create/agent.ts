@@ -323,8 +323,7 @@ export async function executeTool(call: ChatToolCall, ctx: { chatId: ID; project
           notes: '',
           createdAt: now,
           updatedAt: now
-        })),
-        contentRating: 'unrated'
+        }))
       }
       await db.put('scenarios', s)
       return { result: JSON.stringify({ ok: true, id: s.id, title: s.title, cards: s.cards.length }) }

@@ -1,9 +1,11 @@
-// Models: the local library (Stability Matrix / ComfyUI folders) and a
-// Civitai browser with downloads, sharing one "hide NSFW thumbnails" switch.
+// Models: the local library (Stability Matrix / ComfyUI folders), a Civitai
+// browser with downloads and the model manager (every location, recipe
+// models from Hugging Face, voice engines), sharing one "hide NSFW
+// thumbnails" switch.
 import { useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { BadgeCheck, EyeOff, Globe, HardDrive, KeyRound } from 'lucide-react'
+import { BadgeCheck, Boxes, EyeOff, Globe, HardDrive, KeyRound } from 'lucide-react'
 import { formatBytes } from '@/lib/utils'
 import { rise, stagger } from '@/lib/motion'
 import { Page } from '@/components/shell/page'
@@ -15,12 +17,13 @@ import { useLocalModels } from '@/components/model-library'
 import { useSettings } from '@/stores/settings'
 import { CivitaiBrowser } from './CivitaiBrowser'
 import { LocalLibrary } from './LocalLibrary'
+import { ModelManager } from './ModelManager'
 import { CivitaiKeyDialog, CivitaiMark, DownloadsButton } from './parts'
 import { useCivitai } from './store'
 
 export function ModelsPage(): React.JSX.Element {
   const [params, setParams] = useSearchParams()
-  const tab = params.get('tab') === 'civitai' ? 'civitai' : 'local'
+  const tab = params.get('tab') === 'civitai' ? 'civitai' : params.get('tab') === 'manage' ? 'manage' : 'local'
   const hide = useHideNsfw()
   const update = useSettings((s) => s.update)
   const status = useCivitai((s) => s.status)
@@ -88,10 +91,11 @@ export function ModelsPage(): React.JSX.Element {
         <div className="relative px-8">
           <Tabs
             value={tab}
-            onChange={(t) => setParams(t === 'civitai' ? { tab: 'civitai' } : {}, { replace: true })}
+            onChange={(t) => setParams(t === 'local' ? {} : { tab: t }, { replace: true })}
             items={[
               { value: 'local', label: 'My models', icon: <HardDrive />, count: stats.files },
-              { value: 'civitai', label: 'Browse Civitai', icon: <Globe /> }
+              { value: 'civitai', label: 'Browse Civitai', icon: <Globe /> },
+              { value: 'manage', label: 'Manage & install', icon: <Boxes /> }
             ]}
             className="border-b-0"
           />
@@ -99,7 +103,7 @@ export function ModelsPage(): React.JSX.Element {
       </div>
 
       <AnimatePresence mode="wait" initial={false}>
-        {tab === 'local' ? <LocalLibrary key="local" /> : <CivitaiBrowser key="civitai" />}
+        {tab === 'local' ? <LocalLibrary key="local" /> : tab === 'civitai' ? <CivitaiBrowser key="civitai" /> : <ModelManager key="manage" />}
       </AnimatePresence>
       <CivitaiKeyDialog />
     </Page>

@@ -78,16 +78,26 @@ export async function generateCard(opts: {
   return { name, entry: (res.entry ?? '').toString().trim().slice(0, 1000), triggers, notes: res.notes?.toString().trim() }
 }
 
-/** Short visual prompt for a cover image. */
-export async function coverPrompt(info: StoryInfo, llm?: LlmChoice): Promise<string> {
+/** Short visual prompt for a cover image, written from the title, description and opening. */
+export async function coverPrompt(info: StoryInfo, llm?: LlmChoice, steer?: string): Promise<string> {
   const text = await complete({
-    system: 'You write prompts for an image model. Reply with one vivid prompt only (max 70 words): subject, setting, composition, lighting, mood, style. No quotes, no preamble.',
-    prompt: `Design key art / a cover illustration for this interactive story. Cinematic, no text or lettering.\n\n${storyBrief(info)}`,
+    system:
+      'You write prompts for an image model. Reply with ONE vivid prompt only (40–80 words): the key subject, setting, composition, lighting, colour palette, mood and art style. Pick the single most iconic, intriguing image for the story — like a book cover or a game key art. Describe only what is visible: no quoted words, names of ships or places written out, numbers, coordinates, signs, captions, titles or lettering (image models paint those as text). No preamble.',
+    prompt: `Design the cover illustration for this interactive story.${steer?.trim() ? `\nArt direction from the author: ${clip(steer, 300)}` : ''}\n\n${storyBrief({ ...info, cards: info.cards.slice(0, 12) })}`,
     temperature: 0.9,
-    maxTokens: 220,
+    maxTokens: 260,
     llm
   })
-  return text.replace(/^["']|["']$/g, '').trim()
+  // Quoted phrases and markdown emphasis make image models letter them onto the picture.
+  const prompt = text
+    .replace(/^(image )?prompt:\s*/i, '')
+    .replace(/[*_`#]+/g, '')
+    .replace(/["“”]([^"“”]{0,80})["“”]/g, '$1')
+    .replace(/["“”]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  if (!prompt) throw new Error('The model did not return a cover prompt. Try again or pick another model.')
+  return prompt
 }
 
 /** "See": a concise visual prompt for the current moment. */

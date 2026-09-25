@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/input'
 import { Segmented, Slider } from '@/components/ui/controls'
 import { Select } from '@/components/ui/overlay'
 import { Badge, ProgressBar, StatusDot } from '@/components/ui/misc'
+import { InstallMissingButton } from '../models/install'
 import { endAssetDrag, startAssetDrag } from './helpers'
 import { appendAsset } from './actions'
 import { editor, useEditor } from './store'
@@ -146,7 +147,8 @@ export function GenSpace(): React.JSX.Element {
         {recipe?.available === false && (
           <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-danger/20 bg-danger/[0.06] px-2.5 py-1.5 text-[11px] text-fg-2">
             <AlertTriangle className="mt-0.5 size-3 shrink-0 text-danger" />
-            <span className="min-w-0">Missing: {recipe.missing?.slice(0, 2).join(', ')}</span>
+            <span className="min-w-0 flex-1">Missing: {recipe.missing?.slice(0, 2).join(', ')}</span>
+            <InstallMissingButton recipe={recipe} className="-my-0.5 shrink-0" />
           </div>
         )}
 

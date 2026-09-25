@@ -1,12 +1,14 @@
 // One generation turn (streamed) plus background upkeep: auto summarization
-// of passages that fell out of the window and the memory bank.
+// of passages that fell out of the window and the memory bank. Story scripts'
+// Context hook runs between building the context and calling the model.
 import type { Adventure, StoryAction } from '@shared/types'
-import { streamLlm } from '@/lib/api'
+import { streamLlm, type StreamHandle } from '@/lib/api'
 import { contextWindow, type LlmChoice } from '@/lib/llm'
 import { db } from '@/stores/db'
 import { extractMemories, summarize } from './ai'
-import { buildContext, type ContextResult } from './context'
+import { buildContext, type ContextResult, type ScriptedInput } from './context'
 import { NoModelError, storyModel } from './llm'
+import { runContextScripts, scriptMemory } from './scripts/play'
 import { cleanOutput, contextLine, isAiAction, streamingDisplay } from './text'
 import { nanoid } from 'nanoid'
 
@@ -24,14 +26,18 @@ export function isReasoner(model: string): boolean {
 
 export function contextFor(adv: Adventure, history: StoryAction[], llm?: LlmChoice): ContextResult {
   const choice = llm ?? storyModel(adv)
+  // Scripts' state.memory takes precedence over the plot components (as in AID).
+  const mem = scriptMemory(adv)
+  const plot = mem?.context || mem?.authorsNote ? { ...adv.plot, plotEssentials: mem.context ?? adv.plot.plotEssentials, authorsNote: mem.authorsNote ?? adv.plot.authorsNote } : adv.plot
   return buildContext({
-    plot: adv.plot,
+    plot,
     cards: adv.cards,
     memories: adv.memories,
     actions: history,
     settings: adv.settings,
     player: adv.player,
-    modelWindow: contextWindow(choice)
+    modelWindow: contextWindow(choice),
+    frontMemory: mem?.frontMemory
   })
 }
 
@@ -41,14 +47,14 @@ export function runTurn(adv: Adventure, history: StoryAction[], onText: (text: s
   if (!llm) {
     return { done: Promise.reject(new NoModelError()), abort: () => {} }
   }
-  const ctx = contextFor(adv, history, llm)
   const window = contextWindow(llm)
   const s = adv.settings
+  let sent: Pick<ScriptedInput, 'system' | 'messages' | 'tokens'>
   const request = (extra: number) => ({
     connectorId: llm.connectorId,
     model: llm.model,
-    system: ctx.system,
-    messages: ctx.messages,
+    system: sent.system,
+    messages: sent.messages,
     maxTokens: s.responseLength + extra,
     temperature: s.temperature,
     topP: s.topP,
@@ -59,14 +65,21 @@ export function runTurn(adv: Adventure, history: StoryAction[], onText: (text: s
     if (t) reasoners.add(llm.model)
     onReasoning?.(t)
   }
-  let handle = streamLlm(request(isReasoner(llm.model) ? 1536 : 0), (full) => onText(streamingDisplay(full)), onReason)
-  // Record exactly what was sent, for Inspect Input.
-  void db.patch('adventures', adv.id, {
-    lastInput: { system: ctx.system, messages: ctx.messages, tokens: ctx.tokens, droppedCards: ctx.droppedCards }
-  })
+  let handle: StreamHandle | undefined
   let aborted = false
-  const done = handle.done.then(async (res) => {
-    let r = res
+  const done = (async () => {
+    const ctx = contextFor(adv, history, llm)
+    sent = ctx
+    // Context hook: scripts may rewrite what the model sees.
+    const scripted = await runContextScripts(adv.id, history, ctx)
+    if (scripted) sent = scripted
+    if (aborted) throw new Error('Stopped')
+    handle = streamLlm(request(isReasoner(llm.model) ? 1536 : 0), (full) => onText(streamingDisplay(full)), onReason)
+    // Record exactly what was sent, for Inspect Input.
+    void db.patch('adventures', adv.id, {
+      lastInput: { system: sent.system, messages: sent.messages, tokens: sent.tokens, droppedCards: ctx.droppedCards }
+    })
+    let r = await handle.done
     // Thinking used up the whole budget: try once more with room for the reply.
     if (!cleanOutput(r.text).trim() && r.reasoning && !aborted) {
       handle = streamLlm(request(2048), (full) => onText(streamingDisplay(full)), onReason)
@@ -75,12 +88,12 @@ export function runTurn(adv: Adventure, history: StoryAction[], onText: (text: s
     const text = cleanOutput(r.text, { raw: s.rawOutput })
     if (!text) throw new Error('The model returned an empty reply. Try Retry, or raise the response length.')
     return { text, raw: r.text, reasoning: r.reasoning, llm, context: ctx }
-  })
+  })()
   return {
     done,
     abort: () => {
       aborted = true
-      handle.abort()
+      handle?.abort()
     }
   }
 }

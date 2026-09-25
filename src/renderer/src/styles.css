@@ -40,6 +40,16 @@
   --sunset-6: #aa3b51;
   --sunset-7: #8e3452;
   --sunset-8: #312b47;
+  /* The same ramp built from the live accents (accent-2 → accent → deep), so
+     decorative art follows the theme and wallpaper accents. */
+  --art-1: var(--accent-2);
+  --art-2: color-mix(in oklab, var(--accent-2) 80%, var(--accent));
+  --art-3: color-mix(in oklab, var(--accent-2) 55%, var(--accent));
+  --art-4: color-mix(in oklab, var(--accent-2) 25%, var(--accent));
+  --art-5: var(--accent);
+  --art-6: color-mix(in oklab, var(--accent), black 22%);
+  --art-7: color-mix(in oklab, var(--accent), black 38%);
+  --art-8: color-mix(in oklab, var(--accent-2), black 65%);
 
   --bg: #07060b;
   --bg-raised: #0d0b13;

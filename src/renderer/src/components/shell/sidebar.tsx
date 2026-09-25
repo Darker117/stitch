@@ -21,9 +21,10 @@ import {
   Trash2,
   Zap
 } from 'lucide-react'
+import { fileUrl } from '@/lib/api'
 import { cn, timeAgo } from '@/lib/utils'
 import { ease, spring } from '@/lib/motion'
-import { db, useCollection } from '@/stores/db'
+import { db, useCollection, useDoc } from '@/stores/db'
 import { useGen } from '@/stores/gen'
 import { useAppSettings } from '@/stores/settings'
 import { useUpdate } from '@/stores/update'
@@ -92,6 +93,7 @@ export function Sidebar({ collapsed, onToggle, onSearch }: { collapsed: boolean;
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const settings = useAppSettings()
+  const avatar = useDoc('assets', settings?.persona?.avatarAssetId)
   const chats = useCollection('chats')
   const comfy = useGen((s) => s.comfy)
   const [chatsOpen, setChatsOpen] = useState(true)
@@ -112,12 +114,7 @@ export function Sidebar({ collapsed, onToggle, onSearch }: { collapsed: boolean;
       <div className={cn('flex h-10 items-center gap-2 px-3', collapsed && 'justify-center px-0')}>
         <button onClick={() => navigate('/')} className="no-drag flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 transition hover:bg-white/[0.05]">
           <LogoMark size={28} className="-my-1" />
-          {!collapsed && (
-            <>
-              <Wordmark height={15} className="mt-0.5 text-fg" />
-              <ChevronDown className="size-3.5 text-fg-3" />
-            </>
-          )}
+          {!collapsed && <Wordmark height={15} className="mt-0.5 text-fg" />}
         </button>
         {!collapsed && (
           <div className="no-drag ml-auto flex items-center">
@@ -214,7 +211,7 @@ export function Sidebar({ collapsed, onToggle, onSearch }: { collapsed: boolean;
           {!collapsed && <span className="truncate">{gpuLabel}</span>}
         </NavLink>
         <div className={cn('flex items-center gap-2 rounded-[10px] px-1.5 py-1', collapsed && 'flex-col')}>
-          <Avatar name={settings?.userName} size={30} className="ring-2 ring-[color-mix(in_oklab,var(--accent)_45%,transparent)]" />
+          <Avatar src={avatar ? fileUrl(avatar.path) : undefined} name={settings?.userName} size={30} className="ring-2 ring-[color-mix(in_oklab,var(--accent)_45%,transparent)]" />
           {!collapsed && <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{settings?.userName}</span>}
           <NavLink to="/settings" className={({ isActive }) => cn('grid size-7 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.06] hover:text-fg', isActive && 'text-fg')}>
             <Settings className="size-3.5" />

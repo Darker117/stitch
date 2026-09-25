@@ -5,9 +5,12 @@
 // history = actions as alternating assistant (story) / user (player) messages,
 //           fitted newest-first into (contextLength − responseLength).
 // Author's note rides on the final user message; Continue adds a short cue.
+//
+// Story scripts see the same context rendered the AI Dungeon way (`aidContext`)
+// and may rewrite it; `fromAidContext` turns their text back into model input.
 import type { AdventureSettings, MemoryEntry, PlotComponents, StoryAction, StoryCard } from '@shared/types'
 import { DEFAULT_INSTRUCTIONS, SAFETY_TEXT, cardTypeLabel, povInstruction } from './defaults'
-import { contextLine, isAiAction, tokens } from './text'
+import { contextLine, isAiAction, playerLine, tokens } from './text'
 
 export interface ContextInput {
   plot: PlotComponents
@@ -16,9 +19,11 @@ export interface ContextInput {
   /** History in order. The newest player action (if any) is already the last item. */
   actions: StoryAction[]
   settings: Pick<AdventureSettings, 'contextLength' | 'responseLength' | 'safety' | 'memoryBank'>
-  player: { name: string; choices: Record<string, string> }
+  player: { name: string; persona?: string; choices: Record<string, string> }
   /** Model context window, when known. */
   modelWindow?: number
+  /** Script front memory (`state.memory.frontMemory`): after the last action. */
+  frontMemory?: string
 }
 
 export interface ContextMessage {
@@ -40,6 +45,10 @@ export interface ContextResult {
   included: StoryCard[]
   triggered: StoryCard[]
   memoriesUsed: MemoryEntry[]
+  /** AI instructions + POV + safety: the system prompt without story sections. */
+  instructions: string
+  /** The pieces that made it in, for the AI Dungeon rendering. */
+  parts: { plotEssentials: string; player: string; summary: string; authorsNote: string; frontMemory: string; history: StoryAction[] }
 }
 
 export const CONTINUE_CUE = '[Continue the story from exactly where it left off.]'
@@ -136,9 +145,10 @@ export function buildContext(input: ContextInput): ContextResult {
   const choiceLines = Object.entries(player.choices)
     .filter(([, v]) => v)
     .map(([k, v]) => `${k.replace(/^character\./, '').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())}: ${v}`)
-  const playerBlock = [player.name ? `Name: ${player.name}` : '', ...choiceLines.filter((l) => !/^Name:/i.test(l))].filter(Boolean).join('\n')
+  const playerBlock = [player.name ? `Name: ${player.name}` : '', player.persona ? `Personality: ${player.persona}` : '', ...choiceLines.filter((l) => !/^Name:/i.test(l))].filter(Boolean).join('\n')
 
-  let core = (plot.aiInstructions.trim() || DEFAULT_INSTRUCTIONS) + `\n- ${povInstruction(thirdPerson, player.name)}\n- ${SAFETY_TEXT[settings.safety].addendum}`
+  const instructions = (plot.aiInstructions.trim() || DEFAULT_INSTRUCTIONS) + `\n- ${povInstruction(thirdPerson, player.name)}\n- ${SAFETY_TEXT[settings.safety].addendum}`
+  let core = instructions
   core += section('Player character', playerBlock)
   core += section('Plot essentials', plot.plotEssentials)
   core += section('Story so far', plot.storySummary)
@@ -147,7 +157,9 @@ export function buildContext(input: ContextInput): ContextResult {
   const story = input.actions.map((a, i) => ({ a, i })).filter(({ a }) => a.type !== 'see' && a.text.trim())
   const lastAi = story.length > 0 && isAiAction(story[story.length - 1].a)
   const authors = plot.authorsNote.trim() ? `[Author's note: ${plot.authorsNote.trim()}]` : ''
-  const tail = lastAi ? `${CONTINUE_CUE}${authors ? `\n${authors}` : ''}` : authors ? `\n\n${authors}` : ''
+  const front = input.frontMemory?.trim() ?? ''
+  const extras = [authors, front].filter(Boolean).join('\n')
+  const tail = lastAi ? `${CONTINUE_CUE}${extras ? `\n${extras}` : ''}` : extras ? `\n\n${extras}` : ''
 
   // ── Triggered cards & memories ────────────────────────────────────────────
   const recent = story
@@ -231,6 +243,105 @@ export function buildContext(input: ContextInput): ContextResult {
     droppedActions: story.length - chosen.length,
     included,
     triggered,
-    memoriesUsed: includedMem
+    memoriesUsed: includedMem,
+    instructions,
+    parts: {
+      plotEssentials: plot.plotEssentials.trim(),
+      player: playerBlock,
+      summary: plot.storySummary.trim(),
+      authorsNote: plot.authorsNote.trim(),
+      frontMemory: front,
+      history: chosen.map(({ a }) => a)
+    }
   }
+}
+
+// ─── AI Dungeon rendering (for story scripts) ────────────────────────────────
+
+/** How an action reads in AI Dungeon's context and `history`: player lines start with "> ". */
+export function aidActionText(a: Pick<StoryAction, 'type' | 'text'>, first = false): string {
+  if (a.type === 'do' || a.type === 'say') return `\n> ${playerLine(a.type, a.text)}\n`
+  if (a.type === 'story' || a.type === 'see') return `\n${a.text.trim()}\n`
+  return first ? a.text.trim() : `\n${a.text.trim()}`
+}
+
+export interface AidContext {
+  /** The whole context as scripts see it (`text` in the context hook). */
+  text: string
+  /** Everything before "Recent Story:". */
+  header: string
+  /** "Recent Story:" to the end. */
+  recent: string
+  /** Characters of the leading memory block (`info.memoryLength`). */
+  memoryLength: number
+  /** Room for the context in characters (`info.maxChars`). */
+  maxChars: number
+}
+
+/**
+ * The context in AI Dungeon's layout: memory (plot essentials), World Lore,
+ * Story Summary, Memories, then Recent Story with the author's note right
+ * before the last action and front memory at the very end. AI instructions
+ * stay in the system prompt, as in AID.
+ */
+export function aidContext(res: ContextResult): AidContext {
+  const p = res.parts
+  const memory = [p.plotEssentials, p.player && `Player character:\n${p.player}`].filter(Boolean).join('\n\n')
+  const blocks: string[] = []
+  if (memory) blocks.push(memory)
+  const lore = res.included.map((c) => c.entry.trim()).filter(Boolean)
+  if (lore.length) blocks.push(`World Lore:\n${lore.join('\n\n')}`)
+  if (p.summary) blocks.push(`Story Summary:\n${p.summary}`)
+  if (res.memoriesUsed.length) blocks.push(`Memories:\n${res.memoriesUsed.map((m) => m.text.trim()).join('\n')}`)
+  const acts = p.history.map((a, i) => aidActionText(a, i === 0))
+  const note = p.authorsNote ? `\n[Author's note: ${p.authorsNote}]\n` : ''
+  let story = acts.length ? acts.slice(0, -1).join('') + note + acts[acts.length - 1] : note
+  if (p.frontMemory) story = `${story.replace(/\s+$/, '')}\n${p.frontMemory}`
+  const recent = `Recent Story:\n${story.replace(/^\s+/, '').replace(/\n{3,}/g, '\n\n')}`
+  const header = blocks.join('\n\n')
+  return {
+    text: header ? `${header}\n\n${recent}` : recent,
+    header,
+    recent,
+    memoryLength: memory.length,
+    maxChars: Math.max(400, (res.budget - tokens(res.instructions)) * 4)
+  }
+}
+
+/** Tells the model how to read a script-built context. */
+export const AID_CONTEXT_NOTE =
+  'The user message is the story context in AI Dungeon format: plot essentials, World Lore, Story Summary and Memories, then Recent Story. Continue the story from exactly where Recent Story ends, following any instructions embedded in the context.'
+
+export interface ScriptedInput {
+  system: string
+  messages: ContextMessage[]
+  tokens: number
+  /** native: scripts changed nothing; header: only the world info above Recent Story changed; raw: sent as one AID-style prompt. */
+  mode: 'native' | 'header' | 'raw'
+}
+
+const squash = (s: string): string => s.replace(/\s+/g, ' ').trim()
+
+function count(system: string, messages: ContextMessage[]): number {
+  return tokens(system) + messages.reduce((n, m) => n + tokens(m.content) + MSG_OVERHEAD, 0)
+}
+
+/**
+ * Model input for a context the scripts returned. Untouched context keeps the
+ * normal chat layout; if only the part above "Recent Story:" changed, that
+ * part replaces the system prompt's story sections; anything else is sent
+ * as-is, as a single AI Dungeon-style prompt.
+ */
+export function fromAidContext(res: ContextResult, aid: AidContext, modified: string): ScriptedInput {
+  if (squash(modified) === squash(aid.text)) return { system: res.system, messages: res.messages, tokens: res.tokens, mode: 'native' }
+  const marks = [...modified.matchAll(/Recent\s*Story\s*:/gi)]
+  const at = marks.length ? (marks[marks.length - 1].index ?? -1) : -1
+  if (at >= 0 && squash(modified.slice(at)) === squash(aid.recent)) {
+    const header = modified.slice(0, at).trim()
+    const system = header ? `${res.instructions}\n\n${header}` : res.instructions
+    return { system, messages: res.messages, tokens: count(system, res.messages), mode: 'header' }
+  }
+  const system = `${res.instructions}\n\n${AID_CONTEXT_NOTE}`
+  const messages: ContextMessage[] = [{ role: 'user', content: modified }]
+  return { system, messages, tokens: count(system, messages), mode: 'raw' }
 }

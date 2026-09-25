@@ -45,7 +45,7 @@ export function OpeningEditor({ scenario, change, info, onConfigure }: { scenari
     const patch: Partial<Scenario> = { openingType: t }
     if (t === 'characterCreator' && !scenario.creatorFields.length) patch.creatorFields = defaultCreatorFields()
     if (t === 'multipleChoice' && !scenario.choices.length) {
-      const kids = [1, 2].map((n) => newScenario({ parentId: scenario.id, title: `Choice ${n}`, contentRating: scenario.contentRating, template: scenario.template, plot: emptyPlot() }))
+      const kids = [1, 2].map((n) => newScenario({ parentId: scenario.id, title: `Choice ${n}`, template: scenario.template, plot: emptyPlot() }))
       for (const k of kids) await db.put('scenarios', k)
       patch.choices = kids.map((k) => k.id)
     }
@@ -189,7 +189,7 @@ function ChoiceRow({ id, index, onConfigure, onNest, onDelete }: { id: string; i
 
 function ChoicesEditor({ scenario, change, onConfigure }: { scenario: Scenario; change: Change; onConfigure: (id: string) => void }): React.JSX.Element {
   const add = async (): Promise<void> => {
-    const k = newScenario({ parentId: scenario.id, title: `Choice ${scenario.choices.length + 1}`, contentRating: scenario.contentRating, template: scenario.template, plot: emptyPlot() })
+    const k = newScenario({ parentId: scenario.id, title: `Choice ${scenario.choices.length + 1}`, template: scenario.template, plot: emptyPlot() })
     await db.put('scenarios', k)
     change((cur) => ({ choices: [...cur.choices, k.id] }))
   }
@@ -197,7 +197,7 @@ function ChoicesEditor({ scenario, change, onConfigure }: { scenario: Scenario; 
     const child = db.get('scenarios', id)
     if (!child) return
     if (child.openingType !== 'multipleChoice' || !child.choices.length) {
-      const kids = [1, 2].map((n) => newScenario({ parentId: id, title: `Choice ${n}`, contentRating: scenario.contentRating, template: scenario.template, plot: emptyPlot() }))
+      const kids = [1, 2].map((n) => newScenario({ parentId: id, title: `Choice ${n}`, template: scenario.template, plot: emptyPlot() }))
       for (const k of kids) await db.put('scenarios', k)
       await db.patch('scenarios', id, { openingType: 'multipleChoice', choices: kids.map((k) => k.id), updatedAt: Date.now() })
     }

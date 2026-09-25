@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import type { GenKind, SkillDoc } from '@shared/types'
 import { errorText, invoke } from '@/lib/api'
+import { themedHue } from '@/lib/theme'
 import { cn, formatEta } from '@/lib/utils'
 import { ease, rise, spring, stagger } from '@/lib/motion'
 import { Page } from '@/components/shell/page'
@@ -70,8 +71,9 @@ const BUILTIN: BuiltinSkill[] = [
 ]
 
 function SkillArt({ colors, icon, className }: { colors: [string, string, string]; icon: React.ReactNode; className?: string }): React.JSX.Element {
+  const [a, b, c] = colors.map(themedHue)
   return (
-    <div className={cn('relative overflow-hidden', className)} style={{ background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]} 55%, ${colors[2]})` }}>
+    <div className={cn('relative overflow-hidden', className)} style={{ background: `linear-gradient(135deg, ${a}, ${b} 55%, ${c})` }}>
       <div className="absolute inset-0 opacity-40" style={{ background: 'radial-gradient(circle at 25% 20%, rgb(255 255 255 / 0.5), transparent 45%)' }} />
       <div className="absolute inset-0 opacity-[0.12]" style={{ backgroundImage: 'radial-gradient(rgb(255 255 255) 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
       <div className="absolute -right-6 -bottom-6 text-white/15 [&>svg]:size-40">{icon}</div>

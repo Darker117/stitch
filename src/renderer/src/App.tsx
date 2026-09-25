@@ -34,6 +34,7 @@ function lazyPage<M extends Record<string, unknown>>(loader: () => Promise<M>, n
 const StoriesHome = lazyPage(() => import('@/features/stories/StoriesHome'), 'StoriesHome')
 const TemplatesPage = lazyPage(() => import('@/features/stories/TemplatesPage'), 'TemplatesPage')
 const ScenarioEditor = lazyPage(() => import('@/features/stories/ScenarioEditor'), 'ScenarioEditor')
+const ComposerPage = lazyPage(() => import('@/features/stories/composer/ComposerPage'), 'ComposerPage')
 const PlayScreen = lazyPage(() => import('@/features/stories/PlayScreen'), 'PlayScreen')
 const CharactersPage = lazyPage(() => import('@/features/characters/CharactersPage'), 'CharactersPage')
 const CharacterDetail = lazyPage(() => import('@/features/characters/CharacterDetail'), 'CharacterDetail')
@@ -125,6 +126,7 @@ const router = createHashRouter([
       { path: '/stories', element: <StoriesHome /> },
       { path: '/stories/new', element: <TemplatesPage /> },
       { path: '/stories/scenario/:id', element: <ScenarioEditor /> },
+      { path: '/stories/compose', element: <ComposerPage /> },
       { path: '/characters', element: <CharactersPage /> },
       { path: '/characters/:id', element: <CharacterDetail /> },
       { path: '/generate/:kind', element: <GeneratePage /> },

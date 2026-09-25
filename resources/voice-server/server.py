@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
 """
-Stitch Voice — a small local HTTP server around Qwen3-TTS (Apache-2.0).
+Stitch Voice — a small local HTTP server around three local TTS engines:
+
+  qwen3   Qwen3-TTS (Apache-2.0)          voice cloning, preset speakers, voice design · GPU
+  kokoro  Kokoro-82M (Apache-2.0)         54 preset voices in 9 languages · GPU (CPU fallback)
+  pocket  Kyutai Pocket TTS (MIT code, CC-BY-4.0 weights)  preset voices + cloning · CPU
+
+Each engine's Python package is installed on demand by Stitch; an engine whose
+package is missing simply answers with an error.
 
     python server.py --port 7862                 # serve
     python server.py --download base-1.7b        # fetch a model into HF_HOME and exit
 
 JSON in, WAV bytes out. Everything binds to 127.0.0.1 by default.
 
-  GET  /health             device, loaded models, state, which models are on disk
+  GET  /health             device, loaded models, state, which models are on disk, which engines are importable
   GET  /speakers           CustomVoice preset speakers
   GET  /languages          supported languages
-  POST /tts                {text, language, ref_audio, ref_text, x_vector_only, speaker, instruct, design, size, seed}
-                           ref_audio → voice clone (Base), design → VoiceDesign, else CustomVoice speaker
+  POST /tts                {engine?: "qwen3"|"kokoro"|"pocket", text, ...}
+                           qwen3:  {language, ref_audio, ref_text, x_vector_only, speaker, instruct, design, size, seed}
+                                   ref_audio → voice clone (Base), design → VoiceDesign, else CustomVoice speaker
+                           kokoro: {voice: "af_heart" | "af_heart,af_bella" (blend), speed, lang?}
+                           pocket: {voice: preset name | ref_audio (clone), language: "english"…, hf_token?, temperature?}
   POST /design             {text, instruct, language, seed}  → VoiceDesign
   POST /v1/audio/speech    OpenAI-compatible {model, input, voice, instructions, response_format}
   GET  /v1/models          OpenAI-compatible model list
@@ -42,15 +52,37 @@ from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional, Tuple
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
+
+KOKORO_REPO = "hexgrad/Kokoro-82M"
+POCKET_REPO = "kyutai/pocket-tts"  # gated (accept terms on HF) — includes the voice-cloning encoder
+POCKET_OPEN_REPO = "kyutai/pocket-tts-without-voice-cloning"
+POCKET_LANGUAGES = ["english", "french", "german", "portuguese", "italian", "spanish", "dutch"]
 
 MODELS: Dict[str, Dict[str, str]] = {
-    "base-1.7b": {"repo": "Qwen/Qwen3-TTS-12Hz-1.7B-Base", "type": "base", "label": "Voice clone 1.7B"},
-    "base-0.6b": {"repo": "Qwen/Qwen3-TTS-12Hz-0.6B-Base", "type": "base", "label": "Voice clone 0.6B"},
-    "custom-1.7b": {"repo": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", "type": "custom", "label": "Preset speakers 1.7B"},
-    "custom-0.6b": {"repo": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", "type": "custom", "label": "Preset speakers 0.6B"},
-    "design-1.7b": {"repo": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", "type": "design", "label": "Voice design 1.7B"},
+    "base-1.7b": {"repo": "Qwen/Qwen3-TTS-12Hz-1.7B-Base", "type": "base", "label": "Voice clone 1.7B", "engine": "qwen3"},
+    "base-0.6b": {"repo": "Qwen/Qwen3-TTS-12Hz-0.6B-Base", "type": "base", "label": "Voice clone 0.6B", "engine": "qwen3"},
+    "custom-1.7b": {"repo": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", "type": "custom", "label": "Preset speakers 1.7B", "engine": "qwen3"},
+    "custom-0.6b": {"repo": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", "type": "custom", "label": "Preset speakers 0.6B", "engine": "qwen3"},
+    "design-1.7b": {"repo": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", "type": "design", "label": "Voice design 1.7B", "engine": "qwen3"},
+    "kokoro-82m": {"repo": KOKORO_REPO, "type": "kokoro", "label": "Kokoro 82M", "engine": "kokoro"},
 }
+for _lang in POCKET_LANGUAGES:
+    MODELS[f"pocket-{_lang}"] = {"repo": POCKET_OPEN_REPO, "type": "pocket", "label": f"Pocket TTS · {_lang.capitalize()}", "engine": "pocket", "language": _lang}
+
+ENGINE_MODULES = {"qwen3": "qwen_tts", "kokoro": "kokoro", "pocket": "pocket_tts"}
+
+# Kokoro language codes (first letter of every voice id).
+KOKORO_LANGS = {
+    "a": "American English", "b": "British English", "e": "Spanish", "f": "French", "h": "Hindi",
+    "i": "Italian", "j": "Japanese", "p": "Brazilian Portuguese", "z": "Mandarin Chinese",
+}
+KOKORO_DEFAULT_VOICE = {"a": "af_heart", "b": "bf_emma", "e": "ef_dora", "f": "ff_siwis", "h": "hf_alpha", "i": "if_sara", "j": "jf_alpha", "p": "pf_dora", "z": "zf_xiaoxiao"}
+POCKET_DEFAULT_VOICE = {"english": "alba", "french": "estelle", "german": "juergen", "portuguese": "rafael", "italian": "giovanni", "spanish": "lola", "dutch": "daan"}
+POCKET_CLONING_HELP = (
+    "Voice cloning with Pocket TTS needs Kyutai's gated weights: accept the terms at "
+    "https://huggingface.co/kyutai/pocket-tts, then add a Hugging Face read token to the Pocket TTS voice engine."
+)
 
 SPEAKERS: List[Dict[str, str]] = [
     {"id": "Ryan", "description": "Dynamic male voice with strong rhythmic drive", "language": "English", "gender": "male"},
@@ -196,9 +228,15 @@ def normalize(x: Any) -> Any:
 class Engine:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
-        self.gpu_lock = threading.Lock()  # one GPU job at a time
+        self.gpu_lock = threading.Lock()  # one GPU job at a time (Qwen3-TTS, Kokoro)
+        self.cpu_lock = threading.Lock()  # Pocket TTS runs on the CPU, next to GPU work
         self.meta_lock = threading.Lock()  # protects the fields below
         self.resident: "OrderedDict[str, Any]" = OrderedDict()
+        # Kokoro: one KModel shared by per-language pipelines.
+        self.kokoro: Optional[Dict[str, Any]] = None
+        # Pocket TTS: one model per language (a couple at most) + cached voice states.
+        self.pocket: "OrderedDict[str, Any]" = OrderedDict()
+        self.pocket_states: "OrderedDict[Tuple, Any]" = OrderedDict()
         self.last_used: Dict[str, float] = {}
         self.prompt_cache: "OrderedDict[Tuple, Any]" = OrderedDict()
         self.state = "idle"
@@ -258,21 +296,43 @@ class Engine:
             self.torch.cuda.empty_cache()
         log(f"Unloaded {MODELS[key]['label']}")
 
+    def _unload_kokoro(self) -> None:
+        if self.kokoro is None:
+            return
+        self.kokoro = None
+        self.last_used.pop("kokoro-82m", None)
+        gc.collect()
+        if self.torch is not None and self.device.startswith("cuda"):
+            self.torch.cuda.empty_cache()
+        log("Unloaded Kokoro 82M")
+
+    def _unload_pocket(self, lang: Optional[str] = None) -> None:
+        for key in [lang] if lang else list(self.pocket.keys()):
+            if self.pocket.pop(key, None) is not None:
+                self.last_used.pop(f"pocket-{key}", None)
+                for k in [k for k in self.pocket_states if k[0] == key]:
+                    self.pocket_states.pop(k, None)
+                log(f"Unloaded Pocket TTS · {key}")
+        gc.collect()
+
     def unload_all(self) -> None:
         with self.gpu_lock:
             for key in list(self.resident.keys()):
                 self._unload(key)
+            self._unload_kokoro()
             self.set_state("idle")
+        with self.cpu_lock:
+            self._unload_pocket()
 
     def ensure_downloaded(self, key: str) -> str:
-        repo = MODELS[key]["repo"]
-        path = cached_snapshot(repo)
+        path = model_ready(key)
         if path:
             return path
+        repo = MODELS[key]["repo"]
         self.set_state("downloading", key)
-        log(f"Downloading {repo} (first use — a few GB, only once)…")
-        path = download(repo)
-        log(f"Downloaded {repo}")
+        log(f"Downloading {MODELS[key]['label']} ({repo}) — first use only…")
+        path = download(key)
+        log(f"Downloaded {MODELS[key]['label']}")
         return path
 
     def model(self, key: str) -> Any:
@@ -319,18 +379,24 @@ class Engine:
             return
         while True:
             time.sleep(15)
-            if not self.resident:
-                continue
-            if not self.gpu_lock.acquire(blocking=False):
-                continue
-            try:
-                now = time.time()
-                for key in list(self.resident.keys()):
-                    if now - self.last_used.get(key, now) > limit:
-                        log(f"Idle for {limit // 60} min — freeing VRAM")
-                        self._unload(key)
-            finally:
-                self.gpu_lock.release()
+            now = time.time()
+            if (self.resident or self.kokoro is not None) and self.gpu_lock.acquire(blocking=False):
+                try:
+                    for key in list(self.resident.keys()):
+                        if now - self.last_used.get(key, now) > limit:
+                            log(f"Idle for {limit // 60} min — freeing VRAM")
+                            self._unload(key)
+                    if self.kokoro is not None and now - self.last_used.get("kokoro-82m", now) > limit:
+                        self._unload_kokoro()
+                finally:
+                    self.gpu_lock.release()
+            if self.pocket and self.cpu_lock.acquire(blocking=False):
+                try:
+                    for lang in list(self.pocket.keys()):
+                        if now - self.last_used.get(f"pocket-{lang}", now) > limit:
+                            self._unload_pocket(lang)
+                finally:
+                    self.cpu_lock.release()
 
     # ── synthesis ──
     def _seed(self, seed: Optional[int]) -> None:
@@ -356,6 +422,229 @@ class Engine:
         return prompt
 
     def synthesize(self, req: Dict[str, Any]) -> Tuple[Any, int, Dict[str, str]]:
+        engine = str(req.get("engine") or "qwen3").lower()
+        if engine not in ENGINE_MODULES:
+            raise BadRequest(f"unknown engine '{engine}'. Known: {', '.join(ENGINE_MODULES)}")
+        if not engine_available(engine):
+            raise BadRequest(f"The {ENGINE_NAMES[engine]} engine is not installed — install it in Stitch (Generate → Voice).")
+        if engine == "kokoro":
+            return self.synthesize_kokoro(req)
+        if engine == "pocket":
+            return self.synthesize_pocket(req)
+        return self.synthesize_qwen(req)
+
+    # ── Kokoro ──
+    def _kokoro(self) -> Dict[str, Any]:
+        """Loaded Kokoro model (+ pipelines); caller holds gpu_lock."""
+        if self.kokoro is not None:
+            self.last_used["kokoro-82m"] = time.time()
+            return self.kokoro
+        path = self.ensure_downloaded("kokoro-82m")
+        self.set_state("loading-model", "kokoro-82m")
+        dev = self.device if self.device.startswith("cuda") else "cpu"
+        log(f"Loading Kokoro 82M onto {dev}…")
+        t0 = time.time()
+        from kokoro import KModel
+
+        cfg, weights = os.path.join(path, "config.json"), os.path.join(path, "kokoro-v1_0.pth")
+        try:
+            m = KModel(repo_id=KOKORO_REPO, config=cfg, model=weights).to(dev).eval()
+        except Exception as err:
+            if dev == "cpu" or "out of memory" not in str(err).lower():
+                raise
+            log("Out of VRAM — running Kokoro on the CPU instead")
+            dev = "cpu"
+            m = KModel(repo_id=KOKORO_REPO, config=cfg, model=weights).to(dev).eval()
+        self.kokoro = {"model": m, "path": path, "device": dev, "pipes": {}, "voices": {}}
+        self.last_used["kokoro-82m"] = time.time()
+        log(f"Loaded Kokoro 82M in {time.time() - t0:.1f}s")
+        return self.kokoro
+
+    def _kokoro_voice(self, k: Dict[str, Any], voice: str) -> Any:
+        """Voice pack tensor; 'a,b' blends voices by averaging (Kokoro's own convention)."""
+        if voice in k["voices"]:
+            return k["voices"][voice]
+        torch = self.torch
+        packs = []
+        for name in [v.strip() for v in voice.split(",") if v.strip()]:
+            if not re.fullmatch(r"[a-z]{2}_[a-z0-9_]+", name):
+                raise BadRequest(f"Unknown Kokoro voice '{name}'")
+            f = os.path.join(k["path"], "voices", f"{name}.pt")
+            if not os.path.isfile(f):
+                from huggingface_hub import hf_hub_download
+
+                try:
+                    f = hf_hub_download(repo_id=KOKORO_REPO, filename=f"voices/{name}.pt")
+                except Exception:
+                    raise BadRequest(f"Unknown Kokoro voice '{name}'")
+            packs.append(torch.load(f, weights_only=True))
+        if not packs:
+            raise BadRequest("Pick a Kokoro voice")
+        pack = packs[0] if len(packs) == 1 else torch.mean(torch.stack(packs), dim=0)
+        k["voices"][voice] = pack
+        return pack
+
+    def synthesize_kokoro(self, req: Dict[str, Any]) -> Tuple[Any, int, Dict[str, str]]:
+        import numpy as np
+
+        text = str(req.get("text") or "").strip()
+        if not text:
+            raise BadRequest("text is empty")
+        voice = str(req.get("voice") or "").strip().lower() or "af_heart"
+        lang = str(req.get("lang") or voice[0]).lower()[:1]
+        if lang not in KOKORO_LANGS:
+            raise BadRequest(f"Unsupported Kokoro language '{lang}'")
+        speed = min(2.0, max(0.5, float(req.get("speed") or 1.0)))
+        chunks = split_text(text, int(req.get("max_chars") or 400))
+        info: Dict[str, str] = {"mode": "preset", "speaker": voice, "language": KOKORO_LANGS[lang]}
+        with self.gpu_lock:
+            try:
+                k = self._kokoro()
+                if lang not in k["pipes"]:
+                    self.set_state("loading-model", "kokoro-82m")
+                    from kokoro import KPipeline
+
+                    log(f"Preparing Kokoro {KOKORO_LANGS[lang]} text frontend…")
+                    k["pipes"][lang] = KPipeline(lang_code=lang, repo_id=KOKORO_REPO, model=k["model"])
+                pipe = k["pipes"][lang]
+                pack = self._kokoro_voice(k, voice)
+            except Exception:
+                self.set_state("idle")
+                raise
+            self.set_state("generating", f"{len(chunks)} part{'s' if len(chunks) != 1 else ''}")
+            t0 = time.time()
+            sr = 24000
+            try:
+                pieces: List[Any] = []
+                for chunk, pause in chunks:
+                    for result in pipe(chunk, voice=pack, speed=speed, split_pattern=None):
+                        audio = result.audio
+                        if audio is not None:
+                            pieces.append(np.asarray(audio.detach().cpu().numpy(), dtype=np.float32).reshape(-1))
+                    if pause > 0:
+                        pieces.append(np.zeros(int(sr * pause), dtype=np.float32))
+                if not pieces:
+                    raise BadRequest("Kokoro produced no audio for this text")
+                audio = normalize(np.concatenate(pieces))
+                self.last_used["kokoro-82m"] = time.time()
+                dur = audio.size / float(sr)
+                log(f"Done: {dur:.1f}s of audio in {time.time() - t0:.1f}s (Kokoro · {voice} · {k['device']})")
+                info["model"] = KOKORO_REPO
+                info["duration"] = f"{dur:.3f}"
+                return audio, sr, info
+            finally:
+                self.set_state("idle")
+
+    # ── Pocket TTS ──
+    def _pocket(self, lang: str, token: Optional[str], need_cloning: bool) -> Any:
+        """Loaded Pocket TTS model for a language; caller holds cpu_lock."""
+        m = self.pocket.get(lang)
+        if m is not None and need_cloning and not getattr(m, "has_voice_cloning", True) and token:
+            log("Reloading Pocket TTS with the voice-cloning weights")
+            self._unload_pocket(lang)
+            m = None
+        if m is not None:
+            self.pocket.move_to_end(lang)
+            self.last_used[f"pocket-{lang}"] = time.time()
+            return m
+        while len(self.pocket) >= 2:
+            self._unload_pocket(next(iter(self.pocket)))
+        key = f"pocket-{lang}"
+        if token:
+            os.environ["HF_TOKEN"] = token
+        self.set_state("loading-model" if model_ready(key) else "downloading", key)
+        log(f"Loading Pocket TTS · {lang} on the CPU…")
+        t0 = time.time()
+        from pocket_tts import TTSModel
+
+        m = TTSModel.load_model(language=lang)
+        m.eval()
+        self.pocket[lang] = m
+        self.last_used[key] = time.time()
+        cloning = bool(getattr(m, "has_voice_cloning", False))
+        log(f"Loaded Pocket TTS · {lang} in {time.time() - t0:.1f}s ({'with' if cloning else 'without'} voice cloning)")
+        return m
+
+    def _pocket_state(self, lang: str, m: Any, voice: Optional[str], ref_audio: Optional[str]) -> Any:
+        if ref_audio:
+            try:
+                mtime = os.path.getmtime(ref_audio)
+            except OSError:
+                mtime = 0
+            ck: Tuple = (lang, "clone", ref_audio, mtime)
+        else:
+            ck = (lang, "voice", voice)
+        if ck in self.pocket_states:
+            self.pocket_states.move_to_end(ck)
+            return self.pocket_states[ck]
+        if ref_audio:
+            from pathlib import Path
+
+            if not getattr(m, "has_voice_cloning", False):
+                raise BadRequest(POCKET_CLONING_HELP)
+            state_ = m.get_state_for_audio_prompt(Path(ref_audio), truncate=True)
+        else:
+            state_ = m.get_state_for_audio_prompt(voice)
+        self.pocket_states[ck] = state_
+        while len(self.pocket_states) > 8:
+            self.pocket_states.popitem(last=False)
+        return state_
+
+    def synthesize_pocket(self, req: Dict[str, Any]) -> Tuple[Any, int, Dict[str, str]]:
+        import numpy as np
+
+        text = str(req.get("text") or "").strip()
+        if not text:
+            raise BadRequest("text is empty")
+        lang = pocket_language(req.get("language"))
+        ref_audio = req.get("ref_audio")
+        if not ref_audio and req.get("ref_audio_b64"):
+            ref_audio = save_temp_audio(str(req["ref_audio_b64"]), str(req.get("ref_audio_ext") or ".wav"))
+        if ref_audio and not os.path.isfile(str(ref_audio)):
+            raise BadRequest(f"Reference audio not found: {ref_audio}")
+        voice = str(req.get("voice") or "").strip().lower() or POCKET_DEFAULT_VOICE[lang]
+        token = (req.get("hf_token") or "").strip() or None
+        info: Dict[str, str] = {"mode": "clone" if ref_audio else "preset", "language": lang}
+        if not ref_audio:
+            info["speaker"] = voice
+        chunks = split_text(text, int(req.get("max_chars") or 900))
+        with self.cpu_lock:
+            try:
+                m = self._pocket(lang, token, bool(ref_audio))
+                if not hasattr(m, "stitch_default_temp"):
+                    m.stitch_default_temp = m.temp
+                m.temp = float(req["temperature"]) if req.get("temperature") is not None else m.stitch_default_temp
+                state_ = self._pocket_state(lang, m, voice, str(ref_audio) if ref_audio else None)
+            except BadRequest:
+                self.set_state("idle")
+                raise
+            except Exception as err:
+                self.set_state("idle")
+                if ref_audio and ("gated" in str(err).lower() or "401" in str(err) or "403" in str(err)):
+                    raise BadRequest(POCKET_CLONING_HELP)
+                raise
+            self.set_state("generating", f"{len(chunks)} part{'s' if len(chunks) != 1 else ''}")
+            t0 = time.time()
+            sr = int(m.sample_rate)
+            try:
+                pieces: List[Any] = []
+                for chunk, pause in chunks:
+                    audio = m.generate_audio(state_, chunk)
+                    pieces.append(np.asarray(audio.detach().cpu().numpy(), dtype=np.float32).reshape(-1))
+                    if pause > 0:
+                        pieces.append(np.zeros(int(sr * pause), dtype=np.float32))
+                audio = normalize(np.concatenate(pieces) if pieces else np.zeros(1, dtype=np.float32))
+                self.last_used[f"pocket-{lang}"] = time.time()
+                dur = audio.size / float(sr)
+                log(f"Done: {dur:.1f}s of audio in {time.time() - t0:.1f}s (Pocket TTS · {lang} · {'clone' if ref_audio else voice})")
+                info["model"] = f"{POCKET_REPO if getattr(m, 'has_voice_cloning', False) else POCKET_OPEN_REPO}/{lang}"
+                info["duration"] = f"{dur:.3f}"
+                return audio, sr, info
+            finally:
+                self.set_state("idle")
+
+    # ── Qwen3-TTS ──
+    def synthesize_qwen(self, req: Dict[str, Any]) -> Tuple[Any, int, Dict[str, str]]:
         import numpy as np
 
         text = str(req.get("text") or "").strip()
@@ -454,10 +743,14 @@ class Engine:
             "torch": getattr(self.torch, "__version__", None),
             "vram_total": self.vram_total,
             "vram_free": vram_free,
-            "loaded": list(self.resident.keys()),
+            "loaded": list(self.resident.keys()) + (["kokoro-82m"] if self.kokoro is not None else []) + [f"pocket-{k}" for k in self.pocket],
             "state": st,
             "detail": detail,
-            "models": {k: {"repo": v["repo"], "label": v["label"], "downloaded": bool(cached_snapshot(v["repo"]))} for k, v in MODELS.items()},
+            "models": {k: {"repo": v["repo"], "label": v["label"], "engine": v["engine"], "downloaded": bool(model_ready(k))} for k, v in MODELS.items()},
+            "engines": {
+                e: {"available": engine_available(e), "cloning": (any(getattr(m, "has_voice_cloning", False) for m in self.pocket.values()) if self.pocket else None) if e == "pocket" else e == "qwen3"}
+                for e in ENGINE_MODULES
+            },
         }
 
 
@@ -496,17 +789,62 @@ def resolve_speaker(speaker: Any, language: str) -> str:
     return DEFAULT_SPEAKER.get(language, "Ryan")
 
 
+# ─── Engines ─────────────────────────────────────────────────────────────────
+
+ENGINE_NAMES = {"qwen3": "Qwen3-TTS", "kokoro": "Kokoro", "pocket": "Pocket TTS"}
+
+
+def engine_available(engine: str) -> bool:
+    """True when the engine's Python package is importable (installed on demand by Stitch)."""
+    import importlib
+    import importlib.util
+
+    mod = ENGINE_MODULES.get(engine)
+    if not mod:
+        return False
+    try:
+        importlib.invalidate_caches()
+        return importlib.util.find_spec(mod) is not None
+    except Exception:
+        return False
+
+
+def pocket_language(lang: Any) -> str:
+    """Stitch/Qwen language names and ISO codes → Pocket TTS config names (default english)."""
+    if not lang:
+        return "english"
+    low = str(lang).strip().lower()
+    codes = {"en": "english", "fr": "french", "de": "german", "pt": "portuguese", "it": "italian", "es": "spanish", "nl": "dutch"}
+    base = re.split(r"[-_ (]", low)[0]
+    if base in codes:
+        return codes[base]
+    for name in POCKET_LANGUAGES:
+        if low.startswith(name):
+            return name
+    return "english"
+
+
 # ─── Hugging Face cache ──────────────────────────────────────────────────────
 
 
-def cached_snapshot(repo: str) -> Optional[str]:
-    """Local snapshot folder if the model weights are fully present, else None."""
-    home = os.environ.get("HF_HOME") or os.path.join(os.path.expanduser("~"), ".cache", "huggingface")
-    base = os.path.join(home, "hub", "models--" + repo.replace("/", "--"), "snapshots")
+def hf_home() -> str:
+    return os.environ.get("HF_HOME") or os.path.join(os.path.expanduser("~"), ".cache", "huggingface")
+
+
+def _snapshots(repo: str) -> List[str]:
+    base = os.path.join(hf_home(), "hub", "models--" + repo.replace("/", "--"), "snapshots")
     if not os.path.isdir(base):
-        return None
-    for snap in sorted(os.listdir(base), key=lambda s: os.path.getmtime(os.path.join(base, s)), reverse=True):
-        d = os.path.join(base, snap)
+        return []
+    try:
+        snaps = sorted(os.listdir(base), key=lambda s: os.path.getmtime(os.path.join(base, s)), reverse=True)
+    except OSError:
+        return []
+    return [os.path.join(base, s) for s in snaps]
+
+
+def cached_snapshot(repo: str) -> Optional[str]:
+    """Local snapshot folder if a Qwen3-TTS model's weights are fully present, else None."""
+    for d in _snapshots(repo):
         try:
             files = os.listdir(d)
         except OSError:
@@ -516,10 +854,49 @@ def cached_snapshot(repo: str) -> Optional[str]:
     return None
 
 
-def download(repo: str) -> str:
+def pocket_ready(lang: str, cloning: bool = False) -> Optional[str]:
+    """Snapshot holding Pocket TTS weights for a language (the gated cloning ones when asked)."""
+    repos = [POCKET_REPO] if cloning else [POCKET_REPO, POCKET_OPEN_REPO]
+    for repo in repos:
+        for d in _snapshots(repo):
+            if os.path.isfile(os.path.join(d, "languages", lang, "model.safetensors")):
+                return d
+    return None
+
+
+def model_ready(key: str) -> Optional[str]:
+    """Local folder with a model's weights, or None when they still need downloading."""
+    m = MODELS.get(key)
+    if not m:
+        return None
+    if m["type"] == "kokoro":
+        for d in _snapshots(m["repo"]):
+            if os.path.isfile(os.path.join(d, "config.json")) and os.path.isfile(os.path.join(d, "kokoro-v1_0.pth")):
+                return d
+        return None
+    if m["type"] == "pocket":
+        return pocket_ready(m["language"])
+    return cached_snapshot(m["repo"])
+
+
+def download(key: str) -> str:
+    """Fetch a model's weights into HF_HOME (tqdm progress goes to stderr)."""
+    m = MODELS[key]
     from huggingface_hub import snapshot_download
 
-    return snapshot_download(repo_id=repo)
+    if m["type"] == "kokoro":
+        return snapshot_download(repo_id=m["repo"], allow_patterns=["config.json", "kokoro-v1_0.pth", "voices/*.pt"])
+    if m["type"] == "pocket":
+        # Loading the model downloads its weights (gated cloning ones when HF_TOKEN allows it,
+        # else the open ones) plus the default voice.
+        from pocket_tts import TTSModel
+
+        lang = m["language"]
+        tts = TTSModel.load_model(language=lang)
+        tts.get_state_for_audio_prompt(POCKET_DEFAULT_VOICE[lang])
+        log(f"Pocket TTS · {lang}: voice cloning {'available' if getattr(tts, 'has_voice_cloning', False) else 'not available (gated weights not accessible)'}")
+        return pocket_ready(lang) or ""
+    return snapshot_download(repo_id=m["repo"])
 
 
 # ─── HTTP ────────────────────────────────────────────────────────────────────
@@ -639,7 +1016,10 @@ class Handler(BaseHTTPRequestHandler):
             self._audio(audio, sr, info, fmt if fmt in ("wav", "pcm", "flac") else "wav")
 
         def dl() -> None:
-            key = str(self._body().get("model") or "")
+            body = self._body()
+            key = str(body.get("model") or "")
+            if body.get("hf_token"):
+                os.environ["HF_TOKEN"] = str(body["hf_token"])
             if key not in MODELS:
                 raise BadRequest(f"unknown model '{key}'. Known: {', '.join(MODELS)}")
             try:
@@ -677,7 +1057,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Stitch Voice — local Qwen3-TTS server (voice cloning, preset speakers, voice design).")
+    p = argparse.ArgumentParser(description="Stitch Voice — local TTS server (Qwen3-TTS, Kokoro, Pocket TTS).")
     p.add_argument("--host", default="127.0.0.1", help="interface to bind (default 127.0.0.1)")
     p.add_argument("--port", type=int, default=7862, help="port (default 7862)")
     p.add_argument("--device", default="auto", help="torch device, e.g. cuda:0 or cpu (default: cuda:0 when available)")
@@ -701,16 +1081,16 @@ def main() -> None:
     args = parse_args()
 
     if args.download:
-        keys = list(MODELS.keys()) if args.download == "all" else [args.download]
+        keys = [k for k, v in MODELS.items() if v["engine"] == "qwen3"] if args.download == "all" else [args.download]
         for key in keys:
-            repo = MODELS[key]["repo"]
-            if cached_snapshot(repo):
-                log(f"{repo} is already downloaded")
+            label = MODELS[key]["label"]
+            if model_ready(key):
+                log(f"{label} is already downloaded")
                 continue
             state("downloading", key)
-            log(f"Downloading {repo}…")
-            download(repo)
-            log(f"Downloaded {repo}")
+            log(f"Downloading {label} ({MODELS[key]['repo']})…")
+            download(key)
+            log(f"Downloaded {label}")
         state("idle")
         return
 

@@ -17,7 +17,6 @@ interface ScenarioSeed {
   plot: Partial<PlotComponents>
   cards: CardSeed[]
   creatorFields?: Omit<CreatorField, 'id'>[]
-  contentRating?: Scenario['contentRating']
   children?: ScenarioSeed[]
 }
 
@@ -219,7 +218,6 @@ function buildScenario(seed: ScenarioSeed, template: TemplateId, parentId?: stri
     cards: cardsFrom(seed.cards),
     creatorFields: (seed.creatorFields ?? []).map((f) => ({ ...f, id: nanoid(8) })),
     choices: direct.map((c) => c.id),
-    contentRating: seed.contentRating ?? 'teen',
     template
   })
   return [s, ...children]

@@ -24,7 +24,7 @@ import type { Asset, Character, GenJob, GenKind, RecipeInfo } from '@shared/type
 import { errorText, invoke, streamLlm } from '@/lib/api'
 import { sceneImageRequest } from '@/lib/characters'
 import { defaultLlm } from '@/lib/llm'
-import { cn, formatEta } from '@/lib/utils'
+import { cn, formatBytes, formatEta } from '@/lib/utils'
 import { ease, spring, springSoft } from '@/lib/motion'
 import { Page } from '@/components/shell/page'
 import { AssetLightbox, AssetThumb } from '@/components/media'
@@ -36,7 +36,8 @@ import { Popover, Tooltip } from '@/components/ui/overlay'
 import { db, useCollection } from '@/stores/db'
 import { isActive, useGen } from '@/stores/gen'
 import { toast } from '@/stores/toast'
-import { CastPicker, ParamControl } from './params'
+import { InstallModelsCard, useInstallSizes } from '../models/install'
+import { CastPicker, ParamControl, StyleTags } from './params'
 
 // Voice panel is built separately; load it only if present.
 const voiceModules = import.meta.glob<{ VoicePanel: ComponentType }>('./VoicePanel.tsx')
@@ -74,6 +75,7 @@ const ENHANCE: Record<string, string> = {
 function RecipePicker({ kind, recipes, value, onChange }: { kind: GenKind; recipes: RecipeInfo[]; value?: RecipeInfo; onChange: (id: string) => void }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const list = recipes.filter((r) => r.kind === kind)
+  const sizes = useInstallSizes(open ? list.filter((r) => r.builtin && !r.available).map((r) => r.id) : [])
   return (
     <Popover
       open={open}
@@ -111,7 +113,11 @@ function RecipePicker({ kind, recipes, value, onChange }: { kind: GenKind; recip
                 {!r.available && <Badge tone="warning">Not installed</Badge>}
               </div>
               <div className="mt-0.5 text-[11.5px] leading-snug text-fg-3">{r.description}</div>
-              {!r.available && r.missing?.length ? <div className="mt-1 text-[11px] text-warning/90">Needs: {r.missing.join(', ')}</div> : null}
+              {!r.available && r.missing?.length ? (
+                <div className="mt-1 text-[11px] text-warning/90">
+                  {sizes[r.id] ? <span className="font-semibold text-accent">Download available · {formatBytes(sizes[r.id])}</span> : <>Needs: {r.missing.join(', ')}</>}
+                </div>
+              ) : null}
             </div>
             {r.estSeconds ? <span className="relative mt-0.5 text-[11px] text-fg-3 tabular-nums">{formatEta(r.estSeconds)}</span> : null}
           </button>
@@ -218,6 +224,8 @@ function GeneratorPanel({ kind }: { kind: GenKind }): React.JSX.Element {
   const prompt = form.prompt[kind] ?? ''
   const promptSpec = recipe?.params.find((p) => p.type === 'prompt')
   const hasRefs = !!recipe?.params.some((p) => p.type === 'images')
+  /** Song recipes (style tags + lyrics) get genre/mood/vocal tag chips. */
+  const music = kind === 'audio' && !!recipe?.params.some((p) => p.key === 'lyrics')
   const setParam = (key: string, v: unknown): void => {
     if (!recipe) return
     form.set((s) => ({ params: { ...s.params, [recipe.id]: { ...(s.params[recipe.id] ?? {}), [key]: v } } }))
@@ -315,17 +323,10 @@ function GeneratorPanel({ kind }: { kind: GenKind }): React.JSX.Element {
       <div className="flex w-[380px] shrink-0 flex-col border-r border-line">
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
           <RecipePicker kind={kind} recipes={recipes} value={recipe} onChange={(id) => form.set((s) => ({ recipe: { ...s.recipe, [kind]: id } }))} />
-          {recipe && !recipe.available && (
-            <div className="rounded-xl border border-warning/25 bg-warning/[0.07] p-3 text-[12px] text-fg-2">
-              <div className="mb-1 flex items-center gap-1.5 font-semibold text-warning">
-                <AlertTriangle className="size-3.5" /> Model files not found
-              </div>
-              {recipe.missing?.join(', ')}. Put them in your ComfyUI models folder (or set a models folder in Settings) and they'll be picked up automatically.
-            </div>
-          )}
+          {recipe && !recipe.available && <InstallModelsCard key={recipe.id} recipe={recipe} />}
           {promptSpec && (
             <Field
-              label="Prompt"
+              label={promptSpec.label || 'Prompt'}
               help={promptSpec.help}
               action={
                 <button onClick={() => void enhance()} disabled={enhancing || !prompt.trim()} className="flex items-center gap-1 text-[11.5px] font-semibold text-accent transition hover:brightness-125 disabled:opacity-40">
@@ -338,13 +339,14 @@ function GeneratorPanel({ kind }: { kind: GenKind }): React.JSX.Element {
                   value={prompt}
                   minRows={5}
                   maxRows={14}
-                  placeholder={kind === 'video' ? 'Describe the shots, motion and the sound…' : kind === 'audio' ? 'Describe the music or sound…' : 'Describe what you want to see…'}
+                  placeholder={kind === 'video' ? 'Describe the shots, motion and the sound…' : kind === 'audio' ? (music ? 'Genre, mood, instruments, vocals, tempo…' : 'Describe the music or sound…') : 'Describe what you want to see…'}
                   onChange={(e) => form.set((s) => ({ prompt: { ...s.prompt, [kind]: e.target.value } }))}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void generate()
                   }}
                 />
               </div>
+              {music && <StyleTags value={prompt} onChange={(v) => form.set((s) => ({ prompt: { ...s.prompt, [kind]: v } }))} />}
             </Field>
           )}
           {(kind === 'image' || hasRefs) && (

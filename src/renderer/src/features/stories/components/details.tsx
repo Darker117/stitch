@@ -1,109 +1,26 @@
-// Details tab — cover, title, description, tags, rating, context budget and
+// Details tab — cover, title, description, tags, context budget and
 // import/export. Shared by the scenario editor and the play panel.
 import { useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Download, FileJson, FileText, ImagePlus, Images, Pencil, Plus, Trash2, Upload, WandSparkles, X } from 'lucide-react'
-import type { GenJob } from '@shared/types'
+import { Download, FileJson, FileText, Plus, Upload, X } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
-import { Menu, MenuItem, MenuSeparator, Select } from '@/components/ui/overlay'
-import { Field, ProgressBar } from '@/components/ui/misc'
-import { AssetPicker } from '@/components/media'
-import { errorText } from '@/lib/api'
-import { sceneImageRequest } from '@/lib/characters'
+import { Field } from '@/components/ui/misc'
 import { cn } from '@/lib/utils'
 import { ease, spring } from '@/lib/motion'
-import { db } from '@/stores/db'
-import { isActive, useGen, waitForJob } from '@/stores/gen'
-import { toast } from '@/stores/toast'
-import { DEFAULT_INSTRUCTIONS, LIMITS, RATING_OPTIONS } from '../engine/defaults'
-import { coverPrompt, type StoryInfo } from '../engine/ai'
+import { DEFAULT_INSTRUCTIONS, LIMITS } from '../engine/defaults'
+import type { StoryInfo } from '../engine/ai'
 import { cardsToJson, importCards, saveFile } from '../engine/io'
 import { tokens } from '../engine/text'
 import type { StoryChange, StoryDoc } from '../hooks'
-import { CoverArt } from './art'
+import { CoverEditor } from './cover'
+import { ScenarioScripts } from './scripts/ScenarioScripts'
 
 export function Section({ title, children, className }: { title: ReactNode; children: ReactNode; className?: string }): React.JSX.Element {
   return (
     <div className={cn('flex flex-col gap-2.5', className)}>
       <div className="label-caps">{title}</div>
       {children}
-    </div>
-  )
-}
-
-function CoverEditor({ doc, collection, template, info }: { doc: StoryDoc; collection: 'scenarios' | 'adventures'; template?: string; info: StoryInfo }): React.JSX.Element {
-  const [picker, setPicker] = useState(false)
-  const [jobId, setJobId] = useState<string | null>(null)
-  const [thinking, setThinking] = useState(false)
-  const job = useGen((s) => (jobId ? s.jobs[jobId] : undefined))
-  const submit = useGen((s) => s.submit)
-  const setCover = (id: string | undefined): Promise<unknown> => db.update(collection, doc.id, (cur) => ({ ...cur, coverAssetId: id, updatedAt: Date.now() }))
-
-  const generate = async (): Promise<void> => {
-    setThinking(true)
-    try {
-      const prompt = await coverPrompt(info)
-      const [j] = await submit({ ...sceneImageRequest({ prompt, characters: [], aspect: '16:9', projectId: doc.projectId }), label: `Cover · ${doc.title || 'Story'}` })
-      setJobId(j.id)
-      setThinking(false)
-      const done: GenJob = await waitForJob(j.id)
-      if (done.status === 'done' && done.outputs[0]) await setCover(done.outputs[0])
-      else if (done.status === 'error') toast.error('Cover generation failed', done.error)
-    } catch (err) {
-      toast.error('Could not generate a cover', errorText(err))
-    } finally {
-      setThinking(false)
-      setJobId(null)
-    }
-  }
-
-  const running = thinking || (job && isActive(job))
-  const pct = job?.progress?.max ? job.progress.value / job.progress.max : undefined
-  return (
-    <div className="group relative">
-      <CoverArt coverAssetId={doc.coverAssetId} template={template} className="aspect-[16/8] w-full rounded-2xl ring-1 ring-line">
-        <AnimatePresence>
-          {job?.preview && running && <motion.img key="pv" src={job.preview} initial={{ opacity: 0 }} animate={{ opacity: 0.9 }} exit={{ opacity: 0 }} className="absolute inset-0 size-full object-cover blur-[2px]" />}
-        </AnimatePresence>
-        <AnimatePresence>
-          {running && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/45 backdrop-blur-[2px]">
-              <div className="text-[12.5px] font-medium text-white/90">{thinking ? 'Writing a cover prompt…' : job?.status === 'queued' ? 'Waiting in queue…' : 'Painting your cover…'}</div>
-              <ProgressBar value={thinking ? undefined : pct} className="w-40" />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </CoverArt>
-      <Menu
-        align="end"
-        trigger={
-          <IconButton label="Edit cover" variant="glass" className="absolute top-3 right-3 rounded-full bg-black/40 text-white backdrop-blur-md">
-            <Pencil className="size-4" />
-          </IconButton>
-        }
-      >
-        <MenuItem icon={<Images />} onSelect={() => setPicker(true)}>
-          Choose from library
-        </MenuItem>
-        <MenuItem icon={<WandSparkles />} onSelect={() => void generate()} disabled={!!running}>
-          Generate with AI
-        </MenuItem>
-        {doc.coverAssetId && (
-          <>
-            <MenuSeparator />
-            <MenuItem icon={<Trash2 />} danger onSelect={() => void setCover(undefined)}>
-              Remove cover
-            </MenuItem>
-          </>
-        )}
-      </Menu>
-      {!doc.coverAssetId && !running && (
-        <button onClick={() => setPicker(true)} className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-[11.5px] font-medium text-white/85 opacity-0 backdrop-blur-md transition group-hover:opacity-100 hover:text-white">
-          <ImagePlus className="size-3.5" /> Add a cover
-        </button>
-      )}
-      <AssetPicker open={picker} onClose={() => setPicker(false)} kinds={['image', 'video']} onPick={(a) => a[0] && void setCover(a[0].id)} title="Choose a cover" />
     </div>
   )
 }
@@ -209,11 +126,9 @@ export function StoryDetails({
         <Textarea value={doc.description} onChange={(e) => change({ description: e.target.value })} minRows={3} maxRows={12} placeholder="What is this story about? Shown on the story card." />
       </Field>
       <TagsField tags={doc.tags} onChange={(tags) => change({ tags })} />
-      <Field label="Content rating">
-        <Select value={doc.contentRating} onChange={(v) => change({ contentRating: v as StoryDoc['contentRating'] })} options={RATING_OPTIONS.map((r) => ({ value: r.value, label: r.label, hint: r.hint }))} />
-      </Field>
       <TokenMeter plot={doc.plot} />
       {extra}
+      {collection === 'scenarios' && <ScenarioScripts scenarioId={doc.id} />}
       <Section title="Story card management">
         <div className="flex flex-wrap gap-2">
           <Button

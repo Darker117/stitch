@@ -1,5 +1,5 @@
-// Right side panel: ADVENTURE (plot / cards / details) and GAMEPLAY
-// (AI models / appearance).
+// Right side panel: ADVENTURE (plot / cards / scripts / details) and
+// GAMEPLAY (AI models / appearance).
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
@@ -33,14 +33,17 @@ import { useGen } from '@/stores/gen'
 import { DEFAULT_CONTEXT, DEFAULT_RESPONSE, SAFETY_TEXT } from '../engine/defaults'
 import type { StoryInfo } from '../engine/ai'
 import { storyText } from '../engine/text'
-import { saveFile } from '../engine/io'
+import { adventureBackupJson, saveFile } from '../engine/io'
+import { activeScriptIds } from '../engine/scripts/library'
 import { StoryCardsBoard } from '../components/cards'
 import { PlotComponentsEditor, PlotCard } from '../components/plot'
 import { StoryDetails } from '../components/details'
+import { AdventureScripts } from '../components/scripts/AdventureScripts'
 import type { StoryChange } from '../hooks'
 import { TEXT_STYLES, THEMES, type ThemeDef } from '../themes'
 import { Accordion } from './bits'
 import { ModelChooser } from './ModelChooser'
+import { InstallMissingButton } from '../../models/install'
 
 type Change = (p: Partial<Adventure> | ((cur: Adventure) => Partial<Adventure>)) => void
 
@@ -68,19 +71,21 @@ function Memories({ adv, change }: { adv: Adventure; change: Change }): React.JS
 }
 
 function AdventureTab({ adv, change, scenario, info, onStudio, studioBusy }: { adv: Adventure; change: Change; scenario?: Scenario; info: StoryInfo; onStudio: () => void; studioBusy: boolean }): React.JSX.Element {
-  const [sub, setSub] = useState<'plot' | 'cards' | 'details'>('plot')
+  const [sub, setSub] = useState<'plot' | 'cards' | 'scripts' | 'details'>('plot')
+  const scripts = activeScriptIds(adv, scenario).length
   const mediaCount = adv.actions.reduce((n, a) => n + (a.media?.length ?? 0), 0)
   return (
     <div className="flex flex-col gap-4">
       <Segmented
         caps
         size="sm"
-        className="self-start"
+        className="w-full [&>button]:flex-auto [&>button]:justify-center [&>button]:px-2 [&>button]:whitespace-nowrap"
         value={sub}
         onChange={setSub}
         items={[
           { value: 'plot', label: 'Plot' },
           { value: 'cards', label: 'Story cards', count: adv.cards.length },
+          { value: 'scripts', label: 'Scripts', count: scripts || undefined },
           { value: 'details', label: 'Details' }
         ]}
       />
@@ -92,6 +97,7 @@ function AdventureTab({ adv, change, scenario, info, onStudio, studioBusy }: { a
               <Memories adv={adv} change={change} />
             </div>
           )}
+          {sub === 'scripts' && <AdventureScripts adv={adv} scenario={scenario} change={change} />}
           {sub === 'cards' && <StoryCardsBoard columns={2} cards={adv.cards} onChange={(next) => change((cur) => ({ cards: typeof next === 'function' ? next(cur.cards) : next }))} info={info} />}
           {sub === 'details' && (
             <StoryDetails
@@ -100,7 +106,7 @@ function AdventureTab({ adv, change, scenario, info, onStudio, studioBusy }: { a
               collection="adventures"
               template={scenario?.template}
               info={info}
-              onExportBackup={() => void saveFile(adv.title || 'adventure', JSON.stringify({ kind: 'stitch-adventure', version: 1, adventure: adv }, null, 2), 'json')}
+              onExportBackup={() => void adventureBackupJson(adv).then((json) => saveFile(adv.title || 'adventure', json, 'json'))}
               onExportText={() => void saveFile(adv.title || 'adventure', `${adv.title}\n\n${storyText(adv.actions)}\n`, 'txt')}
               extra={
                 <div className="flex items-center gap-3 rounded-2xl border border-line bg-grad-soft p-4">
@@ -162,7 +168,12 @@ function SceneModel({ kind, recipeId, prefs, onRecipe, onPrefs }: { kind: GenKin
       <AnimatePresence mode="wait" initial={false}>
         <motion.div key={recipe?.id ?? 'auto'} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2, ease }} className="flex flex-col gap-4">
           {!recipe && <p className="-mt-2 text-[12px] leading-relaxed text-fg-3">{auto} Pick a specific model to choose checkpoints and LoRAs.</p>}
-          {recipe && !recipe.available && <p className="-mt-2 text-[12px] text-warning">Missing: {recipe.missing?.join(', ') || 'model files'} — grab them from the Models page.</p>}
+          {recipe && !recipe.available && (
+            <div className="-mt-2 space-y-2">
+              <p className="text-[12px] text-warning">Missing: {recipe.missing?.join(', ') || 'model files'} — grab them from the Models page.</p>
+              <InstallMissingButton recipe={recipe} size="sm" />
+            </div>
+          )}
           {modelSpec && (
             <Field label={modelSpec.label === 'Model' ? 'Checkpoint' : modelSpec.label} help={recipe?.baseModelMatch ? 'Only files from this model family are listed.' : undefined}>
               <ModelFilePicker folder={modelSpec.folder ?? 'diffusion_models'} value={prefs.model} onChange={(model) => onPrefs({ model })} baseModelMatch={recipe?.baseModelMatch} />

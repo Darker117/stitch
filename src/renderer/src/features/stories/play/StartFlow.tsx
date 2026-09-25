@@ -13,7 +13,7 @@ import { CARD_TYPES } from '../engine/defaults'
 import { mergeScenario, scenarioTexts } from '../engine/adventure'
 import { characterKey, findPrompts, isNamePrompt, promptLabel } from '../engine/placeholders'
 import { CARD_ICON } from '../components/cards'
-import { FlameMark } from '../components/art'
+import { LogoMark } from '@/components/shell/logo'
 
 type Step = { kind: 'name' } | { kind: 'field'; field: CreatorField; options: StoryCard[] } | { kind: 'prompt'; key: string }
 
@@ -104,7 +104,7 @@ export function StartFlow({ root, defaultName, onDone }: { root: Scenario; defau
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.5, ease }} className="mx-auto flex min-h-screen w-full max-w-[640px] flex-col justify-center py-24">
       <div className="mb-6 flex items-center gap-3">
-        <FlameMark size={30} />
+        <LogoMark size={30} />
         <div className="min-w-0">
           <div className="label-caps">{menu ? 'Choose your path' : 'Before you begin'}</div>
           <div className="truncate font-serif text-[15px] font-semibold" style={{ color: 'var(--st-text)' }}>

@@ -40,7 +40,7 @@ function SlotTile({ c, def, onOpen }: { c: Character; def: SlotDef; onOpen: (id:
       <div
         onClick={() => asset && onOpen(asset.id)}
         className={cn(
-          'relative overflow-hidden rounded-xl border bg-[#0d0c12] transition-[border-color,transform] duration-300',
+          'relative overflow-hidden rounded-xl border bg-[color-mix(in_oklab,var(--panel-solid)_55%,black)] transition-[border-color,transform] duration-300',
           def.slot === 'full-body' ? 'aspect-[9/16]' : def.group === 'expressions' ? 'aspect-square' : 'aspect-[3/4]',
           busy ? 'border-[color-mix(in_oklab,var(--accent)_55%,transparent)]' : 'border-line',
           asset && 'cursor-pointer hover:border-line-strong'
@@ -321,7 +321,7 @@ export function CharacterDetail(): React.JSX.Element {
             </div>
           </div>
           {!c.referenceAssetId && <div className="mt-4 rounded-xl border border-line bg-white/[0.03] p-3 text-[12.5px] text-fg-2">Upload a reference image on the left to generate this character's sheet.</div>}
-          <div className="mt-5 space-y-7 rounded-2xl border border-line bg-[#0b0a10]/70 p-5">
+          <div className="mt-5 space-y-7 rounded-2xl border border-line bg-[color-mix(in_oklab,var(--panel-solid)_45%,transparent)] p-5">
             {groups.map((g) => {
               const list = slots.filter((s) => s.group === g.key)
               if (!list.length) return null

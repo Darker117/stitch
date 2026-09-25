@@ -323,7 +323,7 @@ export function Tooltip({ content, children, side = 'top' }: { content: ReactNod
             initial={{ opacity: 0, y: side === 'top' ? 3 : -3, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.18, ease }}
-            className="rounded-lg border border-line-strong bg-[#141220]/95 px-2 py-1 text-[11.5px] text-fg shadow-xl backdrop-blur"
+            className="rounded-lg border border-line-strong bg-[color-mix(in_oklab,var(--panel-solid)_95%,transparent)] px-2 py-1 text-[11.5px] text-fg shadow-xl backdrop-blur"
           >
             {content}
           </motion.div>

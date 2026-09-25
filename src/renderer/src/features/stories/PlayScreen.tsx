@@ -14,7 +14,7 @@ import type { LlmChoice } from '@/lib/llm'
 import { db, useCollection, useCollectionLoaded, useDoc } from '@/stores/db'
 import { toast } from '@/stores/toast'
 import { StoryStyles } from './components/StoryStyles'
-import { FlameMark } from './components/art'
+import { LogoMark } from '@/components/shell/logo'
 import { finalizeAdventure, needsSetup } from './engine/adventure'
 import { storyModel } from './engine/llm'
 import { buildTimeline } from './engine/media'
@@ -240,7 +240,7 @@ function Play({ id }: { id: string | undefined }): React.JSX.Element {
                     style={{ fontFamily: storyFont(adv.settings.textStyle), fontSize: large ? 20 : 17, lineHeight: 1.9 }}
                   >
                     <header className="mb-8 flex flex-col items-center text-center">
-                      <FlameMark size={30} />
+                      <LogoMark size={32} />
                       <h1 className="mt-3 font-serif text-[30px] leading-tight font-semibold tracking-tight" style={{ color: 'var(--st-text)' }}>
                         {adv.title || 'Untitled adventure'}
                       </h1>

@@ -29,10 +29,10 @@ const SUGGESTIONS = [
 ]
 
 const SHOWCASE = [
-  { title: 'Lock a character', body: 'One reference → a full sheet that stays on-model in every shot.', icon: <ScanFace />, to: '/characters', hue: 'from-sunset-1/50 via-sunset-3/25' },
-  { title: 'Play a story', body: 'Text adventures that paint, animate and voice themselves.', icon: <BookOpen />, to: '/stories', hue: 'from-sunset-6/45 via-sunset-4/25' },
-  { title: 'Direct a scene', body: 'MiniMax H3 video with native dialogue, SFX and music.', icon: <Clapperboard />, to: '/generate/video', hue: 'from-sunset-4/45 via-sunset-2/25' },
-  { title: 'Cut it together', body: 'Edit every clip, voice line and track in the Studio.', icon: <Wand2 />, to: '/studio', hue: 'from-sunset-2/45 via-sunset-7/25' }
+  { title: 'Lock a character', body: 'One reference → a full sheet that stays on-model in every shot.', icon: <ScanFace />, to: '/characters', hue: 'from-[color-mix(in_oklab,var(--accent-2)_50%,transparent)] via-[color-mix(in_oklab,var(--accent-2)_22%,transparent)]' },
+  { title: 'Play a story', body: 'Text adventures that paint, animate and voice themselves.', icon: <BookOpen />, to: '/stories', hue: 'from-[color-mix(in_oklab,var(--accent)_45%,transparent)] via-[color-mix(in_oklab,color-mix(in_oklab,var(--accent)_50%,var(--accent-2))_22%,transparent)]' },
+  { title: 'Direct a scene', body: 'MiniMax H3 video with native dialogue, SFX and music.', icon: <Clapperboard />, to: '/generate/video', hue: 'from-[color-mix(in_oklab,color-mix(in_oklab,var(--accent)_50%,var(--accent-2))_45%,transparent)] via-[color-mix(in_oklab,var(--accent-2)_22%,transparent)]' },
+  { title: 'Cut it together', body: 'Edit every clip, voice line and track in the Studio.', icon: <Wand2 />, to: '/studio', hue: 'from-[color-mix(in_oklab,var(--accent-2)_45%,transparent)] via-[color-mix(in_oklab,var(--accent)_22%,transparent)]' }
 ]
 
 type Filter = 'all' | 'image' | 'video' | 'audio'

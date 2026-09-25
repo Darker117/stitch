@@ -1,10 +1,5 @@
 // Keyframes and small utilities used only by the Stories section.
 const CSS = `
-@keyframes st-flicker { 0%,100% { opacity: .55 } 45% { opacity: .8 } 70% { opacity: .45 } }
-@keyframes st-flicker-inner { 0%,100% { transform: scaleY(1) } 30% { transform: scaleY(1.06) scaleX(.97) } 60% { transform: scaleY(.96) } }
-.st-flicker { animation: st-flicker 2.6s ease-in-out infinite; }
-.st-flicker-inner { animation: st-flicker-inner 1.9s ease-in-out infinite; }
-
 @keyframes st-token { from { opacity: 0; filter: blur(4px) } to { opacity: 1; filter: blur(0) } }
 .st-token { animation: st-token .55s cubic-bezier(.22,1,.36,1) both; }
 

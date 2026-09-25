@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ease } from '@/lib/motion'
-import { FlameMark } from '../components/art'
+import { LogoMark } from '@/components/shell/logo'
 
 const TIPS = [
   'When triggered, Story Cards will fill extra space in the context and help the AI remember the details that matter.',
@@ -40,7 +40,7 @@ export function LoadingScreen({ title }: { title?: string }): React.JSX.Element 
         <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 16, delay: 0.05 }} className="relative">
           <motion.div className="absolute inset-0 rounded-full blur-2xl" style={{ background: 'radial-gradient(circle, var(--accent), transparent 70%)' }} animate={{ opacity: [0.35, 0.7, 0.35], scale: [0.9, 1.2, 0.9] }} transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }} />
           <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}>
-            <FlameMark size={76} animate />
+            <LogoMark size={76} className="drop-shadow-[0_8px_28px_color-mix(in_oklab,var(--accent)_55%,transparent)]" />
           </motion.div>
         </motion.div>
         <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.15 }} className="mt-7 font-serif text-[30px] font-semibold tracking-tight" style={{ color: 'var(--st-text, var(--fg))' }}>

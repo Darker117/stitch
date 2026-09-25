@@ -1,7 +1,7 @@
 // Controls for recipe parameters.
-import { useMemo } from 'react'
-import { motion } from 'motion/react'
-import { Check, Dice5, UserRound } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import { Check, Dice5, Plus, UserRound } from 'lucide-react'
 import type { Character, LoraRef, ParamSpec } from '@shared/types'
 import { LoraStack, ModelFilePicker } from '@/components/model-library'
 import { fileUrl } from '@/lib/api'
@@ -11,7 +11,7 @@ import { spring } from '@/lib/motion'
 import { MediaList, MediaSlot } from '@/components/media'
 import { Input, Textarea } from '@/components/ui/input'
 import { Select } from '@/components/ui/overlay'
-import { Slider, Switch } from '@/components/ui/controls'
+import { Segmented, Slider, Switch } from '@/components/ui/controls'
 import { Field } from '@/components/ui/misc'
 import { db, useCollection } from '@/stores/db'
 import { useGen } from '@/stores/gen'
@@ -108,6 +108,7 @@ export function ParamControl({
   switch (spec.type) {
     case 'prompt':
     case 'text':
+      if (spec.key === 'lyrics') return <LyricsField label={spec.label} help={spec.help} value={String(v ?? '')} onChange={onChange} />
       return (
         <Field label={spec.label} help={spec.help}>
           <Textarea value={String(v ?? '')} onChange={(e) => onChange(e.target.value)} minRows={spec.type === 'prompt' ? 4 : 2} maxRows={10} />
@@ -205,4 +206,81 @@ export function ParamControl({
     default:
       return null
   }
+}
+
+// ─── Music ───────────────────────────────────────────────────────────────────
+
+const STYLE_TAGS: Record<string, string[]> = {
+  Genre: ['pop', 'rock', 'hip-hop', 'R&B', 'electronic', 'synthwave', 'lo-fi', 'jazz', 'folk', 'country', 'metal', 'orchestral', 'cinematic', 'ambient', 'k-pop'],
+  Mood: ['uplifting', 'melancholic', 'dark', 'epic', 'dreamy', 'energetic', 'romantic', 'tense', 'playful', 'nostalgic'],
+  Vocals: ['female vocals', 'male vocals', 'duet', 'choir', 'whispered vocals', 'raspy vocals', 'instrumental'],
+  Sound: ['piano', 'acoustic guitar', 'electric guitar', 'strings', 'brass', '808 bass', 'synth pads', 'war drums', 'polished production'],
+  Tempo: ['70 BPM', '90 BPM', '110 BPM', '128 BPM', '150 BPM']
+}
+
+const tokens = (text: string): string[] =>
+  text
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+
+/** Clickable genre / mood / vocal / tempo tags that add to (or remove from) a comma-separated style prompt. */
+export function StyleTags({ value, onChange }: { value: string; onChange: (v: string) => void }): React.JSX.Element {
+  const [group, setGroup] = useState('Genre')
+  const current = tokens(value).map((t) => t.toLowerCase())
+  const toggle = (tag: string): void => {
+    const list = tokens(value)
+    const i = list.findIndex((t) => t.toLowerCase() === tag.toLowerCase())
+    if (i >= 0) list.splice(i, 1)
+    else list.push(tag)
+    onChange(list.join(', '))
+  }
+  return (
+    <div className="space-y-2">
+      <Segmented size="sm" value={group} onChange={setGroup} items={Object.keys(STYLE_TAGS).map((g) => ({ value: g, label: g }))} />
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div key={group} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -2 }} transition={{ duration: 0.18 }} className="flex flex-wrap gap-1">
+          {STYLE_TAGS[group].map((t) => {
+            const on = current.includes(t.toLowerCase())
+            return (
+              <motion.button
+                key={t}
+                whileTap={{ scale: 0.94 }}
+                onClick={() => toggle(t)}
+                className={cn(
+                  'inline-flex h-6.5 items-center gap-1 rounded-full border px-2.5 text-[11.5px] font-medium transition-colors',
+                  on ? 'border-[color-mix(in_oklab,var(--accent)_50%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] text-fg' : 'border-line bg-white/[0.03] text-fg-2 hover:text-fg'
+                )}
+              >
+                {on ? <Check className="size-3" /> : <Plus className="size-3 text-fg-3" />}
+                {t}
+              </motion.button>
+            )
+          })}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  )
+}
+
+const SECTIONS = ['[Intro]', '[Verse]', '[Pre-Chorus]', '[Chorus]', '[Bridge]', '[Outro]']
+
+/** Lyrics editor with one-click section markers. */
+function LyricsField({ label, help, value, onChange }: { label: string; help?: string; value: string; onChange: (v: unknown) => void }): React.JSX.Element {
+  const add = (tag: string): void => {
+    const cur = value.replace(/\s+$/, '')
+    onChange(cur ? `${cur}\n\n${tag}\n` : `${tag}\n`)
+  }
+  return (
+    <Field label={label} help={help}>
+      <Textarea value={value} onChange={(e) => onChange(e.target.value)} minRows={6} maxRows={18} placeholder={'[Verse]\nFirst line of your song…\n\n[Chorus]\n…'} className="leading-relaxed" />
+      <div className="flex flex-wrap gap-1">
+        {SECTIONS.map((t) => (
+          <button key={t} onClick={() => add(t)} className="h-6 rounded-md border border-line bg-white/[0.03] px-2 font-mono text-[10.5px] text-fg-3 transition-colors hover:border-line-strong hover:text-fg">
+            {t}
+          </button>
+        ))}
+      </div>
+    </Field>
+  )
 }

@@ -1,26 +1,32 @@
-// Install / start / stop / status for the local Qwen3-TTS voice engine.
+// Install / start / stop / status for Stitch Voice — the local voice server and its
+// engines (Qwen3-TTS, Kokoro, Pocket TTS), with per-engine install/remove and weights.
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { AlertTriangle, Check, ChevronDown, Copy, Cpu, Download, HardDrive, Mic, Play, Power, RotateCcw, Sparkles, Wand2 } from 'lucide-react'
-import type { VoiceEngineStatus } from '@shared/ipc'
+import { AlertTriangle, Check, ChevronDown, Copy, Cpu, Download, Feather, Globe, HardDrive, Mic, Play, Power, RotateCcw, Sparkles, Trash2, Wand2 } from 'lucide-react'
+import type { VoiceEngineInfo, VoiceEngineStatus } from '@shared/ipc'
 import { errorText, invoke } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ease, spring, springSoft } from '@/lib/motion'
-import { engineStateLabel, useVoiceEngine } from '@/lib/voice'
+import { approxSize, engineProgress, engineStateLabel, sizeLabel, useVoiceEngine, useVoiceEngines } from '@/lib/voice'
+import { ProviderIcon, RemoveEngineDialog, engineStatusText } from '@/components/voice-picker'
 import { toast } from '@/stores/toast'
 import { Orb, type OrbState } from '@/components/ui/orb'
 import { Button, IconButton } from '@/components/ui/button'
 import { Badge, ProgressBar, ProgressRing, StatusDot } from '@/components/ui/misc'
 import { Menu, MenuItem } from '@/components/ui/overlay'
 
-const STEPS = ['Find uv', 'Python 3.12', 'PyTorch · CUDA 12.8', 'Qwen3-TTS', 'Verify GPU']
+const STEPS = ['Find uv', 'Python 3.12', 'PyTorch', 'Engine', 'Verify']
 
 const MODEL_INFO: Record<string, { size: string; purpose: string; icon: React.JSX.Element }> = {
   'base-1.7b': { size: '≈4 GB', purpose: 'Clones any voice from a short sample', icon: <Mic /> },
   'custom-1.7b': { size: '≈4 GB', purpose: '9 preset speakers that follow delivery notes', icon: <Sparkles /> },
   'design-1.7b': { size: '≈4 GB', purpose: 'Invents a voice from a description', icon: <Wand2 /> },
-  'base-0.6b': { size: '≈2 GB', purpose: 'Lighter, faster cloning for small GPUs', icon: <Mic /> }
+  'base-0.6b': { size: '≈2 GB', purpose: 'Lighter, faster cloning for small GPUs', icon: <Mic /> },
+  'kokoro-82m': { size: '≈355 MB', purpose: 'Kokoro model + all 49 preset voices', icon: <Feather /> },
+  'pocket-english': { size: '≈230 MB', purpose: 'English model + preset voices', icon: <Globe /> }
 }
+
+const POCKET_INFO = { size: '≈230 MB', purpose: 'Another language for Pocket TTS', icon: <Globe /> }
 
 function orbState(s: VoiceEngineStatus | null): OrbState {
   if (!s) return 'idle'
@@ -96,16 +102,17 @@ function EngineLog({ lines, open, onToggle }: { lines: string[]; open: boolean; 
   )
 }
 
-function Stepper({ step, label }: { step: number; label: string }): React.JSX.Element {
+function Stepper({ step, label, names }: { step: number; label: string; names?: string[] }): React.JSX.Element {
+  const steps = names?.length ? names : STEPS
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center">
-        {STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const n = i + 1
           const done = n < step
           const active = n === step
           return (
-            <div key={s} className={cn('flex items-center', i < STEPS.length - 1 && 'flex-1')}>
+            <div key={s} className={cn('flex items-center', i < steps.length - 1 && 'flex-1')}>
               <div className="flex flex-col items-center gap-1.5">
                 <motion.div
                   initial={false}
@@ -123,7 +130,7 @@ function Stepper({ step, label }: { step: number; label: string }): React.JSX.El
                 </motion.div>
                 <span className={cn('text-[10.5px] whitespace-nowrap', active ? 'text-fg' : done ? 'text-fg-2' : 'text-fg-3')}>{s}</span>
               </div>
-              {i < STEPS.length - 1 && (
+              {i < steps.length - 1 && (
                 <div className="relative mx-2 mb-5 h-px flex-1 overflow-hidden bg-line-strong">
                   <motion.div className="absolute inset-0 origin-left bg-grad" initial={false} animate={{ scaleX: done ? 1 : 0 }} transition={{ duration: 0.5, ease }} />
                 </div>
@@ -137,13 +144,13 @@ function Stepper({ step, label }: { step: number; label: string }): React.JSX.El
           {label}
         </motion.span>
       </div>
-      <ProgressBar value={Math.max(0.04, (step - 1) / STEPS.length)} />
+      <ProgressBar value={Math.max(0.04, (step - 1) / steps.length)} />
     </div>
   )
 }
 
-function ModelTile({ m, status, onDownload }: { m: VoiceEngineStatus['models'][number]; status: VoiceEngineStatus; onDownload: () => void }): React.JSX.Element {
-  const info = MODEL_INFO[m.id] ?? { size: '', purpose: '', icon: <Cpu /> }
+function ModelTile({ m, status, installed, onDownload }: { m: VoiceEngineStatus['models'][number]; status: VoiceEngineStatus; installed: boolean; onDownload: () => void }): React.JSX.Element {
+  const info = MODEL_INFO[m.id] ?? (m.id.startsWith('pocket-') ? POCKET_INFO : { size: '', purpose: '', icon: <Cpu /> })
   const downloading = status.activity?.model === m.id && /download/i.test(status.activity.label)
   const loadingThis = status.activity?.model === m.id && !downloading
   return (
@@ -172,7 +179,7 @@ function ModelTile({ m, status, onDownload }: { m: VoiceEngineStatus['models'][n
           <ProgressRing value={status.activity?.progress} size={22} />
         </div>
       ) : (
-        <Button size="xs" variant="ghost" icon={<Download className="size-3" />} disabled={!status.installed || !!status.activity?.model} onClick={onDownload}>
+        <Button size="xs" variant="ghost" icon={<Download className="size-3" />} disabled={!installed || !!status.activity?.model} onClick={onDownload}>
           Get
         </Button>
       )}
@@ -183,10 +190,82 @@ function ModelTile({ m, status, onDownload }: { m: VoiceEngineStatus['models'][n
   )
 }
 
+/** One local engine: status, size, install / reinstall / remove. */
+function EngineTile({ engine, status }: { engine: VoiceEngineInfo; status: VoiceEngineStatus | null }): React.JSX.Element {
+  const [pending, setPending] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+  const progress = engineProgress(status, engine.id)
+  const st = engineStatusText(engine, progress)
+  const install = async (): Promise<void> => {
+    setPending(true)
+    try {
+      await invoke('voice:installEngine', engine.id)
+      toast.success(`${engine.name} installed`, 'Voice weights download the first time you use it.')
+    } catch (err) {
+      const msg = errorText(err)
+      if (msg !== 'Install canceled') toast.error(`Couldn't install ${engine.name}`, msg)
+    } finally {
+      setPending(false)
+    }
+  }
+  return (
+    <motion.div
+      layout
+      className={cn(
+        'relative flex flex-col gap-2 overflow-hidden rounded-xl border px-3 py-2.5 transition-colors duration-300',
+        engine.installed ? 'border-line bg-white/[0.035]' : 'border-dashed border-line-strong bg-white/[0.015]'
+      )}
+    >
+      <div className="flex items-center gap-2.5">
+        <div className={cn('grid size-8 shrink-0 place-items-center rounded-lg', engine.installed ? 'bg-grad-soft text-fg' : 'bg-white/[0.05] text-fg-3')}>
+          <ProviderIcon kind={engine.connectorKind} className="size-3.5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 truncate text-[12.5px] font-medium">
+            {engine.name}
+            <span className="text-[10.5px] font-normal text-fg-3">{engine.installed ? sizeLabel(engine.sizeBytes) : approxSize(engine.downloadBytes)}</span>
+          </div>
+          <div className={cn('truncate text-[11px]', st.tone === 'busy' ? 'text-accent' : 'text-fg-3')}>{progress?.label ?? `${engine.installed ? st.text : 'Not installed'} · ${engine.license}`}</div>
+        </div>
+        {engine.installed ? (
+          <Menu
+            align="end"
+            trigger={
+              <IconButton label={`${engine.name} options`} size="xs" disabled={status?.busy === 'installing'}>
+                <ChevronDown className="size-3" />
+              </IconButton>
+            }
+          >
+            <MenuItem icon={<RotateCcw />} hint="repairs / updates" onSelect={() => void install()}>
+              Reinstall {engine.name}
+            </MenuItem>
+            <MenuItem icon={<Trash2 />} danger onSelect={() => setConfirm(true)}>
+              Remove {engine.name}…
+            </MenuItem>
+          </Menu>
+        ) : progress ? (
+          <ProgressRing value={progress.value} size={22} />
+        ) : (
+          <Button size="xs" variant="secondary" icon={<Download className="size-3" />} loading={pending} onClick={() => void install()}>
+            Install
+          </Button>
+        )}
+      </div>
+      {progress?.value !== undefined && (
+        <motion.div className="absolute inset-x-0 bottom-0 h-[2px] origin-left bg-grad" animate={{ scaleX: progress.value }} transition={{ duration: 0.4, ease }} />
+      )}
+      <RemoveEngineDialog engine={engine} open={confirm} onOpenChange={setConfirm} />
+    </motion.div>
+  )
+}
+
 export function VoiceEngineCard({ className }: { className?: string }): React.JSX.Element {
   const status = useVoiceEngine()
+  const engines = useVoiceEngines()
+  const local = (engines ?? []).filter((e) => e.kind === 'local')
+  const installedIds = new Set(local.filter((e) => e.installed).map((e) => e.id))
   const [logOpen, setLogOpen] = useState(false)
-  const [pending, setPending] = useState<'start' | 'stop' | 'install' | null>(null)
+  const [pending, setPending] = useState<'start' | 'stop' | null>(null)
   const installing = status?.busy === 'installing'
   const state = engineStateLabel(status)
 
@@ -194,17 +273,13 @@ export function VoiceEngineCard({ className }: { className?: string }): React.JS
     if (installing) setLogOpen(true)
   }, [installing])
 
-  const act = async (kind: 'start' | 'stop' | 'install'): Promise<void> => {
+  const act = async (kind: 'start' | 'stop'): Promise<void> => {
     setPending(kind)
     try {
-      if (kind === 'install') {
-        await invoke('voice:engineInstall')
-        toast.success('Stitch Voice installed', 'Models download the first time you use them.')
-      } else if (kind === 'start') await invoke('voice:engineStart')
-      else await invoke('voice:engineStop')
+      await invoke(kind === 'start' ? 'voice:engineStart' : 'voice:engineStop')
     } catch (err) {
       const msg = errorText(err)
-      if (msg !== 'Install canceled') toast.error(kind === 'install' ? 'Install failed' : kind === 'start' ? 'Could not start the voice engine' : 'Could not stop the engine', msg)
+      if (msg !== 'Install canceled') toast.error(kind === 'start' ? 'Could not start the voice engine' : 'Could not stop the engine', msg)
     } finally {
       setPending(null)
     }
@@ -232,9 +307,9 @@ export function VoiceEngineCard({ className }: { className?: string }): React.JS
         <div className="min-w-0 flex-1 pt-0.5">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-[15px] font-semibold tracking-tight">Stitch Voice</h3>
-            <Badge tone="outline">Qwen3-TTS · Apache-2.0</Badge>
+            <Badge tone="outline">Qwen3-TTS · Kokoro · Pocket TTS</Badge>
           </div>
-          <p className="mt-0.5 text-[12px] text-fg-3">Local voice cloning, preset speakers and voice design — on your own GPU, nothing leaves the machine.</p>
+          <p className="mt-0.5 text-[12px] text-fg-3">Local voices on your own PC — cloning and voice design, fast preset voices, and CPU-friendly cloning. Nothing leaves the machine.</p>
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
             <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line bg-white/[0.035] px-2.5 text-[11px] text-fg-2">
               <Cpu className="size-3 text-fg-3" />
@@ -259,20 +334,7 @@ export function VoiceEngineCard({ className }: { className?: string }): React.JS
                 Start
               </Button>
             ))}
-          {phase === 'ready' && (
-            <Menu
-              align="end"
-              trigger={
-                <IconButton label="More" size="sm" variant="secondary">
-                  <ChevronDown className="size-3.5" />
-                </IconButton>
-              }
-            >
-              <MenuItem icon={<RotateCcw />} onSelect={() => void act('install')} hint="repairs / updates">
-                Reinstall engine
-              </MenuItem>
-            </Menu>
-          )}
+
         </div>
       </div>
 
@@ -295,38 +357,28 @@ export function VoiceEngineCard({ className }: { className?: string }): React.JS
           {phase === 'fresh' && (
             <motion.div key="fresh" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3, ease }} className="flex flex-col gap-4">
               <div className="grid grid-cols-3 gap-2">
-                {[
-                  { icon: <Mic />, title: 'Clone', body: 'Any voice from a 5–20 s sample' },
-                  { icon: <Wand2 />, title: 'Design', body: 'Describe a voice, get a voice' },
-                  { icon: <Sparkles />, title: '10 languages', body: 'Expressive, multilingual speech' }
-                ].map((f, i) => (
-                  <motion.div
-                    key={f.title}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 + i * 0.06, duration: 0.4, ease }}
-                    className="rounded-xl border border-line bg-white/[0.03] p-3"
-                  >
-                    <div className="mb-2 grid size-7 place-items-center rounded-lg bg-grad-soft text-fg [&>svg]:size-3.5">{f.icon}</div>
-                    <div className="text-[12.5px] font-medium">{f.title}</div>
-                    <div className="text-[11px] text-fg-3">{f.body}</div>
+                {local.map((e, i) => (
+                  <motion.div key={e.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 + i * 0.06, duration: 0.4, ease }}>
+                    <EngineTile engine={e} status={status} />
                   </motion.div>
                 ))}
               </div>
-              <div className="flex items-center gap-3">
-                <Button variant="primary" icon={<Download className="size-3.5" />} loading={pending === 'install'} onClick={() => void act('install')}>
-                  Install voice engine
-                </Button>
-                <span className="flex items-center gap-1.5 text-[11.5px] text-fg-3">
-                  <HardDrive className="size-3.5" /> ≈3 GB now (PyTorch + CUDA 12.8), models ≈4 GB each on first use — all inside Stitch's folder
-                </span>
-              </div>
+              <span className="flex items-center gap-1.5 text-[11.5px] text-fg-3">
+                <HardDrive className="size-3.5" /> The first engine also sets up Stitch's Python + PyTorch runtime (≈3 GB with CUDA). Weights download on first use — all inside Stitch's folder.
+              </span>
             </motion.div>
           )}
 
           {phase === 'installing' && status && (
             <motion.div key="installing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3, ease }} className="flex flex-col gap-3">
-              <Stepper step={status.activity?.step ?? 1} label={status.activity?.label ?? 'Preparing…'} />
+              {status.activity?.stepNames ? (
+                <Stepper step={status.activity.step ?? 1} label={status.activity.label} names={status.activity.stepNames} />
+              ) : (
+                <div className="flex flex-col gap-2 text-[12.5px] text-fg-2">
+                  {status.activity?.label ?? 'Working…'}
+                  <ProgressBar />
+                </div>
+              )}
               <div className="flex justify-end">
                 <Button size="sm" variant="ghost" onClick={() => void act('stop')}>
                   Cancel
@@ -338,13 +390,24 @@ export function VoiceEngineCard({ className }: { className?: string }): React.JS
           {phase === 'ready' && status && (
             <motion.div key="ready" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3, ease }} className="flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
+                <span className="label-caps">Engines</span>
+                <span className="text-[11px] text-fg-3">{!status.device ? '' : status.device === 'CPU' ? 'Everything runs on the CPU' : `GPU engines run on ${status.device}`}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {local.map((e) => (
+                  <EngineTile key={e.id} engine={e} status={status} />
+                ))}
+              </div>
+              <div className="mt-1.5 flex items-center justify-between">
                 <span className="label-caps">Models</span>
                 <span className="text-[11px] text-fg-3">Downloaded on first use · unloaded after 10 min idle</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {status.models.map((m) => (
-                  <ModelTile key={m.id} m={m} status={status} onDownload={() => void download(m.id)} />
-                ))}
+                {status.models
+                  .filter((m) => !m.engine || installedIds.has(m.engine))
+                  .map((m) => (
+                    <ModelTile key={m.id} m={m} status={status} installed={!m.engine || installedIds.has(m.engine)} onDownload={() => void download(m.id)} />
+                  ))}
               </div>
               <AnimatePresence>
                 {status.activity && !status.activity.model && status.busy !== 'idle' && (

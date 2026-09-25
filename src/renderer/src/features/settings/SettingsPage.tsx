@@ -16,8 +16,10 @@ import { Select } from '@/components/ui/overlay'
 import { useCollection } from '@/stores/db'
 import { useAppSettings, useSettings } from '@/stores/settings'
 import { useUpdate } from '@/stores/update'
+import { ModelStorageSettings } from '../models/StorageSettings'
 import { AppearanceSettings } from './AppearanceSettings'
 import { GpuSettings } from './GpuSettings'
+import { ProfileSettings } from './ProfileSettings'
 import { UpdateSettings } from './UpdateSettings'
 
 type Tab = 'general' | 'appearance' | 'gpus' | 'storage' | 'updates' | 'about'
@@ -52,13 +54,10 @@ function General(): React.JSX.Element {
   const update = useSettings((s) => s.update)
   const connectors = useCollection('connectors')
   const voices = connectors.filter((c) => c.category === 'voice')
-  const [name, setName] = useState(settings.userName)
   return (
     <div className="space-y-6">
+      <ProfileSettings />
       <SectionTitle>General</SectionTitle>
-      <Field label="Your name" help="Shown in the sidebar and used as the default player name in stories.">
-        <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => void update({ userName: name.trim() || 'Storyteller' })} />
-      </Field>
       <Field label="Default text model" help="Used by chat, stories and prompt enhancement unless you pick another.">
         <div>
           <ModelPicker value={settings.defaultLlm} onChange={(defaultLlm) => void update({ defaultLlm })} />
@@ -94,7 +93,7 @@ function Storage(): React.JSX.Element {
       )}
       <PathRow
         label="Models folder (optional)"
-        help="Point Stitch at another folder of models (Stability Matrix-style or ComfyUI-style layout). Stitch adds it to the ComfyUI instances it runs and uses it to check which recipes are installed."
+        help="Point Stitch at another folder of models (Stability Matrix-style or ComfyUI-style layout). Stitch adds it to the ComfyUI instances it runs, uses it to check which recipes are installed, and downloads new models into it."
         value={settings.modelsDir}
         placeholder={detect?.stabilityMatrix?.modelsDir ?? 'Using ComfyUI’s own folders'}
         onPick={async () => {
@@ -103,6 +102,7 @@ function Storage(): React.JSX.Element {
         }}
         onClear={() => void update({ modelsDir: '' })}
       />
+      <ModelStorageSettings />
       <PathRow
         label="ComfyUI folder"
         help="Used when Stitch launches ComfyUI itself. Detected from Stability Matrix automatically."

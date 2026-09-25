@@ -1,11 +1,12 @@
 // Launch and supervise ComfyUI processes that Stitch owns (e.g. one per GPU).
 import { app } from 'electron'
 import { spawn, type ChildProcess, execFile } from 'node:child_process'
-import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ComfyConnector } from '@shared/types'
 import { getSettings } from '../../settings'
 import { detectStabilityMatrix } from '../system'
+import { comfySearches, comfyYamlFor, MODEL_EXT, modelBases, modelRoots } from '../models/home'
 
 export type ProcState = 'stopped' | 'starting' | 'running' | 'crashed'
 
@@ -39,61 +40,40 @@ function pythonFor(dir: string): string {
   return 'python'
 }
 
-/** Folder-name mapping for a user-chosen models directory. */
-const SM_LAYOUT: Record<string, string[]> = {
-  checkpoints: ['StableDiffusion', 'checkpoints'],
-  diffusion_models: ['DiffusionModels', 'diffusion_models', 'unet'],
-  loras: ['Lora', 'LyCORIS', 'loras'],
-  text_encoders: ['TextEncoders', 'text_encoders', 'clip'],
-  clip_vision: ['ClipVision', 'clip_vision'],
-  vae: ['VAE', 'vae'],
-  embeddings: ['Embeddings', 'embeddings'],
-  controlnet: ['ControlNet', 'controlnet'],
-  upscale_models: ['ESRGAN', 'RealESRGAN', 'upscale_models'],
-  audio_encoders: ['AudioEncoders', 'audio_encoders'],
-  model_patches: ['ModelPatches', 'model_patches']
-}
-
 /**
- * Write an extra_model_paths.yaml pointing ComfyUI at the user's chosen models
- * folder. Works for both Stability-Matrix-style and ComfyUI-style layouts.
+ * Write an extra_model_paths.yaml pointing ComfyUI at every models folder
+ * Stitch knows beyond the ones ComfyUI already reads from its own yaml: the
+ * chosen folder, Stitch's default download folder (<userData>/models) and any
+ * folder the user installed into. Folders that don't exist yet are listed
+ * too — ComfyUI notices them once a download creates them, no restart needed.
  */
 function extraModelPathsFile(): string | undefined {
-  const dir = getSettings().modelsDir
-  if (!dir || !existsSync(dir)) return undefined
-  const lines = ['stitch_models:', `  base_path: ${JSON.stringify(dir.replace(/\\/g, '/'))}`]
-  for (const [key, candidates] of Object.entries(SM_LAYOUT)) {
-    const found = candidates.filter((c) => {
-      const p = join(dir, c)
-      return existsSync(p) && statSync(p).isDirectory()
-    })
-    if (found.length) lines.push(`  ${key}: |`, ...found.map((f) => `    ${f}`))
-  }
+  const bases = modelBases()
+    .filter((b) => b.kind !== 'comfyui' && (b.kind === 'app' || existsSync(b.dir)) && !comfySearches(b.dir))
+    .map((b) => b.dir)
+  if (!bases.length) return undefined
   const file = join(app.getPath('userData'), 'comfy_extra_model_paths.yaml')
-  writeFileSync(file, lines.join('\n') + '\n')
+  writeFileSync(file, comfyYamlFor(bases))
   return file
 }
 
-/** Scan the chosen models folder on disk (used when ComfyUI is offline). */
+/** Scan every models folder on disk (used when ComfyUI is offline). */
 export function scanModelsDir(folder: string): string[] {
-  const roots: string[] = []
-  const sm = detectStabilityMatrix()
-  const custom = getSettings().modelsDir
-  for (const base of [custom, sm?.modelsDir]) {
-    if (!base) continue
-    for (const c of SM_LAYOUT[folder] ?? [folder]) roots.push(join(base, c))
-  }
-  const cdir = comfyDir()
-  if (cdir) roots.push(join(cdir, 'models', folder))
   const out = new Set<string>()
   const walk = (d: string, prefix: string, depth: number): void => {
     if (!existsSync(d) || depth > 3) return
-    for (const e of readdirSync(d, { withFileTypes: true })) {
+    let entries
+    try {
+      entries = readdirSync(d, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const e of entries) {
       if (e.isDirectory()) walk(join(d, e.name), `${prefix}${e.name}/`, depth + 1)
-      else if (/\.(safetensors|gguf|ckpt|pt|pth|bin|sft)$/i.test(e.name)) out.add(prefix + e.name)
+      else if (MODEL_EXT.test(e.name)) out.add(prefix + e.name)
     }
   }
-  for (const r of roots) walk(r, '', 0)
+  for (const r of modelRoots()) if (r.folder === folder) walk(r.dir, '', 0)
   return [...out].sort()
 }
 
@@ -110,7 +90,7 @@ export function launchComfy(c: ComfyConnector, onState: () => void): void {
   if (!args.includes('--preview-method')) args.push('--preview-method', 'auto')
   if (c.managed?.cudaDevice !== undefined) args.push('--cuda-device', String(c.managed.cudaDevice))
   // ComfyUI already reads its own extra_model_paths.yaml (Stability Matrix's
-  // shared Models folder); add the user's chosen folder on top.
+  // shared Models folder); add Stitch's folders on top.
   const extra = extraModelPathsFile()
   if (extra) args.push('--extra-model-paths-config', extra)
 

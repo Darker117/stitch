@@ -1,4 +1,4 @@
-// Local Qwen3-TTS provider (voice cloning, preset speakers, voice design).
+// Local Qwen3-TTS provider (voice cloning, preset speakers, voice design) — engine 'qwen3'.
 import type { VoiceInfo } from '@shared/ipc'
 import type { Asset } from '@shared/types'
 import { db } from '../../store'
@@ -76,7 +76,7 @@ export const localProvider: VoiceProvider = {
       body.ref_text = sampleText?.trim() || undefined
       body.x_vector_only = !sampleText?.trim()
       needs = size === '0.6B' ? 'base-0.6b' : 'base-1.7b'
-    } else if (voice.voiceId) {
+    } else if (voice.voiceId && LOCAL_SPEAKERS.some((s) => s.id.toLowerCase() === voice.voiceId!.toLowerCase())) {
       body.speaker = voice.voiceId
       body.instruct = a.instructions
       needs = size === '0.6B' ? 'custom-0.6b' : 'custom-1.7b'
@@ -92,7 +92,8 @@ export const localProvider: VoiceProvider = {
     }
 
     const { bytes, info } = await engineAudio('/tts', body, needs)
-    return { bytes, ext: 'wav', model: info.model, voiceId: info.speaker, note: info.note }
+    const foreign = voice.voiceId && !sampleId && !voice.voiceId.startsWith('clone:') && !body.speaker && !body.design ? `“${voice.voiceId}” isn't a Qwen3-TTS speaker — used ${info.speaker ?? 'the default speaker'}.` : undefined
+    return { bytes, ext: 'wav', model: info.model, voiceId: info.speaker, note: [info.note, foreign].filter(Boolean).join(' ') || undefined }
   },
 
   async clone(_c, _key, _name, sample) {
@@ -102,7 +103,7 @@ export const localProvider: VoiceProvider = {
   },
 
   async test() {
-    const s = await engineSummary()
+    const s = await engineSummary('qwen3')
     if (!s.ok) throw new Error(s.message)
     return s.message
   }

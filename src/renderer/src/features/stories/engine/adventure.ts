@@ -6,6 +6,7 @@ import { db } from '@/stores/db'
 import { useSettings } from '@/stores/settings'
 import { defaultSettings } from './defaults'
 import { fill, fillCards, fillPlot, findPrompts } from './placeholders'
+import { scenarioRefsForAdventure } from './scripts/library'
 
 export function action(type: StoryAction['type'], text: string, extra?: Partial<StoryAction>): StoryAction {
   return { id: nanoid(10), type, text, createdAt: Date.now(), ...extra }
@@ -70,9 +71,12 @@ export async function startAdventure(scenario: Scenario): Promise<Adventure> {
     actions: [],
     redo: [],
     memories: [],
-    player: { name: settings?.userName ?? 'You', choices: {} },
+    player: { name: settings?.userName ?? 'You', persona: settings?.persona?.personality?.trim() || undefined, choices: {} },
     settings: { ...defaultSettings(scenario.contentRating), ...(settings?.defaultLlm ? { llm: settings.defaultLlm } : {}) },
-    contentRating: scenario.contentRating
+    contentRating: scenario.contentRating,
+    // The scenario's enabled scripts, in run order (they can be disabled per adventure, not removed).
+    scripts: scenarioRefsForAdventure(scenario),
+    scriptState: {}
   }
   const ready = needsSetup(scenario) ? adv : finalizeAdventure(adv, scenario, {})
   await db.put('adventures', ready)
@@ -95,7 +99,8 @@ export function finalizeAdventure(adv: Adventure, resolved: Scenario, values: Re
     plot: fillPlot(resolved.plot, values),
     cards: fillCards(resolved.cards, values),
     actions: opening && !isMenuOnly ? [action('start', opening)] : [],
-    player: { ...adv.player, name, choices },
+    // A character-creator hero isn't the user, so their profile personality no longer applies.
+    player: { ...adv.player, name, persona: name === adv.player.name ? adv.player.persona : undefined, choices },
     updatedAt: Date.now(),
     lastPlayedAt: Date.now()
   }

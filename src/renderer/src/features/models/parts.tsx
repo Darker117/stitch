@@ -268,8 +268,9 @@ export function CivitaiKeyDialog(): React.JSX.Element {
 function DownloadRow({ d }: { d: DownloadState }): React.JSX.Element {
   const pct = d.total ? d.received / d.total : undefined
   const secs = (Date.now() - d.startedAt) / 1000
-  const speed = secs > 1 ? d.received / secs : 0
+  const speed = d.status === 'downloading' && secs > 1 ? d.received / secs : 0
   const eta = speed && d.total ? (d.total - d.received) / speed : undefined
+  const active = d.status === 'downloading' || d.status === 'queued'
   return (
     <motion.div layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 16 }} transition={spring} className="rounded-xl p-2.5 transition-colors hover:bg-white/[0.04]">
       <div className="flex items-start gap-2.5">
@@ -279,24 +280,28 @@ function DownloadRow({ d }: { d: DownloadState }): React.JSX.Element {
             d.status === 'done' && 'border-success/25 bg-success/10 text-success',
             d.status === 'error' && 'border-danger/25 bg-danger/10 text-danger',
             d.status === 'canceled' && 'border-line text-fg-3',
-            d.status === 'downloading' && 'border-line bg-white/[0.05] text-fg-2'
+            active && 'border-line bg-white/[0.05] text-fg-2'
           )}
         >
           {d.status === 'done' ? <Check className="size-3.5" /> : d.status === 'error' ? <CircleAlert className="size-3.5" /> : d.status === 'canceled' ? <X className="size-3.5" /> : <Download className="size-3.5" />}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12.5px] font-medium" title={d.name}>
-            {d.name}
+          <div className="flex items-center gap-1.5">
+            <span className="min-w-0 truncate text-[12.5px] font-medium" title={d.name}>
+              {d.name}
+            </span>
+            {d.source === 'huggingface' && <span className="shrink-0 rounded bg-white/[0.07] px-1 text-[9.5px] font-semibold tracking-wide text-fg-3">HF</span>}
           </div>
-          <div className="mt-0.5 truncate text-[11px] text-fg-3" title={d.error}>
-            {d.status === 'downloading' && `${formatBytes(d.received)} of ${formatBytes(d.total)}${speed ? ` · ${formatBytes(speed)}/s` : ''}${eta ? ` · ${formatEta(eta)} left` : ''}`}
+          <div className="mt-0.5 truncate text-[11px] text-fg-3" title={d.error ?? d.path}>
+            {d.status === 'queued' && `Queued · ${formatBytes(d.total)}`}
+            {d.status === 'downloading' && (d.note ?? `${formatBytes(d.received)} of ${formatBytes(d.total)}${speed ? ` · ${formatBytes(speed)}/s` : ''}${eta ? ` · ${formatEta(eta)} left` : ''}`)}
             {d.status === 'done' && `${formatBytes(d.total)} · ${folderLabel(d.folder)}`}
             {d.status === 'error' && d.error}
             {d.status === 'canceled' && 'Canceled'}
           </div>
           {d.status === 'downloading' && <ProgressBar value={pct} className="mt-2" />}
         </div>
-        {d.status === 'downloading' && (
+        {active && (
           <IconButton label="Cancel download" size="xs" onClick={() => void invoke('civitai:cancelDownload', d.id)}>
             <X className="size-3.5" />
           </IconButton>
@@ -316,6 +321,7 @@ export function DownloadsButton(): React.JSX.Element {
   const list = useMemo(() => Object.values(downloads).sort((a, b) => b.startedAt - a.startedAt), [downloads])
   const active = activeDownloads(downloads)
   const received = active.reduce((n, d) => n + d.received, 0)
+  // Queued files count towards the total so the ring doesn't jump back.
   const total = active.reduce((n, d) => n + d.total, 0)
   // Tick once a second so speeds/ETAs stay live between progress events.
   const [, setTick] = useState(0)
@@ -350,7 +356,7 @@ export function DownloadsButton(): React.JSX.Element {
           <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
             <Download className="size-5 text-fg-3" />
             <div className="text-[12.5px] font-medium text-fg-2">No downloads yet</div>
-            <div className="text-[11.5px] text-fg-3">Pick a model on Browse Civitai and press Download.</div>
+            <div className="text-[11.5px] text-fg-3">Pick a model on Browse Civitai, or install a recipe’s missing models from Generate or Manage.</div>
           </div>
         )}
       </div>

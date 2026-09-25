@@ -1,87 +1,21 @@
-// Local model library: scans every models folder (the user's chosen folder,
-// Stability Matrix's shared Models folder and ComfyUI's own models/), reads
+// Local model library: scans every models folder (see home.ts: the chosen
+// folder, Stability Matrix's shared Models, ComfyUI's models/ and extra paths,
+// Stitch's own folder and folders installed into), reads
 // Stability Matrix `.cm-info.json` sidecars and keeps small cached thumbnails.
 import { app, nativeImage } from 'electron'
 import { createHash } from 'node:crypto'
 import { existsSync, statSync } from 'node:fs'
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
-import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
 import type { LocalModel, ModelMeta } from '@shared/types'
 import { kindForFolder } from '@shared/civitai'
 import { emit } from '../../ipc'
-import { getSettings } from '../../settings'
-import { comfyDir } from '../comfy/process'
-import { detectStabilityMatrix } from '../system'
+import { MODEL_EXT, modelRoots, type Root } from './home'
 import { cachedRating, drainRatings, hasPendingRatings, queueRating } from './ratings'
 
-/** ComfyUI folder key → folder names on disk (Stability Matrix names first). */
-export const LAYOUT: Record<string, string[]> = {
-  checkpoints: ['StableDiffusion', 'checkpoints'],
-  diffusion_models: ['DiffusionModels', 'diffusion_models', 'unet'],
-  loras: ['Lora', 'LyCORIS', 'loras'],
-  controlnet: ['ControlNet', 'controlnet'],
-  vae: ['VAE', 'vae'],
-  text_encoders: ['TextEncoders', 'text_encoders', 'clip'],
-  embeddings: ['Embeddings', 'embeddings'],
-  upscale_models: ['ESRGAN', 'RealESRGAN', 'SwinIR', 'upscale_models'],
-  clip_vision: ['ClipVision', 'clip_vision'],
-  model_patches: ['ModelPatches', 'model_patches'],
-  audio_encoders: ['AudioEncoders', 'audio_encoders']
-}
+export { LAYOUT, MODEL_EXT, destinationDir, insideRoots, modelRoots, type Root } from './home'
 
-/** ComfyUI's own names inside `<ComfyUI>/models`. */
-const COMFY_LAYOUT: Record<string, string[]> = {
-  checkpoints: ['checkpoints'],
-  diffusion_models: ['diffusion_models', 'unet'],
-  loras: ['loras'],
-  controlnet: ['controlnet'],
-  vae: ['vae'],
-  text_encoders: ['text_encoders', 'clip'],
-  embeddings: ['embeddings'],
-  upscale_models: ['upscale_models'],
-  clip_vision: ['clip_vision'],
-  model_patches: ['model_patches'],
-  audio_encoders: ['audio_encoders']
-}
-
-export const MODEL_EXT = /\.(safetensors|gguf|ckpt|pt|pth|bin|sft)$/i
 const PREVIEW_SUFFIXES = ['.preview.jpeg', '.preview.jpg', '.preview.png', '.preview.webp', '.preview.gif', '.preview.mp4', '.preview.webm', '.jpeg', '.jpg', '.png', '.webp']
-
-export interface Root {
-  folder: string
-  dir: string
-}
-
-/** Every folder that may hold models, deduplicated (Windows paths are case-insensitive). */
-export function modelRoots(): Root[] {
-  const out: Root[] = []
-  const seen = new Set<string>()
-  const add = (folder: string, dir: string): void => {
-    const full = resolve(dir)
-    const key = full.toLowerCase()
-    if (seen.has(key)) return
-    seen.add(key)
-    out.push({ folder, dir: full })
-  }
-  const custom = getSettings().modelsDir
-  const sm = detectStabilityMatrix()
-  for (const base of [custom, sm?.modelsDir]) {
-    if (!base) continue
-    for (const [folder, names] of Object.entries(LAYOUT)) for (const n of names) add(folder, join(base, n))
-  }
-  const cdir = comfyDir()
-  if (cdir) for (const [folder, names] of Object.entries(COMFY_LAYOUT)) for (const n of names) add(folder, join(cdir, 'models', n))
-  return out
-}
-
-/** Is `p` a file inside one of the model roots? */
-export function insideRoots(p: string): boolean {
-  const full = resolve(p)
-  return modelRoots().some((r) => {
-    const rel = relative(r.dir, full)
-    return !!rel && !rel.startsWith('..') && !isAbsolute(rel)
-  })
-}
 
 /** `C:\…\Lora\foo.safetensors` → `C:\…\Lora\foo` */
 export function stemOf(modelPath: string): string {
@@ -360,29 +294,4 @@ export async function listLocal(refresh = false): Promise<LocalModel[]> {
       })
   }
   return scanning
-}
-
-/** Folder on disk where new files for a ComfyUI folder key should go. */
-export function destinationDir(folder: string): string {
-  const custom = getSettings().modelsDir
-  const sm = detectStabilityMatrix()
-  const names = LAYOUT[folder] ?? [folder]
-  const isDir = (p: string): boolean => {
-    try {
-      return statSync(p).isDirectory()
-    } catch {
-      return false
-    }
-  }
-  if (custom && isDir(custom)) {
-    const existing = names.find((n) => isDir(join(custom, n)))
-    if (existing) return join(custom, existing)
-    // New folder: follow the layout the chosen folder already uses.
-    const smStyle = ['StableDiffusion', 'Lora', 'DiffusionModels', 'TextEncoders'].some((n) => isDir(join(custom, n)))
-    return join(custom, smStyle ? names[0] : (COMFY_LAYOUT[folder]?.[0] ?? folder))
-  }
-  if (sm?.modelsDir && isDir(sm.modelsDir)) return join(sm.modelsDir, names[0])
-  const cdir = comfyDir()
-  if (cdir) return join(cdir, 'models', COMFY_LAYOUT[folder]?.[0] ?? folder)
-  throw new Error('No models folder found. Choose one in Settings, or install ComfyUI with Stability Matrix.')
 }

@@ -84,7 +84,7 @@ function Constellation(): React.JSX.Element {
       <motion.div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${cx * 100}%`, top: `${cy * 100}%` }} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ ...spring, delay: 0.15 }}>
         <div className="relative flex flex-col items-center gap-3">
           <div className="absolute -inset-8 rounded-full bg-grad opacity-25 blur-2xl" />
-          <LogoMark size={64} className="relative drop-shadow-[0_10px_30px_rgba(240,138,108,0.35)]" />
+          <LogoMark size={64} className="relative drop-shadow-[0_10px_30px_color-mix(in_oklab,var(--accent)_35%,transparent)]" />
           <div className="display relative text-[22px] tracking-tight uppercase">Connectors</div>
         </div>
       </motion.div>
@@ -150,7 +150,7 @@ function ConfigureDialog({ entry, existing, onClose }: { entry: CatalogEntry | n
         <>
           {entry?.docs && (
             <Button variant="ghost" size="sm" icon={<ExternalLink className="size-3.5" />} onClick={() => invoke('sys:openExternal', entry.docs!)}>
-              Get a key
+              {entry.needsKey || entry.optionalKey ? 'Get a key' : 'Learn more'}
             </Button>
           )}
           <div className="flex-1" />
@@ -174,8 +174,8 @@ function ConfigureDialog({ entry, existing, onClose }: { entry: CatalogEntry | n
               <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={entry.baseUrl} />
             </Field>
           )}
-          {(entry.needsKey || entry.key === 'custom') && (
-            <Field label="API key" help={hasKey ? 'A key is saved (encrypted with Windows). Leave blank to keep it.' : 'Stored encrypted on this PC; never shared.'}>
+          {(entry.needsKey || entry.key === 'custom' || entry.optionalKey) && (
+            <Field label={entry.keyLabel ?? 'API key'} help={hasKey ? 'A key is saved (encrypted with Windows). Leave blank to keep it.' : 'Stored encrypted on this PC; never shared.'}>
               <Input type="password" icon={<KeyRound />} value={key} onChange={(e) => setKey(e.target.value)} placeholder={hasKey ? '••••••••••••' : entry.needsKey ? 'Paste your key' : 'Optional'} />
             </Field>
           )}

@@ -64,7 +64,7 @@ export function useAutosave<N extends Editable>(
 }
 
 /** The fields the scenario editor and the play panel both edit. */
-export type StoryDoc = Pick<Scenario, 'title' | 'description' | 'tags' | 'coverAssetId' | 'contentRating' | 'plot' | 'cards' | 'projectId'> & { id: ID }
+export type StoryDoc = Pick<Scenario, 'title' | 'description' | 'tags' | 'coverAssetId' | 'plot' | 'cards' | 'projectId'> & { id: ID }
 export type StoryPatch = Partial<StoryDoc>
 export type StoryChange = (p: StoryPatch | ((cur: StoryDoc) => StoryPatch)) => void
 

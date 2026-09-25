@@ -64,8 +64,19 @@ export const useCivitai = create<CivitaiStore>((set, get) => ({
     on('download:progress', (d) => {
       const prev = get().downloads[d.id]
       set((s) => ({ downloads: { ...s.downloads, [d.id]: d } }))
-      if (prev?.status === 'downloading' && d.status === 'done') toast.success(`Downloaded ${d.name}`, `Saved to ${folderLabel(d.folder)}`)
-      if (prev?.status === 'downloading' && d.status === 'error') toast.error('Download failed', d.error)
+      const wasActive = prev?.status === 'downloading' || prev?.status === 'queued'
+      if (wasActive && d.status === 'done') {
+        if (!d.group) toast.success(`Downloaded ${d.name}`, `Saved to ${folderLabel(d.folder)}`)
+        else {
+          // One toast per install batch, when its last file lands.
+          const batch = Object.values(get().downloads).filter((x) => x.group === d.group)
+          if (!batch.some((x) => x.status === 'downloading' || x.status === 'queued')) {
+            const done = batch.filter((x) => x.status === 'done' && x.startedAt >= d.startedAt - 6 * 3600_000)
+            toast.success('Models installed', `${done.length === 1 ? d.name : `${done.length} files`} downloaded and verified.`)
+          }
+        }
+      }
+      if (wasActive && d.status === 'error') toast.error('Download failed', d.error)
     })
     void invoke('civitai:downloads').then((list) => set((s) => ({ downloads: { ...Object.fromEntries(list.map((d) => [d.id, d])), ...s.downloads } })))
   },
@@ -108,5 +119,5 @@ export const useCivitai = create<CivitaiStore>((set, get) => ({
 }))
 
 export function activeDownloads(d: Record<string, DownloadState>): DownloadState[] {
-  return Object.values(d).filter((x) => x.status === 'downloading')
+  return Object.values(d).filter((x) => x.status === 'downloading' || x.status === 'queued')
 }

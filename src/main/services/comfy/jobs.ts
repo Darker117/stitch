@@ -8,7 +8,8 @@ import { emit } from '../../ipc'
 import { db } from '../../store'
 import { kindForPath, saveBytes } from '../assets'
 import type { ComfyClient, OutputFile } from './client'
-import { recipeById, RECIPES, type Models, type RecipeDef } from './recipes'
+import { autoPickFlagged, recipeById, RECIPES, setFlaggedModels, type Models, type RecipeDef } from './recipes'
+import { cachedLibrary, listLocal } from '../models/library'
 import { scanModelsDir } from './process'
 import { notifyFinished, updateTaskbar } from '../native'
 
@@ -150,14 +151,21 @@ function checkRequirements(r: RecipeDef, models: Models): string[] {
   return missing
 }
 
+let libraryScan: Promise<unknown> | null = null
+
 export function listRecipes(): RecipeInfo[] {
   const models = knownModels()
+  const library = cachedLibrary()
+  if (library) setFlaggedModels(library.filter((m) => m.meta?.nsfw).map((m) => m.name))
+  // First call: scan the library once so the flags are there next time.
+  else libraryScan ??= listLocal().then(() => emit('models:changed', null)).catch(() => {})
   const builtins: RecipeInfo[] = RECIPES.map((r) => {
     const missing = checkRequirements(r, models)
     return {
       id: r.id, name: r.name, kind: r.kind, mode: r.mode, family: r.family, description: r.description,
       params: r.params, requires: r.requires.map((q) => ({ folder: q.folder, name: q.name ?? q.label })),
-      estSeconds: r.estSeconds, builtin: true, available: missing.length === 0, missing, baseModelMatch: r.baseModelMatch
+      estSeconds: r.estSeconds, builtin: true, available: missing.length === 0, missing, baseModelMatch: r.baseModelMatch,
+      autoNsfw: missing.length === 0 && autoPickFlagged(r, models)
     }
   })
   const skills: RecipeInfo[] = db('skills').list().map((s) => ({
@@ -472,6 +480,18 @@ function runHooks(job: GenJob, assets: Asset[]): void {
       const sheet = { ...c.sheet, [o.sub]: assets[0].id } as Character['sheet']
       db('characters').put({ ...c, sheet, updatedAt: Date.now() })
     }
+  }
+  // Story covers (scenario or adventure): the first image becomes the cover.
+  if ((o.type === 'scenario' || o.type === 'adventure') && o.sub === 'cover') {
+    const cover = assets.find((x) => x.kind === 'image') ?? assets[0]
+    if (o.type === 'scenario') {
+      const s = db('scenarios').get(o.id)
+      if (s) db('scenarios').put({ ...s, coverAssetId: cover.id, updatedAt: Date.now() })
+    } else {
+      const adv = db('adventures').get(o.id)
+      if (adv) db('adventures').put({ ...adv, coverAssetId: cover.id, updatedAt: Date.now() })
+    }
+    return
   }
   if (o.type === 'adventure' && o.sub) {
     const adv = db('adventures').get(o.id)

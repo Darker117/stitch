@@ -121,7 +121,6 @@ export function newScenario(partial?: Partial<Scenario>): Scenario {
     creatorFields: [],
     plot: emptyPlot(),
     cards: [],
-    contentRating: 'unrated',
     ...partial
   }
 }
@@ -140,7 +139,8 @@ export function defaultCreatorFields(): CreatorField[] {
 export const DEFAULT_CONTEXT = 8192
 export const DEFAULT_RESPONSE = 200
 
-export function defaultSettings(rating: Scenario['contentRating'] = 'unrated'): AdventureSettings {
+/** `rating` is the legacy content rating of older scenarios; new ones have none (moderate safety). */
+export function defaultSettings(rating?: Scenario['contentRating']): AdventureSettings {
   return {
     contextLength: DEFAULT_CONTEXT,
     memoryBank: true,
@@ -179,12 +179,5 @@ export function cardTypeLabel(card: Pick<StoryCard, 'type' | 'customType'>): str
   if (card.type === 'custom' && card.customType) return card.customType
   return CARD_TYPES.find((t) => t.value === card.type)?.label ?? card.type
 }
-
-export const RATING_OPTIONS: { value: Scenario['contentRating']; label: string; hint: string }[] = [
-  { value: 'everyone', label: 'Everyone', hint: 'Suitable for all ages' },
-  { value: 'teen', label: 'Teen', hint: 'Mild peril and violence' },
-  { value: 'mature', label: 'Mature', hint: 'Darker themes' },
-  { value: 'unrated', label: 'Unrated', hint: 'Not rated yet' }
-]
 
 export const LIMITS = { opening: 4000, plot: 4000, authorsNote: 400, title: 70, description: 5000, tags: 10, entry: 1000, plotTokens: 1500 }

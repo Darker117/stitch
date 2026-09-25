@@ -17,6 +17,8 @@ export interface SynthOut {
   model?: string
   /** Resolved provider voice (speaker/voice id) actually used. */
   voiceId?: string
+  /** Human name of that voice, when known (shown on clips). */
+  voiceName?: string
   /** Approximate bitrate for duration estimates when ffprobe is missing. */
   kbps?: number
   note?: string
