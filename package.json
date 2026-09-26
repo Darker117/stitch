@@ -1,7 +1,7 @@
 {
   "name": "stitch",
   "productName": "Stitch",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Local AI studio and story engine — consistent characters, scenes, video, audio and voices for interactive adventures.",
   "main": "./out/main/index.js",
   "author": "Darker117",
