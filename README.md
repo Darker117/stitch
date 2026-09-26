@@ -8,7 +8,7 @@
 <p align="center"><b>Your own AI studio and storyteller, running on your PC.</b></p>
 
 <p align="center">
-  <a href="https://github.com/Darker117/stitch/releases/latest"><b>⬇ Download for Windows</b></a>
+  <a href="https://github.com/Darker117/stitch/releases/latest"><b>⬇ Download for Windows</b></a> · <a href="https://github.com/Darker117/stitch/releases/latest"><b>Android app</b></a>
 </p>
 
 <p align="center">
@@ -40,11 +40,12 @@ You'll need Windows 10 or 11 and an NVIDIA graphics card.
 
 The Android app is a remote for Stitch on your PC: chats, stories, characters and generations all run on your graphics card and stay in your library — the phone just drives it, with the same look and every feature.
 
+- **Install** — download `Stitch-Android-<version>.apk` from the [**Releases**](https://github.com/Darker117/stitch/releases/latest) page on your phone and open it (allow installing from your browser when Android asks).
 - **Pair once** — in Stitch on the PC open **Settings → Phone → Pair a phone** and scan the QR code.
 - **Use it anywhere** — at home it talks to your PC over Wi-Fi; turn on **Access from anywhere** to keep going on mobile data.
 - **Make things on the phone too** — text, images and voice can also run on the phone itself (Qualcomm NPU, GPU or CPU); they land in the same library.
 
-The app lives in [`mobile/`](mobile) (build it with `npm run apk` there).
+The app's source lives in [`mobile/`](mobile).
 
 ## A look inside
 

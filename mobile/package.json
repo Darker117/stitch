@@ -1,7 +1,7 @@
 {
   "name": "stitch-mobile",
   "productName": "Stitch",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Stitch for Android — a remote for the Stitch desktop studio, with optional on-device text, image and voice generation.",
   "author": "Darker117",

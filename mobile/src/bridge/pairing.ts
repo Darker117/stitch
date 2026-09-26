@@ -32,7 +32,7 @@ export interface QrPayload {
 }
 
 const KEY = 'stitch.pairing'
-export const APP_VERSION = '0.1.0'
+export const APP_VERSION = __STITCH_VERSION__
 export const DEFAULT_PORT = 47847
 
 /** Older saves kept `hosts` + `port`. */

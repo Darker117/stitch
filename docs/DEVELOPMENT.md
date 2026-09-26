@@ -19,6 +19,8 @@ npm run apk        # web build → cap sync → android/app/build/outputs/apk/de
 ```
 Point `android/local.properties` at your SDK (`sdk.dir=…`). See [`mobile/CLAUDE.md`](../mobile/CLAUDE.md) for how it connects to the PC and how to preview it in a browser.
 
+The app's version comes from the root `package.json`, so it always matches the desktop release. For a release build, `npm run apk:release` signs with the key in `mobile/android/keystore.properties` (gitignored: `storeFile`, `storePassword`, `keyAlias`, `keyPassword`) and writes `android/app/build/outputs/apk/release/app-release.apk` — upload it to the release as `Stitch-Android-<version>.apk`. Keep the keystore safe: Android only installs updates signed with the same key.
+
 ## Releasing an update
 Commit your changes, then:
 ```bash

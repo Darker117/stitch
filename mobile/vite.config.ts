@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -10,6 +10,9 @@ const desktop = resolve(process.env.STITCH_DESKTOP ?? resolve(__dirname, '..'))
 if (!existsSync(resolve(desktop, 'src/renderer/src/App.tsx'))) {
   throw new Error(`Stitch desktop sources not found at ${desktop} — set STITCH_DESKTOP to the Stitch repo folder.`)
 }
+
+// The phone app ships with each Stitch release and shares its version.
+const version = (JSON.parse(readFileSync(resolve(desktop, 'package.json'), 'utf8')) as { version: string }).version
 
 // Packages imported from both trees must resolve to one copy (this project's node_modules).
 const shared = [
@@ -48,6 +51,7 @@ export default defineConfig({
     dedupe: shared
   },
   plugins: [react(), tailwindcss()],
+  define: { __STITCH_VERSION__: JSON.stringify(version) },
   server: {
     port: 5174,
     host: true,

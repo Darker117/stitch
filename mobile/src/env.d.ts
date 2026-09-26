@@ -1,5 +1,8 @@
 /// <reference types="vite/client" />
 
+/** The Stitch release this build belongs to (the repo's package.json version). */
+declare const __STITCH_VERSION__: string
+
 // The bridge the desktop renderer talks to (desktop: Electron preload; here: bridge/install.ts).
 interface StitchBridgeShape {
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>

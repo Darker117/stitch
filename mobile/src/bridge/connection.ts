@@ -2,7 +2,7 @@
 // address (Wi-Fi, Tailscale, the public "anywhere" address), follows the PC's encrypted relay when the
 // public address changes, and hops back to Wi-Fi when you get home.
 import { create } from 'zustand'
-import { probe, relayLookup, routeOf, savePairing, type Pairing } from './pairing'
+import { APP_VERSION, probe, relayLookup, routeOf, savePairing, type Pairing } from './pairing'
 
 export type LinkState = 'idle' | 'connecting' | 'ready' | 'reconnecting' | 'unpaired'
 
@@ -165,7 +165,7 @@ class Link {
       if (!authed) ws.close()
     }, routeOf(endpoint) === 'Internet' ? 9000 : 4000)
 
-    ws.onopen = () => ws.send(encode({ t: 'auth', token: p.token, device: { appVersion: '0.1.0' } }))
+    ws.onopen = () => ws.send(encode({ t: 'auth', token: p.token, device: { appVersion: APP_VERSION } }))
     ws.onmessage = (ev) => {
       let msg: {
         t: string

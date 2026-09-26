@@ -1,6 +1,16 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 
+// The app ships with each Stitch release: its version is the repo's package.json version
+// (0.3.0 → versionName "0.3.0", versionCode 300), so `npm run release` bumps both apps.
+def stitchVersion = new groovy.json.JsonSlurper().parse(rootProject.file('../../package.json')).version as String
+def stitchVersionCode = stitchVersion.tokenize('.').collect { it.replaceAll('[^0-9].*', '') as int }.with { it[0] * 10000 + it[1] * 100 + it[2] }
+
+// Release signing: android/keystore.properties (gitignored) points at the upload key.
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) keystorePropsFile.withInputStream { keystoreProps.load(it) }
+
 android {
     namespace = "com.stitch.mobile"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -8,8 +18,8 @@ android {
         applicationId "com.stitch.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "0.1.0"
+        versionCode stitchVersionCode
+        versionName stitchVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -22,8 +32,19 @@ android {
             abiFilters 'arm64-v8a'
         }
     }
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            release {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystorePropsFile.exists()) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
