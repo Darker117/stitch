@@ -36,6 +36,16 @@ Stitch keeps itself up to date: when a new version comes out it downloads in the
 
 You'll need Windows 10 or 11 and an NVIDIA graphics card.
 
+## Stitch on your phone
+
+The Android app is a remote for Stitch on your PC: chats, stories, characters and generations all run on your graphics card and stay in your library — the phone just drives it, with the same look and every feature.
+
+- **Pair once** — in Stitch on the PC open **Settings → Phone → Pair a phone** and scan the QR code.
+- **Use it anywhere** — at home it talks to your PC over Wi-Fi; turn on **Access from anywhere** to keep going on mobile data.
+- **Make things on the phone too** — text, images and voice can also run on the phone itself (Qualcomm NPU, GPU or CPU); they land in the same library.
+
+The app lives in [`mobile/`](mobile) (build it with `npm run apk` there).
+
 ## A look inside
 
 | | |

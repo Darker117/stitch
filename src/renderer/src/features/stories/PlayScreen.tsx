@@ -10,6 +10,7 @@ import { AssetLightbox } from '@/components/media'
 import { errorText, fileUrl } from '@/lib/api'
 import { accentsForBackground } from '@/lib/theme'
 import { ease } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 import type { LlmChoice } from '@/lib/llm'
 import { db, useCollection, useCollectionLoaded, useDoc } from '@/stores/db'
 import { toast } from '@/stores/toast'
@@ -63,6 +64,10 @@ function useWidth(): number {
   return w
 }
 
+// Phone fades: clear of the status bar + top buttons, and of the docked command bar.
+const PHONE_MASK = 'linear-gradient(to bottom, transparent calc(var(--sat, 0px) + 58px), black calc(var(--sat, 0px) + 108px), black calc(100% - var(--sab, 0px) - 128px), transparent calc(100% - var(--sab, 0px) - 64px))'
+const PHONE_MASK_SETUP = 'linear-gradient(to bottom, transparent calc(var(--sat, 0px) + 16px), black calc(var(--sat, 0px) + 76px))'
+
 function isTyping(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null
   return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.tagName === 'SELECT' || t.isContentEditable || !!t.closest('[role="dialog"],[role="menu"]'))
@@ -94,6 +99,7 @@ function Play({ id }: { id: string | undefined }): React.JSX.Element {
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
   const width = useWidth()
+  const compact = useCompact()
   const dynamicVars = useCoverAccents(adv?.coverAssetId)
   const cover = useDoc('assets', adv?.coverAssetId)
 
@@ -117,6 +123,17 @@ function Play({ id }: { id: string | undefined }): React.JSX.Element {
     if (!el || !pinned.current) return
     el.scrollTop = el.scrollHeight
   }, [ctl.streaming?.text, adv?.actions.length, phase])
+
+  // Phones: the WebView shrinks when the keyboard opens — keep the newest text above the input.
+  useEffect(() => {
+    const el = scroller.current
+    if (!compact || !el) return
+    const ro = new ResizeObserver(() => {
+      if (pinned.current) el.scrollTop = el.scrollHeight
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [compact, phase])
 
   const onScroll = (): void => {
     const el = scroller.current
@@ -178,7 +195,7 @@ function Play({ id }: { id: string | undefined }): React.JSX.Element {
   const colW = Math.min(820, width - 48)
   const left = (width - colW) / 2
   const overlap = left + colW - (width - 400 - 24)
-  const shift = panel && phase === 'play' ? -Math.min(Math.max(0, overlap), Math.max(0, left - 16)) : 0
+  const shift = panel && phase === 'play' && !compact ? -Math.min(Math.max(0, overlap), Math.max(0, left - 16)) : 0
   const model: LlmChoice | undefined = adv ? storyModel(adv) : undefined
   const large = adv?.settings.largeText
 
@@ -226,9 +243,9 @@ function Play({ id }: { id: string | undefined }): React.JSX.Element {
               ref={scroller}
               onScroll={onScroll}
               className="absolute inset-0 overflow-y-auto"
-              style={{ maskImage: 'linear-gradient(to bottom, transparent 0, black 84px, black calc(100% - 170px), transparent calc(100% - 48px))' }}
+              style={{ maskImage: compact ? (phase === 'setup' ? PHONE_MASK_SETUP : PHONE_MASK) : 'linear-gradient(to bottom, transparent 0, black 84px, black calc(100% - 170px), transparent calc(100% - 48px))' }}
             >
-              <motion.div animate={{ x: shift }} transition={{ type: 'spring', stiffness: 320, damping: 36 }} className="mx-auto min-h-full px-6" style={{ maxWidth: 820 + 48 }}>
+              <motion.div animate={{ x: shift }} transition={{ type: 'spring', stiffness: 320, damping: 36 }} className="mx-auto min-h-full px-6 max-md:px-5" style={{ maxWidth: 820 + 48 }}>
                 {phase === 'setup' && scenario ? (
                   <StartFlow root={scenario} defaultName={adv.player.name} onDone={(r, v, n) => void setupDone(r, v, n)} />
                 ) : (
@@ -236,12 +253,12 @@ function Play({ id }: { id: string | undefined }): React.JSX.Element {
                     initial={{ opacity: 0, y: 14 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.7, ease, delay: 0.05 }}
-                    className="pt-[104px] pb-[210px]"
-                    style={{ fontFamily: storyFont(adv.settings.textStyle), fontSize: large ? 20 : 17, lineHeight: 1.9 }}
+                    className="pt-[104px] pb-[210px] max-md:pt-[calc(var(--sat,0px)+92px)] max-md:pb-[calc(var(--sab,0px)+150px)]"
+                    style={{ fontFamily: storyFont(adv.settings.textStyle), fontSize: compact ? (large ? 19 : 16.5) : large ? 20 : 17, lineHeight: compact ? 1.78 : 1.9 }}
                   >
-                    <header className="mb-8 flex flex-col items-center text-center">
-                      <LogoMark size={32} />
-                      <h1 className="mt-3 font-serif text-[30px] leading-tight font-semibold tracking-tight" style={{ color: 'var(--st-text)' }}>
+                    <header className="mb-8 flex flex-col items-center text-center max-md:mb-6">
+                      <LogoMark size={compact ? 28 : 32} />
+                      <h1 className="mt-3 font-serif text-[30px] leading-tight font-semibold tracking-tight max-md:text-[25px] max-md:text-balance" style={{ color: 'var(--st-text)' }}>
                         {adv.title || 'Untitled adventure'}
                       </h1>
                       <div className="mt-4 h-px w-24 bg-[linear-gradient(90deg,transparent,var(--accent),transparent)] opacity-70" />
@@ -264,7 +281,7 @@ function Play({ id }: { id: string | undefined }): React.JSX.Element {
               <motion.div
                 animate={{ x: shift }}
                 transition={{ type: 'spring', stiffness: 320, damping: 36 }}
-                className="pointer-events-none absolute inset-x-0 bottom-6 z-30 mx-auto px-6 font-sans"
+                className="pointer-events-none absolute inset-x-0 bottom-6 z-30 mx-auto px-6 font-sans max-md:bottom-[calc(max(0px,var(--sab,0px)_-_var(--kb,0px))_+_10px)] max-md:px-3 max-md:has-[textarea:focus]:bottom-2.5"
                 style={{ maxWidth: 820 + 48, fontSize: large ? 15 : undefined }}
               >
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.25 }}>

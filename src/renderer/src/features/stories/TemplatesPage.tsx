@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/misc'
 import { errorText } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ease, rise, spring, stagger } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 import { toast } from '@/stores/toast'
 import { TemplateArt } from './components/art'
 import { StoryStyles } from './components/StoryStyles'
@@ -35,19 +36,19 @@ function ModeCard({ m, active, onClick }: { m: (typeof MODES)[number]; active: b
       whileTap={{ scale: 0.985 }}
       transition={spring}
       onClick={onClick}
-      className={cn('group relative flex items-start gap-3.5 overflow-hidden rounded-[18px] border p-4 text-left transition-colors duration-300', active ? 'border-transparent' : 'border-line bg-white/[0.03] hover:border-line-strong hover:bg-white/[0.05]')}
+      className={cn('group relative flex items-start gap-3.5 overflow-hidden rounded-[18px] border p-4 text-left transition-colors duration-300 max-md:items-center max-md:gap-3 max-md:rounded-2xl max-md:p-3', active ? 'border-transparent' : 'border-line bg-white/[0.03] hover:border-line-strong hover:bg-white/[0.05]')}
     >
       {active && (
         <motion.span
           layoutId="new-story-mode"
           transition={spring}
-          className="absolute inset-0 rounded-[18px] border border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[linear-gradient(135deg,color-mix(in_oklab,var(--accent-2)_16%,transparent),color-mix(in_oklab,var(--accent)_10%,transparent))] shadow-[0_18px_40px_-24px_color-mix(in_oklab,var(--accent)_70%,transparent)]"
+          className="absolute inset-0 rounded-[18px] border border-[color-mix(in_oklab,var(--accent)_45%,transparent)] max-md:rounded-2xl bg-[linear-gradient(135deg,color-mix(in_oklab,var(--accent-2)_16%,transparent),color-mix(in_oklab,var(--accent)_10%,transparent))] shadow-[0_18px_40px_-24px_color-mix(in_oklab,var(--accent)_70%,transparent)]"
         />
       )}
       <span className={cn('relative grid size-10 shrink-0 place-items-center rounded-xl transition-colors duration-300 [&>svg]:size-[18px]', active ? 'bg-grad text-white' : 'bg-white/[0.06] text-fg-2 group-hover:text-fg')}>{m.icon}</span>
       <span className="relative min-w-0">
-        <span className="block font-serif text-[16.5px] font-semibold tracking-tight">{m.title}</span>
-        <span className="mt-0.5 block text-[12px] leading-snug text-fg-2">{m.body}</span>
+        <span className="block font-serif text-[16.5px] font-semibold tracking-tight max-md:text-[15px]">{m.title}</span>
+        <span className="mt-0.5 block text-[12px] leading-snug text-fg-2 max-md:text-[11.5px]">{m.body}</span>
       </span>
     </motion.button>
   )
@@ -55,6 +56,7 @@ function ModeCard({ m, active, onClick }: { m: (typeof MODES)[number]; active: b
 
 function Templates(): React.JSX.Element {
   const navigate = useNavigate()
+  const compact = useCompact()
   const [busy, setBusy] = useState<TemplateId | null>(null)
   const pick = async (id: TemplateId): Promise<void> => {
     if (busy) return
@@ -68,7 +70,7 @@ function Templates(): React.JSX.Element {
     }
   }
   return (
-    <motion.div variants={stagger(0.05, 0.02)} initial="initial" animate="animate" className="grid grid-cols-3 gap-4">
+    <motion.div variants={stagger(0.05, 0.02)} initial="initial" animate="animate" className="grid grid-cols-3 gap-4 max-md:grid-cols-2 max-md:gap-2.5">
       {TEMPLATES.map((t) => (
         <motion.button
           key={t.id}
@@ -77,15 +79,15 @@ function Templates(): React.JSX.Element {
           whileTap={{ scale: 0.985 }}
           transition={{ type: 'spring', stiffness: 380, damping: 28 }}
           onClick={() => void pick(t.id)}
-          className="group relative aspect-[16/9] overflow-hidden rounded-[18px] text-left ring-1 ring-line transition-shadow duration-300 hover:shadow-[0_24px_60px_-20px_color-mix(in_oklab,var(--accent)_45%,transparent)] hover:ring-line-strong"
+          className="group relative aspect-[16/9] overflow-hidden rounded-[18px] text-left ring-1 ring-line transition-shadow duration-300 hover:shadow-[0_24px_60px_-20px_color-mix(in_oklab,var(--accent)_45%,transparent)] hover:ring-line-strong max-md:aspect-[4/5] max-md:rounded-2xl"
         >
-          <TemplateArt template={t.id} className="absolute inset-0" />
-          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4">
+          <TemplateArt template={t.id} className="absolute inset-0" compact={compact} />
+          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 max-md:p-3">
             <div>
-              <div className="font-serif text-[19px] font-semibold text-white drop-shadow">{t.name}</div>
-              <div className="mt-0.5 text-[12px] text-white/65 transition-colors group-hover:text-white/85">{t.blurb}</div>
+              <div className="font-serif text-[19px] font-semibold text-white drop-shadow max-md:text-[15.5px] max-md:leading-tight">{t.name}</div>
+              <div className="mt-0.5 text-[12px] text-white/65 transition-colors group-hover:text-white/85 max-md:text-[11px] max-md:leading-snug">{t.blurb}</div>
             </div>
-            <span className="grid size-8 translate-y-1 place-items-center rounded-full bg-white/10 text-white opacity-0 backdrop-blur transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+            <span className="grid size-8 translate-y-1 place-items-center rounded-full bg-white/10 text-white opacity-0 backdrop-blur transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 max-md:hidden">
               <ArrowUpRight className="size-4" />
             </span>
           </div>
@@ -111,8 +113,8 @@ function ComposeLaunch({ onOpen }: { onOpen: (brief: string) => void }): React.J
     { n: '4', title: 'Create', body: 'One click saves the scenario, attaches the scripts and paints a cover.' }
   ]
   return (
-    <motion.div variants={stagger(0.05, 0.02)} initial="initial" animate="animate" className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-5">
-      <motion.div variants={rise} className="flex flex-col gap-4 rounded-[20px] border border-line bg-white/[0.03] p-5 hairline">
+    <motion.div variants={stagger(0.05, 0.02)} initial="initial" animate="animate" className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-5 max-md:grid-cols-1 max-md:gap-3">
+      <motion.div variants={rise} className="flex flex-col gap-4 rounded-[20px] border border-line bg-white/[0.03] p-5 hairline max-md:p-4">
         {inProgress && (
           <button onClick={() => onOpen('')} className="group flex items-center gap-3 rounded-2xl border border-[color-mix(in_oklab,var(--accent)_35%,transparent)] bg-[color-mix(in_oklab,var(--accent)_8%,transparent)] px-4 py-3 text-left transition-colors hover:bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]">
             <span className="size-2 animate-pulse rounded-full bg-accent" />
@@ -130,6 +132,7 @@ function ComposeLaunch({ onOpen }: { onOpen: (brief: string) => void }): React.J
             variant="primary"
             size="lg"
             icon={<MessagesSquare className="size-4" />}
+            className="max-md:w-full"
             onClick={() => {
               if (brief.trim() && inProgress) useComposer.getState().reset()
               onOpen(brief)
@@ -139,7 +142,7 @@ function ComposeLaunch({ onOpen }: { onOpen: (brief: string) => void }): React.J
           </Button>
         </div>
       </motion.div>
-      <motion.div variants={rise} className="relative flex flex-col gap-3.5 overflow-hidden rounded-[20px] border border-line bg-white/[0.02] p-5 hairline">
+      <motion.div variants={rise} className="relative flex flex-col gap-3.5 overflow-hidden rounded-[20px] border border-line bg-white/[0.02] p-5 hairline max-md:p-4">
         <div className="pointer-events-none absolute -right-20 -bottom-24 size-72 rounded-full opacity-40 blur-[80px]" style={{ background: 'radial-gradient(circle, var(--accent), transparent 70%)' }} />
         {steps.map((s) => (
           <div key={s.n} className="relative flex gap-3">
@@ -169,13 +172,13 @@ export function TemplatesPage(): React.JSX.Element {
   return (
     <Page>
       <StoryStyles />
-      <div className="mx-auto max-w-[1180px] px-8 pt-7 pb-14">
+      <div className="mx-auto max-w-[1180px] px-8 pt-7 pb-14 max-md:px-4 max-md:pt-5 max-md:pb-10">
         <div className="flex items-start gap-3">
           <IconButton label="Back to stories" variant="secondary" onClick={() => navigate('/stories')} className="mt-1">
             <ArrowLeft className="size-4" />
           </IconButton>
           <div>
-            <motion.h1 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }} className="font-serif text-[30px] font-semibold tracking-tight">
+            <motion.h1 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }} className="font-serif text-[30px] font-semibold tracking-tight max-md:text-[25px] max-md:leading-tight">
               New story
             </motion.h1>
             <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease, delay: 0.06 }} className="mt-1 text-[13px] text-fg-2">
@@ -184,13 +187,13 @@ export function TemplatesPage(): React.JSX.Element {
           </div>
         </div>
 
-        <motion.div variants={stagger(0.06, 0.05)} initial="initial" animate="animate" className="mt-7 grid grid-cols-3 gap-3">
+        <motion.div variants={stagger(0.06, 0.05)} initial="initial" animate="animate" className="mt-7 grid grid-cols-3 gap-3 max-md:mt-5 max-md:grid-cols-1 max-md:gap-2">
           {MODES.map((m) => (
             <ModeCard key={m.id} m={m} active={mode === m.id} onClick={() => setMode(m.id)} />
           ))}
         </motion.div>
 
-        <div className="mt-6">
+        <div className="mt-6 max-md:mt-4">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={mode} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.28, ease }}>
               {mode === 'templates' && <Templates />}

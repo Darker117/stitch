@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Copy, Download, ExternalLink, FolderOpen, HardDrive, RefreshCw, ScanSearch, Square, ThumbsUp, Trash2, User } from 'lucide-react'
+import { isPhone } from '@/lib/platform'
 import type { LocalModel, ModelKind } from '@shared/types'
 import { folderLabel } from '@shared/civitai'
 import { errorText, invoke } from '@/lib/api'
@@ -75,7 +76,7 @@ function LocalCard({
           )}
         </AnimatePresence>
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-3">
+      <div className="flex flex-1 flex-col gap-2 p-3 max-md:p-2.5">
         <div>
           <div className="line-clamp-2 text-[12.5px] leading-snug font-semibold" title={modelTitle(m)}>
             {modelTitle(m)}
@@ -83,7 +84,7 @@ function LocalCard({
           {m.meta?.versionName && <div className="mt-0.5 truncate text-[11px] text-fg-3">{m.meta.versionName}</div>}
         </div>
         <div className="flex min-w-0 items-center gap-1.5">
-          <BaseTag base={m.meta?.baseModel} className="min-w-0" />
+          <BaseTag base={m.meta?.baseModel} className="min-w-0 max-md:shrink" />
           <span className="ml-auto shrink-0 text-[10.5px] text-fg-3 tabular-nums">{formatBytes(m.size)}</span>
         </div>
         {words.length > 0 && (
@@ -98,7 +99,7 @@ function LocalCard({
           <Button
             size="xs"
             variant="secondary"
-            className="mt-auto w-full"
+            className="mt-auto w-full max-md:h-8"
             icon={<ScanSearch className="size-3" />}
             disabled={busy}
             onClick={(e) => {
@@ -131,11 +132,11 @@ function LocalDetail({ m, busy, onIdentify, onDelete }: { m: LocalModel; busy: b
   const file = m.path.split(/[\\/]/).pop()!
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="relative h-[380px] shrink-0">
+      <div className="relative h-[380px] shrink-0 max-md:h-[44vh]">
         <ModelThumb model={m} full allowReveal className="size-full" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[var(--panel-solid)] to-transparent" />
       </div>
-      <div className="relative -mt-10 space-y-6 px-6 pb-8">
+      <div className="relative -mt-10 space-y-6 px-6 pb-8 max-md:px-5">
         <div className="space-y-2.5">
           <div className="flex flex-wrap items-center gap-1.5">
             <KindTag kind={m.kind} icon />
@@ -165,15 +166,17 @@ function LocalDetail({ m, busy, onIdentify, onDelete }: { m: LocalModel; busy: b
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 max-md:[&_button]:h-9">
           {meta?.modelId && (
             <Button size="sm" variant="secondary" icon={<ExternalLink className="size-3.5" />} onClick={() => void invoke('sys:openExternal', `https://civitai.com/models/${meta.modelId}${meta.versionId ? `?modelVersionId=${meta.versionId}` : ''}`)}>
               Open on Civitai
             </Button>
           )}
-          <Button size="sm" variant="secondary" icon={<FolderOpen className="size-3.5" />} onClick={() => void invoke('sys:showInFolder', m.path)}>
-            Show in folder
-          </Button>
+          {!isPhone && (
+            <Button size="sm" variant="secondary" icon={<FolderOpen className="size-3.5" />} onClick={() => void invoke('sys:showInFolder', m.path)}>
+              Show in folder
+            </Button>
+          )}
           <Button size="sm" variant={identified(m) ? 'ghost' : 'primary'} loading={busy} icon={<ScanSearch className="size-3.5" />} onClick={onIdentify}>
             {identified(m) ? 'Refresh info' : 'Identify on Civitai'}
           </Button>
@@ -371,24 +374,24 @@ export function LocalLibrary(): React.JSX.Element {
 
   return (
     <motion.div key="local" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.3, ease }}>
-      <div className="sticky top-0 z-10 space-y-2.5 border-y border-line bg-[color-mix(in_oklab,var(--panel-solid)_82%,transparent)] px-8 py-3 backdrop-blur-xl">
+      <div className="sticky top-0 z-10 space-y-2.5 border-y border-line bg-[color-mix(in_oklab,var(--panel-solid)_82%,transparent)] px-8 py-3 backdrop-blur-xl max-md:static max-md:px-4">
         <div className="flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] max-md:-ml-4 max-md:pl-4">
             <KindChip label="All" count={models.length} active={kind === 'all'} onClick={() => setKind('all')} />
             {kindCounts.map(({ kind: k, count }) => (
               <KindChip key={k} kind={k} label={KIND_META[k].label} count={count} active={kind === k} onClick={() => setKind(kind === k ? 'all' : k)} />
             ))}
           </div>
           <Tooltip content="Rescan folders">
-            <IconButton label="Rescan folders" size="sm" onClick={refresh}>
+            <IconButton label="Rescan folders" size="sm" className="max-md:size-9" onClick={refresh}>
               <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
             </IconButton>
           </Tooltip>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-md:flex-wrap">
           <Select
             size="sm"
-            className="w-[190px]"
+            className="w-[190px] max-md:h-9 max-md:w-auto max-md:min-w-0 max-md:flex-1"
             value={base}
             onChange={setBase}
             options={[
@@ -399,7 +402,7 @@ export function LocalLibrary(): React.JSX.Element {
           />
           <Select
             size="sm"
-            className="w-[140px]"
+            className="w-[140px] max-md:h-9 max-md:w-[138px]"
             value={sort}
             onChange={(v) => setSort(v as Sort)}
             options={[
@@ -409,19 +412,19 @@ export function LocalLibrary(): React.JSX.Element {
               { value: 'base', label: 'Base model' }
             ]}
           />
-          <SearchField value={q} onChange={setQ} placeholder="Search names, keywords, tags" className="w-[260px]" />
-          <div className="flex-1" />
+          <SearchField value={q} onChange={setQ} placeholder="Search names, keywords, tags" className="w-[260px] max-md:order-first max-md:w-full" />
+          <div className="flex-1 max-md:hidden" />
           <span className="hidden items-center gap-1.5 text-[11.5px] text-fg-3 xl:flex">
             <HardDrive className="size-3.5" /> {models.length} files · {formatBytes(totalSize)}
           </span>
           {bulk ? (
-            <Button size="sm" variant="secondary" icon={<Square className="size-3 fill-current" />} onClick={() => (stopBulk.current = true)}>
+            <Button size="sm" variant="secondary" className="max-md:h-9 max-md:w-full" icon={<Square className="size-3 fill-current" />} onClick={() => (stopBulk.current = true)}>
               Identifying {bulk.done}/{bulk.total} · Stop
             </Button>
           ) : (
             unknown.length > 0 && (
               <Tooltip content="Hash each unidentified file and look it up on Civitai. Big checkpoints take a while.">
-                <Button size="sm" variant="secondary" icon={<ScanSearch className="size-3.5" />} onClick={() => void identifyAll()}>
+                <Button size="sm" variant="secondary" className="max-md:h-9 max-md:w-full" icon={<ScanSearch className="size-3.5" />} onClick={() => void identifyAll()}>
                   Identify {unknown.length} unknown
                 </Button>
               </Tooltip>
@@ -430,9 +433,9 @@ export function LocalLibrary(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="px-8 py-6">
+      <div className="px-8 py-6 max-md:px-4 max-md:pt-4 max-md:pb-8">
         {loading && !models.length ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-3.5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-3.5 max-md:grid-cols-2 max-md:gap-2.5">
             {Array.from({ length: 10 }, (_, i) => (
               <div key={i} className="glass overflow-hidden rounded-2xl">
                 <Skeleton className="aspect-[4/5] rounded-none" />
@@ -444,7 +447,7 @@ export function LocalLibrary(): React.JSX.Element {
             ))}
           </div>
         ) : list.length ? (
-          <motion.div layout className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-3.5">
+          <motion.div layout className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-3.5 max-md:grid-cols-2 max-md:gap-2.5">
             <AnimatePresence initial={false} mode="popLayout">
               {list.map((m, i) => (
                 <LocalCard key={m.path} m={m} index={i} busy={!!busy[m.path]} onOpen={() => setOpenPath(m.path)} onIdentify={() => void identify(m)} onDelete={() => setConfirm(m)} />
@@ -481,11 +484,11 @@ export function LocalLibrary(): React.JSX.Element {
         }
       >
         {confirm && (
-          <div className="flex gap-3.5 p-5">
+          <div className="flex gap-3.5 p-5 max-md:[overflow-wrap:anywhere]">
             <ModelThumb model={confirm} compact className="size-16 shrink-0 rounded-xl ring-1 ring-line" />
             <div className="min-w-0 space-y-1 text-[12.5px] text-fg-2">
               <div className="truncate font-semibold text-fg">{modelTitle(confirm)}</div>
-              <div className="truncate font-mono text-[11px] text-fg-3">{confirm.path}</div>
+              <div className="truncate font-mono text-[11px] text-fg-3 max-md:line-clamp-2 max-md:whitespace-normal">{confirm.path}</div>
               <p className="pt-1 leading-relaxed">
                 The file ({formatBytes(confirm.size)}) and its preview and metadata go to the Recycle Bin. Stability Matrix and ComfyUI will stop seeing it.
               </p>
@@ -503,7 +506,7 @@ function KindChip({ kind, label, count, active, onClick }: { kind?: ModelKind; l
       whileTap={{ scale: 0.96 }}
       onClick={onClick}
       className={cn(
-        'inline-flex h-7.5 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-medium transition-[background,border-color,color] duration-200',
+        'inline-flex h-7.5 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-medium transition-[background,border-color,color] duration-200 max-md:h-9 max-md:rounded-full max-md:px-3',
         !active && 'border-line bg-white/[0.035] text-fg-2 hover:border-line-strong hover:bg-white/[0.07] hover:text-fg',
         active && !kind && 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] text-fg'
       )}

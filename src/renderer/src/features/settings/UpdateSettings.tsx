@@ -90,14 +90,14 @@ export function UpdateSettings(): React.JSX.Element {
   return (
     <div className="space-y-6">
       <SectionTitle>Updates</SectionTitle>
-      <Surface className="relative overflow-hidden p-5">
+      <Surface className="relative overflow-hidden p-5 max-md:p-4">
         <motion.div
           className="pointer-events-none absolute -top-20 -right-16 size-64 rounded-full bg-grad blur-3xl"
           animate={{ opacity: s.status === 'downloaded' || s.status === 'downloading' ? 0.28 : 0.12 }}
           transition={{ duration: 0.8, ease }}
         />
-        <div className="relative flex items-center gap-4">
-          <div className="grid size-14 shrink-0 place-items-center rounded-2xl border border-line bg-white/[0.04]">
+        <div className="relative flex items-center gap-4 max-md:flex-wrap max-md:gap-3.5">
+          <div className="grid size-14 shrink-0 place-items-center rounded-2xl border border-line bg-white/[0.04] max-md:size-12">
             <LogoMark size={36} />
           </div>
           <div className="min-w-0 flex-1">
@@ -116,7 +116,7 @@ export function UpdateSettings(): React.JSX.Element {
               </motion.div>
             </AnimatePresence>
           </div>
-          <motion.div layout transition={spring}>
+          <motion.div layout transition={spring} className="max-md:basis-full max-md:empty:hidden max-md:[&>button]:h-10 max-md:[&>button]:w-full">
             {action}
           </motion.div>
         </div>
@@ -151,7 +151,7 @@ export function UpdateSettings(): React.JSX.Element {
           checked={settings.updates?.autoDownload !== false}
           onChange={(v) => void update({ updates: { autoDownload: v } })}
         />
-        <Button variant="ghost" iconRight={<ArrowUpRight className="size-3.5" />} onClick={() => void invoke('sys:openExternal', RELEASES_URL)}>
+        <Button variant="ghost" className="max-md:-ml-3.5" iconRight={<ArrowUpRight className="size-3.5" />} onClick={() => void invoke('sys:openExternal', RELEASES_URL)}>
           All releases on GitHub
         </Button>
       </div>

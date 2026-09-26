@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid'
 import type { Project } from '@shared/types'
 import { fileUrl } from '@/lib/api'
 import { characterRefs } from '@/lib/characters'
+import { useCompact } from '@/lib/platform'
 import { cn, timeAgo } from '@/lib/utils'
 import { ease, rise, spring, stagger } from '@/lib/motion'
 import { Page } from '@/components/shell/page'
@@ -66,6 +67,7 @@ function ProjectDetail({ id }: { id: string }): React.JSX.Element {
   const assets = useCollection('assets')
   const chats = useCollection('chats')
   const scenarios = useCollection('scenarios')
+  const compact = useCompact()
   const [tab, setTab] = useState<'assets' | 'cast' | 'stories' | 'chats'>('assets')
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [style, setStyle] = useState(p?.style ?? '')
@@ -79,15 +81,15 @@ function ProjectDetail({ id }: { id: string }): React.JSX.Element {
 
   return (
     <div>
-      <div className="flex items-center gap-3 px-6 pt-5">
-        <IconButton label="Back" onClick={() => navigate('/projects')}>
+      <div className="flex items-center gap-3 px-6 pt-5 max-md:gap-1.5 max-md:px-2 max-md:pt-3">
+        <IconButton label="Back" className="max-md:size-10" onClick={() => navigate('/projects')}>
           <ArrowLeft className="size-4" />
         </IconButton>
-        <input value={p.name} onChange={(e) => void db.patch('projects', p.id, { name: e.target.value, updatedAt: Date.now() })} className="display flex-1 bg-transparent text-[26px] outline-none" />
+        <input value={p.name} onChange={(e) => void db.patch('projects', p.id, { name: e.target.value, updatedAt: Date.now() })} className="display min-w-0 flex-1 bg-transparent text-[26px] outline-none max-md:text-[22px]" />
         <Menu
           align="end"
           trigger={
-            <IconButton label="More">
+            <IconButton label="More" className="max-md:size-10">
               <MoreHorizontal className="size-4" />
             </IconButton>
           }
@@ -104,27 +106,31 @@ function ProjectDetail({ id }: { id: string }): React.JSX.Element {
           </MenuItem>
         </Menu>
       </div>
-      <div className="px-8 pt-4">
+      <div className="px-8 pt-4 max-md:px-4 max-md:pt-3">
         <Field label="Style inherited by everything in this project">
           <Textarea value={style} onChange={(e) => setStyle(e.target.value)} onBlur={() => void db.patch('projects', p.id, { style, updatedAt: Date.now() })} minRows={2} />
         </Field>
       </div>
-      <div className="px-8 pt-6">
-        <Tabs
-          value={tab}
-          onChange={setTab}
-          items={[
-            { value: 'assets', label: 'Assets', icon: <Box />, count: pAssets.length },
-            { value: 'cast', label: 'Cast', icon: <ScanFace />, count: cast.length },
-            { value: 'stories', label: 'Stories', icon: <BookOpen />, count: pStories.length },
-            { value: 'chats', label: 'Chats', icon: <MessageSquare />, count: pChats.length }
-          ]}
-        />
+      <div className="px-8 pt-6 max-md:px-4 max-md:pt-5">
+        {/* Phones: icon-less tabs; the strip scrolls sideways if it still doesn't fit. */}
+        <div className="max-md:-mx-4 max-md:overflow-x-auto max-md:px-4 max-md:[scrollbar-width:none]!">
+          <Tabs
+            value={tab}
+            onChange={setTab}
+            className="max-md:w-max max-md:min-w-full max-md:gap-0.5 max-md:[&>button]:h-10 max-md:[&>button]:px-2"
+            items={[
+              { value: 'assets', label: 'Assets', icon: compact ? undefined : <Box />, count: pAssets.length },
+              { value: 'cast', label: 'Cast', icon: compact ? undefined : <ScanFace />, count: cast.length },
+              { value: 'stories', label: 'Stories', icon: compact ? undefined : <BookOpen />, count: pStories.length },
+              { value: 'chats', label: 'Chats', icon: compact ? undefined : <MessageSquare />, count: pChats.length }
+            ]}
+          />
+        </div>
         <AnimatePresence mode="wait">
-          <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease }} className="py-6">
+          <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease }} className="py-6 max-md:py-4">
             {tab === 'assets' &&
               (pAssets.length ? (
-                <div className="grid grid-cols-5 gap-3">
+                <div className="grid grid-cols-5 gap-3 max-md:grid-cols-3 max-md:gap-2">
                   {pAssets.map((a) => (
                     <AssetThumb key={a.id} asset={a} className="aspect-square" onClick={() => setLightbox(a.id)} />
                   ))}
@@ -133,7 +139,7 @@ function ProjectDetail({ id }: { id: string }): React.JSX.Element {
                 <EmptyState icon={<Box />} title="No assets yet" body="Pick this project in the New chat box, or add assets from the library." />
               ))}
             {tab === 'cast' && (
-              <div className="grid grid-cols-6 gap-3">
+              <div className="grid grid-cols-6 gap-3 max-md:grid-cols-3 max-md:gap-2.5">
                 {characters.map((c) => {
                   const on = p.characterIds.includes(c.id)
                   const ref = db.get('assets', characterRefs(c, 1)[0] ?? '')
@@ -145,30 +151,30 @@ function ProjectDetail({ id }: { id: string }): React.JSX.Element {
                       className={cn('overflow-hidden rounded-2xl border text-left transition', on ? 'border-[color-mix(in_oklab,var(--accent)_55%,transparent)]' : 'border-line opacity-60 hover:opacity-100')}
                     >
                       <div className="aspect-square bg-white/[0.03]">{ref ? <img src={fileUrl(ref.path)} className="size-full object-cover" /> : <UserRound className="m-auto mt-8 size-8 text-fg-3" />}</div>
-                      <div className="p-2 text-[12px] font-medium">{c.name}</div>
+                      <div className="truncate p-2 text-[12px] font-medium">{c.name}</div>
                     </motion.button>
                   )
                 })}
-                {!characters.length && <EmptyState className="col-span-6" icon={<ScanFace />} title="No characters yet" />}
+                {!characters.length && <EmptyState className="col-span-6 max-md:col-span-full" icon={<ScanFace />} title="No characters yet" />}
               </div>
             )}
             {tab === 'stories' && (
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-3 max-md:grid-cols-1 max-md:gap-2.5">
                 {pStories.map((s) => (
                   <button key={s.id} onClick={() => navigate(`/stories/scenario/${s.id}`)} className="glass hairline rounded-2xl p-4 text-left">
                     <div className="font-serif text-[16px] font-semibold">{s.title || 'Untitled'}</div>
                     <div className="mt-1 line-clamp-2 text-[12px] text-fg-3">{s.description}</div>
                   </button>
                 ))}
-                {!pStories.length && <EmptyState className="col-span-3" icon={<BookOpen />} title="No stories in this project" />}
+                {!pStories.length && <EmptyState className="col-span-3 max-md:col-span-full" icon={<BookOpen />} title="No stories in this project" />}
               </div>
             )}
             {tab === 'chats' && (
               <div className="space-y-2">
                 {pChats.map((c) => (
                   <button key={c.id} onClick={() => navigate(`/chat/${c.id}`)} className="glass hairline flex w-full items-center justify-between rounded-xl px-4 py-3 text-left">
-                    <span className="text-[13px] font-medium">{c.title}</span>
-                    <span className="text-[11.5px] text-fg-3">{timeAgo(c.updatedAt)}</span>
+                    <span className="text-[13px] font-medium max-md:min-w-0 max-md:truncate">{c.title}</span>
+                    <span className="text-[11.5px] text-fg-3 max-md:shrink-0 max-md:pl-3">{timeAgo(c.updatedAt)}</span>
                   </button>
                 ))}
                 {!pChats.length && <EmptyState icon={<MessageSquare />} title="No chats in this project" />}
@@ -205,13 +211,13 @@ export function ProjectsPage(): React.JSX.Element {
 
   return (
     <Page>
-      <div className="flex items-center justify-between px-8 pt-6">
-        <h1 className="text-[15px] font-semibold">Projects</h1>
-        <Button variant="primary" size="sm" icon={<Plus className="size-3.5" />} onClick={() => setCreating(true)}>
+      <div className="flex items-center justify-between px-8 pt-6 max-md:px-4 max-md:pt-5">
+        <h1 className="text-[15px] font-semibold max-md:display max-md:text-[23px]">Projects</h1>
+        <Button variant="primary" size="sm" className="max-md:h-9 max-md:px-3.5" icon={<Plus className="size-3.5" />} onClick={() => setCreating(true)}>
           New project
         </Button>
       </div>
-      <div className="flex items-end justify-between px-8 pt-4">
+      <div className="flex items-end justify-between px-8 pt-4 max-md:flex-col-reverse max-md:items-stretch max-md:gap-2 max-md:px-4">
         <Tabs
           value={tab}
           onChange={setTab}
@@ -219,20 +225,20 @@ export function ProjectsPage(): React.JSX.Element {
             { value: 'all', label: 'All', icon: <Layers /> },
             { value: 'recent', label: 'Recent', icon: <Clock /> }
           ]}
-          className="flex-1"
+          className="flex-1 max-md:[&>button]:h-10"
         />
-        <div className="border-b border-line pb-2 pl-4">
-          <SearchField value={q} onChange={setQ} className="w-[260px]" />
+        <div className="border-b border-line pb-2 pl-4 max-md:border-b-0 max-md:p-0">
+          <SearchField value={q} onChange={setQ} className="w-[260px] max-md:w-full" />
         </div>
       </div>
       {list.length ? (
-        <motion.div variants={stagger(0.04)} initial="initial" animate="animate" className="grid grid-cols-4 gap-4 px-8 py-6">
+        <motion.div variants={stagger(0.04)} initial="initial" animate="animate" className="grid grid-cols-4 gap-4 px-8 py-6 max-md:grid-cols-1 max-md:gap-3 max-md:px-4 max-md:py-4 min-[440px]:max-md:grid-cols-2">
           {list.map((p) => {
             const cover = assets.find((a) => a.projectId === p.id && a.kind === 'image')
             const count = assets.filter((a) => a.projectId === p.id).length
             return (
               <motion.button key={p.id} variants={rise} whileHover={{ y: -4 }} transition={spring} onClick={() => navigate(`/projects/${p.id}`)} className="glass hairline group overflow-hidden rounded-2xl text-left">
-                <div className="relative aspect-video overflow-hidden bg-grad-soft">
+                <div className="relative aspect-video overflow-hidden bg-grad-soft max-md:aspect-[2/1]">
                   {cover && <img src={fileUrl(cover.path)} className="size-full object-cover transition-transform duration-700 group-hover:scale-105" />}
                 </div>
                 <div className="p-3.5">

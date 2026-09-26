@@ -9,6 +9,7 @@ import { Menu, MenuItem, MenuSeparator } from '@/components/ui/overlay'
 import { Badge, SectionTitle, Skeleton } from '@/components/ui/misc'
 import { errorText } from '@/lib/api'
 import { cn, pluralize, timeAgo } from '@/lib/utils'
+import { useCompact } from '@/lib/platform'
 import { ease, rise, spring, stagger } from '@/lib/motion'
 import { db, useCollectionLoaded } from '@/stores/db'
 import { toast, useToasts } from '@/stores/toast'
@@ -73,7 +74,7 @@ function AdventureCard({ a, onPlay }: { a: Adventure; onPlay: () => void }): Rea
   const media = a.actions.reduce((n, x) => n + (x.media?.length ?? 0), 0)
   const snippet = lastPassage(a)
   return (
-    <motion.div variants={rise} layout className="group relative w-[300px] shrink-0">
+    <motion.div variants={rise} layout className="group relative w-[300px] shrink-0 max-md:w-[272px] max-md:snap-start">
       <motion.button whileHover={{ y: -4 }} whileTap={{ scale: 0.985 }} transition={spring} onClick={onPlay} className="block w-full text-left">
         <CoverArt coverAssetId={a.coverAssetId ?? scenario?.coverAssetId} template={scenario?.template} title={a.title} compact className="aspect-[16/10] w-full rounded-[18px] ring-1 ring-line transition-shadow duration-300 group-hover:shadow-[0_24px_50px_-20px_color-mix(in_oklab,var(--accent)_50%,transparent)]">
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.85)_8%,rgb(0_0_0/0.25)_55%,transparent)]" />
@@ -100,11 +101,11 @@ function AdventureCard({ a, onPlay }: { a: Adventure; onPlay: () => void }): Rea
           </span>
         </CoverArt>
       </motion.button>
-      <div className="absolute top-2.5 right-2.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="absolute top-2.5 right-2.5 opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">
         <Menu
           align="end"
           trigger={
-            <IconButton label="Adventure options" variant="glass" size="sm" className="bg-black/40 text-white">
+            <IconButton label="Adventure options" variant="glass" size="sm" className="bg-black/40 text-white max-md:size-9 max-md:rounded-full">
               <Ellipsis className="size-4" />
             </IconButton>
           }
@@ -133,13 +134,19 @@ function ScenarioCard({ s, onPlay, playing }: { s: Scenario; onPlay: () => void;
   const cover = useCoverActions(target, s.projectId)
   const canPaint = useCanPaint()
   const [picker, setPicker] = useState(false)
+  const compact = useCompact()
   const running = progress.phase !== 'idle'
   return (
     <motion.div variants={rise} layout className="group relative flex flex-col overflow-hidden rounded-[18px] border border-line bg-white/[0.03] transition-[border-color,box-shadow,transform] duration-300 hover:-translate-y-1 hover:border-line-strong hover:shadow-[0_24px_50px_-24px_rgb(0_0_0/0.9)]">
       <div className="relative">
         <button onClick={() => navigate(`/stories/scenario/${s.id}`)} className="block w-full text-left">
-          <CoverArt coverAssetId={s.coverAssetId} template={s.template} title={s.title} compact className="aspect-[16/9] w-full">
-            <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.45),transparent_50%)]" />
+          <CoverArt coverAssetId={s.coverAssetId} template={s.template} title={s.title} compact className="aspect-[16/9] w-full max-md:aspect-[2/1]">
+            <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.45),transparent_50%)] max-md:bg-[linear-gradient(to_top,rgb(0_0_0/0.8),rgb(0_0_0/0.25)_55%,transparent)]" />
+            {/* Phones: title on the art, like the Continue playing cards. */}
+            <div className="absolute inset-x-3.5 bottom-3 hidden max-md:block">
+              <div className="truncate font-serif text-[18px] font-semibold text-white">{s.title || 'Untitled scenario'}</div>
+              <p className="line-clamp-1 text-[12px] text-white/70">{s.description || 'No description yet.'}</p>
+            </div>
             <div className="absolute top-2.5 left-2.5 flex gap-1.5">
               <Badge className="gap-1 bg-black/45 text-white/90 backdrop-blur-md [&>svg]:size-3">
                 {badge.icon}
@@ -150,11 +157,11 @@ function ScenarioCard({ s, onPlay, playing }: { s: Scenario; onPlay: () => void;
           </CoverArt>
         </button>
         {!s.coverAssetId && !running && (
-          <div className="absolute right-2.5 bottom-2.5 translate-y-1 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 has-[[data-state=open]]:translate-y-0 has-[[data-state=open]]:opacity-100">
+          <div className="absolute right-2.5 bottom-2.5 translate-y-1 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 has-[[data-state=open]]:translate-y-0 has-[[data-state=open]]:opacity-100 max-md:top-2.5 max-md:bottom-auto max-md:translate-y-0 max-md:opacity-100">
             <Menu
               align="end"
               trigger={
-                <button className="flex h-7 items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-2.5 text-[11px] font-medium text-white/85 backdrop-blur-md transition hover:bg-black/60 hover:text-white">
+                <button className="flex h-7 items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-2.5 text-[11px] font-medium text-white/85 backdrop-blur-md transition hover:bg-black/60 hover:text-white max-md:h-8 max-md:px-3">
                   <ImagePlus className="size-3.5" /> Add cover
                 </button>
               }
@@ -172,10 +179,10 @@ function ScenarioCard({ s, onPlay, playing }: { s: Scenario; onPlay: () => void;
           </div>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1.5 p-4">
-        <div className="truncate font-serif text-[16.5px] font-semibold">{s.title || 'Untitled scenario'}</div>
-        <p className="line-clamp-2 min-h-[2.6em] text-[12px] leading-snug text-fg-2">{s.description || 'No description yet.'}</p>
-        <div className="mt-1 flex items-center gap-2 overflow-hidden text-[11px] whitespace-nowrap text-fg-3">
+      <div className="flex flex-1 flex-col gap-1.5 p-4 max-md:flex-row max-md:items-center max-md:gap-2 max-md:px-3.5 max-md:py-2.5">
+        <div className="truncate font-serif text-[16.5px] font-semibold max-md:hidden">{s.title || 'Untitled scenario'}</div>
+        <p className="line-clamp-2 min-h-[2.6em] text-[12px] leading-snug text-fg-2 max-md:hidden">{s.description || 'No description yet.'}</p>
+        <div className="mt-1 flex items-center gap-2 overflow-hidden text-[11px] whitespace-nowrap text-fg-3 max-md:mt-0 max-md:min-w-0 max-md:flex-1">
           <span className="flex shrink-0 items-center gap-1">
             <Layers className="size-3" /> {pluralize(s.cards.length, 'card')}
           </span>
@@ -184,23 +191,28 @@ function ScenarioCard({ s, onPlay, playing }: { s: Scenario; onPlay: () => void;
               #{t}
             </span>
           ))}
-          <span className="ml-auto shrink-0 pl-1">{timeAgo(s.updatedAt)}</span>
+          <span className="ml-auto shrink-0 pl-1 max-md:hidden">{timeAgo(s.updatedAt)}</span>
         </div>
-        <div className="mt-3 flex items-center gap-2">
-          <Button size="sm" variant="primary" icon={<Play className="size-3 fill-current" />} loading={playing} onClick={onPlay} className="flex-1">
+        <div className="mt-3 flex items-center gap-2 max-md:mt-0 max-md:shrink-0">
+          <Button size="sm" variant="primary" icon={<Play className="size-3 fill-current" />} loading={playing} onClick={onPlay} className="flex-1 max-md:h-9 max-md:flex-none max-md:rounded-xl max-md:px-4 max-md:text-[13px]">
             Play
           </Button>
-          <Button size="sm" variant="secondary" icon={<Pencil className="size-3" />} onClick={() => navigate(`/stories/scenario/${s.id}`)}>
+          <Button size="sm" variant="secondary" icon={<Pencil className="size-3" />} onClick={() => navigate(`/stories/scenario/${s.id}`)} className="max-md:hidden">
             Edit
           </Button>
           <Menu
             align="end"
             trigger={
-              <IconButton label="Scenario options" size="sm" variant="secondary">
+              <IconButton label="Scenario options" size="sm" variant="secondary" className="max-md:size-9 max-md:rounded-xl">
                 <Ellipsis className="size-4" />
               </IconButton>
             }
           >
+            {compact && (
+              <MenuItem icon={<Pencil />} onSelect={() => navigate(`/stories/scenario/${s.id}`)}>
+                Edit
+              </MenuItem>
+            )}
             <MenuItem icon={<Copy />} onSelect={() => void duplicateScenarioTree(s.id)}>
               Duplicate
             </MenuItem>
@@ -252,6 +264,14 @@ export function StoriesHome(): React.JSX.Element {
   const adventuresLoaded = useCollectionLoaded('adventures')
   const loaded = scenariosLoaded && adventuresLoaded
   const [starting, setStarting] = useState<string | null>(null)
+  // Phones: people coming back see their stories first; the big hero is for an empty library.
+  const compact = useCompact()
+  const showHero = !compact || (loaded && !scenarios.length && !adventures.length)
+
+  const importBackup = async (): Promise<void> => {
+    const s = await importScenarioBackup()
+    if (s) navigate(`/stories/scenario/${s.id}`)
+  }
 
   const play = async (s: Scenario): Promise<void> => {
     setStarting(s.id)
@@ -276,53 +296,64 @@ export function StoriesHome(): React.JSX.Element {
   return (
     <Page>
       <StoryStyles />
+      {!showHero && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }} className="flex items-center gap-2 px-4 pt-5 pb-1">
+          <h1 className="display min-w-0 flex-1 truncate text-[23px]">Stories</h1>
+          <IconButton label="Import" variant="secondary" size="lg" className="rounded-xl" onClick={() => void importBackup()}>
+            <Upload className="size-4" />
+          </IconButton>
+          <IconButton label="Compose with AI" variant="secondary" size="lg" className="rounded-xl" onClick={() => navigate('/stories/compose')}>
+            <MessagesSquare className="size-4" />
+          </IconButton>
+          <Button variant="primary" className="h-10 rounded-xl px-4" icon={<Plus className="size-4" />} onClick={() => navigate('/stories/new')}>
+            New
+          </Button>
+        </motion.div>
+      )}
       {/* Hero */}
+      {showHero && (
       <div className="relative overflow-hidden border-b border-line">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_120%_at_85%_20%,color-mix(in_oklab,var(--accent-2)_16%,transparent),transparent_60%),radial-gradient(60%_100%_at_70%_110%,color-mix(in_oklab,var(--accent)_16%,transparent),transparent_65%)]" />
-        <div className="relative z-10 grid min-h-[330px] grid-cols-[1.05fr_1fr] items-center gap-6 px-10 py-10">
-          <motion.div variants={stagger(0.06, 0.05)} initial="initial" animate="animate" className="flex flex-col gap-4">
+        <div className="relative z-10 grid min-h-[330px] grid-cols-[1.05fr_1fr] items-center gap-6 px-10 py-10 max-md:min-h-0 max-md:grid-cols-1 max-md:gap-1 max-md:px-5 max-md:pt-2 max-md:pb-7">
+          <motion.div variants={stagger(0.06, 0.05)} initial="initial" animate="animate" className="flex flex-col gap-4 max-md:gap-3">
             <motion.div variants={rise} className="label-caps flex items-center gap-2 text-fg-2">
               <LogoMark size={16} /> Stories
             </motion.div>
-            <motion.h1 variants={rise} className="max-w-[520px] font-serif text-[40px] leading-[1.08] font-semibold tracking-tight">
+            <motion.h1 variants={rise} className="max-w-[520px] font-serif text-[40px] leading-[1.08] font-semibold tracking-tight max-md:text-[30px] max-md:leading-[1.1]">
               Play a story. <span className="text-grad">See it, hear it,</span> keep it.
             </motion.h1>
-            <motion.p variants={rise} className="max-w-[460px] text-[13.5px] leading-relaxed text-fg-2">
+            <motion.p variants={rise} className="max-w-[460px] text-[13.5px] leading-relaxed text-fg-2 max-md:text-[13px]">
               An AI Dungeon-style engine on your own models — with scenes, clips and narration that keep your characters on-model.
             </motion.p>
-            <motion.div variants={rise} className="mt-2 flex gap-2">
-              <Button variant="primary" size="lg" icon={<Plus className="size-4" />} onClick={() => navigate('/stories/new')}>
+            <motion.div variants={rise} className="mt-2 flex gap-2 max-md:mt-1 max-md:grid max-md:grid-cols-2">
+              <Button variant="primary" size="lg" icon={<Plus className="size-4" />} onClick={() => navigate('/stories/new')} className="max-md:col-span-2">
                 New story
               </Button>
               <Button variant="glass" size="lg" icon={<MessagesSquare className="size-4" />} onClick={() => navigate('/stories/compose')}>
                 Compose
               </Button>
-              <Button
-                variant="glass"
-                size="lg"
-                icon={<Upload className="size-4" />}
-                onClick={async () => {
-                  const s = await importScenarioBackup()
-                  if (s) navigate(`/stories/scenario/${s.id}`)
-                }}
-              >
+              <Button variant="glass" size="lg" icon={<Upload className="size-4" />} onClick={() => void importBackup()}>
                 Import
               </Button>
             </motion.div>
           </motion.div>
-          <div className="relative h-[290px]">
-            <HeroStack scenarios={scenarios} />
+          {/* Phones: the fan sits above the headline, scaled down so it never covers the text. */}
+          <div className="relative h-[290px] max-md:order-first max-md:-mx-5 max-md:h-[196px]">
+            <div className="absolute inset-0 max-md:scale-[0.6]">
+              <HeroStack scenarios={scenarios} />
+            </div>
           </div>
         </div>
       </div>
+      )}
 
-      <div className="flex flex-col gap-10 px-10 pt-8 pb-16">
+      <div className={cn('flex flex-col gap-10 px-10 pt-8 pb-16 max-md:gap-8 max-md:px-4 max-md:pb-10', showHero ? 'max-md:pt-6' : 'max-md:pt-4')}>
         {/* Continue playing */}
         <AnimatePresence initial={false}>
           {adventures.length > 0 && (
             <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.4, ease }}>
               <SectionTitle icon={<Play className="fill-current" />}>Continue playing</SectionTitle>
-              <motion.div variants={stagger(0.05, 0.1)} initial="initial" animate="animate" className="-mx-2 mt-4 flex gap-4 overflow-x-auto px-2 pt-1 pb-3">
+              <motion.div variants={stagger(0.05, 0.1)} initial="initial" animate="animate" className="-mx-2 mt-4 flex gap-4 overflow-x-auto px-2 pt-1 pb-3 max-md:-mx-4 max-md:snap-x max-md:snap-mandatory max-md:scroll-px-4 max-md:gap-3 max-md:px-4">
                 {adventures.slice(0, 12).map((a) => (
                   <AdventureCard key={a.id} a={a} onPlay={() => navigate(`/play/${a.id}`)} />
                 ))}
@@ -336,7 +367,8 @@ export function StoriesHome(): React.JSX.Element {
           <SectionTitle
             icon={<BookOpen />}
             action={
-              scenarios.length > 0 && (
+              scenarios.length > 0 &&
+              showHero && (
                 <Menu
                   align="end"
                   trigger={
@@ -361,7 +393,7 @@ export function StoriesHome(): React.JSX.Element {
             My scenarios
           </SectionTitle>
           {!loaded ? (
-            <div className="mt-4 grid grid-cols-4 gap-4">
+            <div className="mt-4 grid grid-cols-4 gap-4 max-md:grid-cols-1">
               {[0, 1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-[290px] rounded-[18px]" />
               ))}
@@ -373,7 +405,7 @@ export function StoriesHome(): React.JSX.Element {
               ))}
             </motion.div>
           ) : (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }} className="mt-4 rounded-[20px] border border-dashed border-line-strong p-8">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }} className="mt-4 rounded-[20px] border border-dashed border-line-strong p-8 max-md:p-5">
               <div className="flex items-center gap-3">
                 <span className="grid size-10 place-items-center rounded-xl bg-grad-soft text-accent">
                   <Sparkles className="size-4.5" />
@@ -383,7 +415,7 @@ export function StoriesHome(): React.JSX.Element {
                   <div className="text-[12.5px] text-fg-2">Describe it, build it with the AI, or pick a world — everything stays editable.</div>
                 </div>
               </div>
-              <motion.div variants={stagger(0.05, 0.05)} initial="initial" animate="animate" className="mt-6 grid grid-cols-2 gap-3">
+              <motion.div variants={stagger(0.05, 0.05)} initial="initial" animate="animate" className="mt-6 grid grid-cols-2 gap-3 max-md:mt-5 max-md:grid-cols-1">
                 {[
                   { icon: <WandSparkles />, title: 'Generate with AI', body: 'A sentence in, a complete scenario out.', to: '/stories/new?mode=ai' },
                   { icon: <MessagesSquare />, title: 'Scenario Composer', body: 'Build it together — cast, opening, rules and scripts.', to: '/stories/compose' }
@@ -403,9 +435,9 @@ export function StoriesHome(): React.JSX.Element {
                   </motion.button>
                 ))}
               </motion.div>
-              <motion.div variants={stagger(0.05, 0.1)} initial="initial" animate="animate" className="mt-3 grid grid-cols-5 gap-3">
+              <motion.div variants={stagger(0.05, 0.1)} initial="initial" animate="animate" className="mt-3 grid grid-cols-5 gap-3 max-md:-mx-5 max-md:flex max-md:snap-x max-md:snap-mandatory max-md:scroll-px-5 max-md:overflow-x-auto max-md:px-5 max-md:pb-1">
                 {TEMPLATES.filter((t) => t.id !== 'random').slice(0, 5).map((t) => (
-                  <motion.button key={t.id} variants={rise} whileHover={{ y: -3 }} onClick={() => void quick(t.id)} className={cn('group relative aspect-[4/3] overflow-hidden rounded-2xl text-left ring-1 ring-line')}>
+                  <motion.button key={t.id} variants={rise} whileHover={{ y: -3 }} onClick={() => void quick(t.id)} className={cn('group relative aspect-[4/3] overflow-hidden rounded-2xl text-left ring-1 ring-line max-md:w-[150px] max-md:shrink-0 max-md:snap-start')}>
                     <TemplateArt template={t.id} compact className="absolute inset-0" />
                     <div className="absolute bottom-2.5 left-3 font-serif text-[14px] font-semibold text-white">{t.name}</div>
                   </motion.button>

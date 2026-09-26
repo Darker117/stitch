@@ -17,7 +17,8 @@ export const LLM_KIND_LABEL: Record<LlmConnector['kind'], string> = {
   ollama: 'Ollama',
   lmstudio: 'LM Studio',
   gemini: 'Google Gemini',
-  'openai-compatible': 'OpenAI-compatible'
+  'openai-compatible': 'OpenAI-compatible',
+  device: 'This phone'
 }
 
 export function isLocalKind(kind: LlmConnector['kind']): boolean {

@@ -45,6 +45,11 @@ const CSS = `
   background: radial-gradient(closest-side, color-mix(in oklab, var(--accent) 30%, transparent), transparent);
   filter: blur(16px);
 }
+/* Phones: no floating card — the header is a flat band; the diffusion layers frost it on scroll. */
+@media (max-width: 767px) {
+  .st-frost { background: transparent; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
+  .st-frost-sheen, .st-frost-edge, .st-frost-lift, .st-frost-glow { display: none; }
+}
 /* Progressive blur: each layer is blurrier and masked closer to the top. */
 .st-diffuse > * { position: absolute; inset: 0; pointer-events: none; }
 .st-diffuse-1 {
@@ -122,11 +127,11 @@ export function FrostHeader({
             <motion.div key={c} initial={false} animate={{ opacity: stuck ? 1 : 0 }} transition={{ duration: 0.45, ease }} className={c} />
           ))}
         </div>
-        <div className="pointer-events-auto relative mx-auto px-6 pt-4 pb-3" style={{ maxWidth: width }}>
+        <div className="pointer-events-auto relative mx-auto px-6 pt-4 pb-3 max-md:px-0 max-md:pt-1 max-md:pb-0" style={{ maxWidth: width }}>
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }} className="relative">
             <motion.div aria-hidden initial={false} animate={{ opacity: stuck ? 1 : 0.45 }} transition={{ duration: 0.45, ease }} className="st-frost-glow" />
-            <motion.div aria-hidden initial={false} animate={{ opacity: stuck ? 1 : 0 }} transition={{ duration: 0.45, ease }} className="st-frost-lift rounded-[20px]" />
-            <div className={cn('st-frost relative rounded-[20px] p-4', className)}>
+            <motion.div aria-hidden initial={false} animate={{ opacity: stuck ? 1 : 0 }} transition={{ duration: 0.45, ease }} className="st-frost-lift rounded-[20px] max-md:rounded-[18px]" />
+            <div className={cn('st-frost relative rounded-[20px] p-4 max-md:rounded-none max-md:px-4 max-md:py-3', className)}>
               <span aria-hidden className="st-frost-sheen" />
               <span aria-hidden className="st-frost-edge opacity-70" />
               <div className="relative">{children}</div>

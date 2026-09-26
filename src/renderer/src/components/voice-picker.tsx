@@ -4,7 +4,7 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { AudioLines, Check, Cloud, Cpu, Download, ExternalLink, Feather, FolderOpen, HardDrive, KeyRound, Library, Mic, Plus, RefreshCw, Sparkles, Square, Trash2, UserRound, Wand2, X, Zap } from 'lucide-react'
+import { AudioLines, Check, Cloud, Cpu, Download, ExternalLink, Feather, FolderOpen, HardDrive, KeyRound, Library, Mic, Plus, RefreshCw, Smartphone, Sparkles, Square, Trash2, UserRound, Wand2, X, Zap } from 'lucide-react'
 import type { VoiceEngineInfo, VoiceInfo } from '@shared/ipc'
 import type { Asset, CharacterVoice, ID, VoiceConnector } from '@shared/types'
 import { errorText, fileUrl, invoke } from '@/lib/api'
@@ -101,7 +101,7 @@ export function VoicePreviewButton({
       setLoading(false)
     }
   }
-  const dims = { xs: 'size-6', sm: 'size-7.5', md: 'size-9' }[size]
+  const dims = { xs: 'size-6 max-md:size-8', sm: 'size-7.5 max-md:size-9', md: 'size-9 max-md:size-10' }[size]
   const body = loading ? <Spinner className="size-3.5" /> : playing ? <EqBars className="h-3" /> : <PlayGlyph />
   if (label) {
     return (
@@ -219,7 +219,7 @@ export function SampleInput({
                 <span className="absolute inset-0 animate-ping rounded-full bg-danger opacity-60" />
                 <span className="relative size-2.5 rounded-full bg-danger" />
               </span>
-              <span className="w-[92px] shrink-0 text-[12px] font-medium text-fg-2">
+              <span className="w-[92px] shrink-0 text-[12px] font-medium text-fg-2 max-md:w-[84px]">
                 {rec.state === 'processing' ? 'Processing…' : 'Recording…'} <span className="font-mono text-fg-3 tabular-nums">{fmtSecs(rec.elapsed)}</span>
               </span>
               <LiveWave analyser={rec.analyser} className="min-w-0 flex-1" />
@@ -246,17 +246,17 @@ export function SampleInput({
               transition={{ duration: 0.3, ease }}
               className="group relative rounded-2xl border border-line bg-white/[0.03] px-3 py-2.5"
             >
-              <div className="mb-1.5 flex items-center gap-2 pr-7">
+              <div className="mb-1.5 flex items-center gap-2 pr-7 max-md:pr-[72px]">
                 <AudioLines className="size-3.5 shrink-0 text-accent" />
                 <span className="truncate text-[12px] font-medium">{asset.name}</span>
                 {tooLong && <Badge tone="warning">Long clip · 5–20 s is ideal</Badge>}
               </div>
               <WavePlayer src={fileUrl(asset.path)} seed={asset.id} duration={asset.duration} size="sm" height={28} />
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
-                <IconButton label="Replace" size="xs" onClick={() => setPicker(true)}>
+              <div className="absolute top-2 right-2 flex gap-1 opacity-0 transition group-hover:opacity-100 max-md:top-1 max-md:right-1 max-md:opacity-100">
+                <IconButton label="Replace" size="xs" onClick={() => setPicker(true)} className="max-md:size-8">
                   <FolderOpen className="size-3" />
                 </IconButton>
-                <IconButton label="Remove sample" size="xs" onClick={() => onAsset(undefined)}>
+                <IconButton label="Remove sample" size="xs" onClick={() => onAsset(undefined)} className="max-md:size-8">
                   <X className="size-3" />
                 </IconButton>
               </div>
@@ -271,10 +271,10 @@ export function SampleInput({
               className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-line-strong bg-white/[0.015] px-4 py-5 text-center"
             >
               <div className="flex gap-2">
-                <Button size="sm" variant="primary" icon={<Mic className="size-3.5" />} onClick={() => void rec.start()}>
+                <Button size="sm" variant="primary" icon={<Mic className="size-3.5" />} onClick={() => void rec.start()} className="max-md:h-10 max-md:px-4">
                   Record
                 </Button>
-                <Button size="sm" icon={<FolderOpen className="size-3.5" />} onClick={() => setPicker(true)}>
+                <Button size="sm" icon={<FolderOpen className="size-3.5" />} onClick={() => setPicker(true)} className="max-md:h-10 max-md:px-4">
                   Choose clip
                 </Button>
               </div>
@@ -363,7 +363,7 @@ export function DesignForm({
             title={idea.text}
             onClick={() => setDesc(idea.text)}
             className={cn(
-              'rounded-full border px-2.5 py-1 text-[11px] transition',
+              'rounded-full border px-2.5 py-1 text-[11px] transition max-md:px-3 max-md:py-1.5',
               desc === idea.text ? 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--accent)_12%,transparent)] text-fg' : 'border-line bg-white/[0.03] text-fg-2 hover:border-line-strong hover:bg-white/[0.07] hover:text-fg'
             )}
           >
@@ -410,6 +410,7 @@ export function ProviderIcon({ kind, className }: { kind: VoiceConnector['kind']
       </svg>
     )
   if (kind === 'openai-tts') return <Sparkles className={className} />
+  if (kind === 'device') return <Smartphone className={className} />
   return <Cloud className={className} />
 }
 
@@ -464,7 +465,7 @@ function VoiceRow({
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect()}
-      className={cn('group relative flex w-full cursor-default items-center gap-3 rounded-[10px] px-2.5 py-2 text-left outline-none', !active && 'hover:bg-white/[0.04]')}
+      className={cn('group relative flex w-full cursor-default items-center gap-3 rounded-[10px] px-2.5 py-2 text-left outline-none max-md:py-2.5', !active && 'hover:bg-white/[0.04]')}
     >
       {active && (
         <motion.span
@@ -946,9 +947,13 @@ export function EngineCards({
                 <ProviderIcon kind={e.connectorKind} className="size-3.5" />
               </span>
               <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold tracking-tight">{e.name}</span>
-              <span className="shrink-0 text-[9.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">{e.kind === 'local' ? 'Local' : 'Cloud'}</span>
+              <span className="shrink-0 text-[9.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase max-md:hidden">{e.kind === 'local' ? 'Local' : 'Cloud'}</span>
             </div>
-            <div className="relative truncate text-[11px] text-fg-3">{ENGINE_BLURB[e.id] ?? e.description}</div>
+            <div className="relative truncate text-[11px] text-fg-3">
+              {/* Phones: the Local/Cloud tag moves here so the engine name has room. */}
+              <span className="md:hidden">{e.kind === 'local' ? 'Local' : 'Cloud'} · </span>
+              {ENGINE_BLURB[e.id] ?? e.description}
+            </div>
             <div className="relative flex items-center gap-1.5 text-[10.5px] font-medium">
               <span
                 className={cn(
@@ -989,7 +994,7 @@ function KokoroBody({ connector, value, set, previewText }: { connector: VoiceCo
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-1.5">
         {KOKORO_LANGUAGES.map((l) => (
-          <Chip key={l.code} active={lang === l.code} onClick={() => setLang(l.code)} className="h-7 rounded-full">
+          <Chip key={l.code} active={lang === l.code} onClick={() => setLang(l.code)} className="h-7 rounded-full max-md:h-8">
             {l.short}
             {counts[l.code] ? <span className="text-[10.5px] text-fg-3 tabular-nums">{counts[l.code]}</span> : null}
           </Chip>
@@ -1146,7 +1151,7 @@ function PocketBody({ connector, value, set, lab, name, previewText }: { connect
           )}
         </motion.div>
       </AnimatePresence>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 max-md:flex-wrap max-md:gap-y-1.5">
         <span className="label-caps shrink-0">Language</span>
         <Select size="sm" className="w-40" value={language} onChange={(l) => set({ language: l === 'English' ? undefined : l })} options={POCKET_LANGUAGES.map((l) => ({ value: l, label: l }))} />
         <span className="text-[11px] text-fg-3">Every voice can speak every language.</span>
@@ -1236,13 +1241,13 @@ function VoiceLibrary({ connector, value, set }: { connector: VoiceConnector; va
 
   return (
     <div className="flex flex-col gap-2.5">
-      <div className="flex flex-wrap gap-2">
-        <SearchField value={q} onChange={setQ} placeholder="Search the voice library" className="min-w-[180px] flex-1" />
-        <Select size="sm" className="w-[118px]" value={gender || 'any'} onChange={(g) => setGender(g === 'any' ? '' : g)} options={[{ value: 'any', label: 'Any gender' }, { value: 'female', label: 'Female' }, { value: 'male', label: 'Male' }, { value: 'neutral', label: 'Neutral' }]} />
-        <Select size="sm" className="w-[128px]" value={language || 'any'} onChange={(l) => setLanguage(l === 'any' ? '' : l)} options={LIB_LANGUAGES.map((l) => ({ value: l.value || 'any', label: l.label }))} />
+      <div className="flex flex-wrap gap-2 max-md:grid max-md:grid-cols-3">
+        <SearchField value={q} onChange={setQ} placeholder="Search the voice library" className="min-w-[180px] flex-1 max-md:col-span-3 max-md:min-w-0" />
+        <Select size="sm" className="w-[118px] max-md:h-9 max-md:w-full max-md:px-2.5" value={gender || 'any'} onChange={(g) => setGender(g === 'any' ? '' : g)} options={[{ value: 'any', label: 'Any gender' }, { value: 'female', label: 'Female' }, { value: 'male', label: 'Male' }, { value: 'neutral', label: 'Neutral' }]} />
+        <Select size="sm" className="w-[128px] max-md:h-9 max-md:w-full max-md:px-2.5" value={language || 'any'} onChange={(l) => setLanguage(l === 'any' ? '' : l)} options={LIB_LANGUAGES.map((l) => ({ value: l.value || 'any', label: l.label }))} />
         <Select
           size="sm"
-          className="w-[124px]"
+          className="w-[124px] max-md:h-9 max-md:w-full max-md:px-2.5"
           value={sort}
           onChange={(v) => setSort(v as LibSort)}
           options={[
@@ -1273,7 +1278,7 @@ function VoiceLibrary({ connector, value, set }: { connector: VoiceConnector; va
                     {adding === v.id ? (
                       <Spinner className="size-3.5 text-fg-3" />
                     ) : v.labels?.added || value?.voiceId === v.id ? null : (
-                      <IconButton label="Add to my voices and use" size="xs" onClick={(e) => (e.stopPropagation(), void use(v))}>
+                      <IconButton label="Add to my voices and use" size="xs" onClick={(e) => (e.stopPropagation(), void use(v))} className="max-md:size-8">
                         <Plus className="size-3.5" />
                       </IconButton>
                     )}

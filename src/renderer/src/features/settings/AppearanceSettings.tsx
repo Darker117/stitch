@@ -17,6 +17,11 @@ import { toast } from '@/stores/toast'
 
 type Source = 'sunset' | 'wallpaper' | 'custom' | 'plain'
 
+/** Phone: segmented controls stretch to the full width with equal segments. */
+const segFull = 'max-md:flex max-md:w-full max-md:[&>button]:h-9 max-md:[&>button]:min-w-0 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center max-md:[&>button]:px-1.5'
+/** Phone: the four background sources sit in a 2×2 grid (the highlight still glides between them). */
+const segGrid = 'max-md:grid max-md:w-full max-md:grid-cols-2 max-md:[&>button]:h-9 max-md:[&>button]:justify-center max-md:[&>button]:px-2 max-md:[&>button]:whitespace-nowrap'
+
 function sourceOf(bg: BackgroundSettings): Source {
   if (bg.type === 'gradient') return 'sunset'
   if (bg.type === 'none') return 'plain'
@@ -37,10 +42,11 @@ function WallpaperGallery({ current, onApply }: { current?: string; onApply: (w:
   if (items && !items.length) return <EmptyState icon={<ImageIcon />} title="Wallpaper Engine not found" body="Install Wallpaper Engine from Steam and subscribe to a few wallpapers — they'll appear here." />
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <SearchField value={q} onChange={setQ} placeholder={`Search ${items?.length ?? ''} wallpapers`} className="w-[260px]" />
+      <div className="mb-3 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch max-md:gap-2">
+        <SearchField value={q} onChange={setQ} placeholder={`Search ${items?.length ?? ''} wallpapers`} className="w-[260px] max-md:w-full" />
         <Segmented
           size="sm"
+          className={segFull}
           value={type}
           onChange={setType}
           items={[
@@ -51,7 +57,7 @@ function WallpaperGallery({ current, onApply }: { current?: string; onApply: (w:
           ]}
         />
       </div>
-      <div className="grid max-h-[460px] grid-cols-4 gap-2.5 overflow-y-auto pr-1">
+      <div className="grid max-h-[460px] grid-cols-4 gap-2.5 overflow-y-auto pr-1 max-md:max-h-[52vh] max-md:grid-cols-2 max-md:gap-2 max-md:pr-0">
         {!items && Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="aspect-video" />)}
         {list.map((w) => {
           const active = current === w.id
@@ -89,7 +95,7 @@ function WallpaperGallery({ current, onApply }: { current?: string; onApply: (w:
 
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }): React.JSX.Element {
   return (
-    <label className="flex items-center gap-3 rounded-xl border border-line bg-white/[0.03] p-2.5">
+    <label className="flex items-center gap-3 rounded-xl border border-line bg-white/[0.03] p-2.5 max-md:min-w-0">
       <span className="relative size-9 overflow-hidden rounded-lg ring-1 ring-white/15" style={{ background: value }}>
         <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="absolute inset-0 size-full cursor-pointer opacity-0" />
       </span>
@@ -139,6 +145,7 @@ export function AppearanceSettings(): React.JSX.Element {
         </SectionTitle>
         <div className="mt-4">
           <Segmented
+            className={segGrid}
             value={source}
             onChange={(s) => {
               setSource(s)
@@ -156,7 +163,7 @@ export function AppearanceSettings(): React.JSX.Element {
         <AnimatePresence mode="wait">
           <motion.div key={source} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} className="mt-4">
             {source === 'sunset' && (
-              <div className="flex h-24 overflow-hidden rounded-2xl ring-1 ring-line">
+              <div className="flex h-24 overflow-hidden rounded-2xl ring-1 ring-line max-md:h-16">
                 {SUNSET_STOPS.map((c) => (
                   <div key={c} className="flex-1" style={{ background: c }} />
                 ))}
@@ -175,8 +182,9 @@ export function AppearanceSettings(): React.JSX.Element {
               />
             )}
             {source === 'custom' && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 max-md:flex-col max-md:items-stretch max-md:gap-2">
                 <Button
+                  className="max-md:w-full"
                   icon={<Upload className="size-3.5" />}
                   onClick={async () => {
                     const r = await invoke('wallpaper:pickCustom')
@@ -185,13 +193,13 @@ export function AppearanceSettings(): React.JSX.Element {
                 >
                   Choose image or video
                 </Button>
-                {bg.path && !bg.wallpaperId && <span className="truncate text-[12px] text-fg-3">{bg.path}</span>}
+                {bg.path && !bg.wallpaperId && <span className="truncate text-[12px] text-fg-3 max-md:text-center">{bg.path}</span>}
               </div>
             )}
           </motion.div>
         </AnimatePresence>
         {bg.type !== 'none' && (
-          <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5">
+          <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 max-md:grid-cols-1 max-md:gap-y-6">
             <SliderField label="Dim" help="Darkens the background itself." value={Math.round(bg.dim * 100)} min={0} max={90} format={(v) => `${v}%`} defaultValue={bg.type === 'gradient' ? 35 : 18} onChange={(v) => void setTheme({ background: { ...bg, dim: v / 100 } })} />
             <SliderField label="Background blur" help="Softens the whole background." value={bg.blur} min={0} max={40} format={(v) => `${v}px`} defaultValue={0} onChange={(v) => void setTheme({ background: { ...bg, blur: v } })} />
             <SliderField
@@ -222,6 +230,7 @@ export function AppearanceSettings(): React.JSX.Element {
         <SectionTitle icon={<Palette />}>Accent colour</SectionTitle>
         <div className="mt-4 flex items-center gap-3">
           <Segmented
+            className={segFull}
             value={theme.accentMode}
             onChange={async (m) => {
               await setTheme({ accentMode: m })
@@ -233,14 +242,14 @@ export function AppearanceSettings(): React.JSX.Element {
             ]}
           />
         </div>
-        <motion.div variants={stagger(0.04)} initial="initial" animate="animate" className="mt-4 grid grid-cols-3 gap-3">
+        <motion.div variants={stagger(0.04)} initial="initial" animate="animate" className="mt-4 grid grid-cols-3 gap-3 max-md:grid-cols-2 max-md:gap-2.5">
           <motion.div variants={rise}>
             <ColorField label="Primary" value={theme.accent} onChange={(v) => void setTheme({ accentMode: 'manual', accent: v })} />
           </motion.div>
           <motion.div variants={rise}>
             <ColorField label="Secondary" value={theme.accent2} onChange={(v) => void setTheme({ accentMode: 'manual', accent2: v })} />
           </motion.div>
-          <motion.div variants={rise} className="flex items-center gap-3 rounded-xl border border-line p-2.5">
+          <motion.div variants={rise} className="flex items-center gap-3 rounded-xl border border-line p-2.5 max-md:col-span-2">
             <div className="h-9 flex-1 rounded-lg bg-grad" />
             <Button size="sm" variant="primary">
               Preview
@@ -249,17 +258,17 @@ export function AppearanceSettings(): React.JSX.Element {
         </motion.div>
         <div className="mt-4">
           <div className="label-caps mb-2">Sunset swatches</div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 max-md:gap-2.5">
             {SUNSET_STOPS.slice(0, 9).map((c) => (
               <button
                 key={c}
                 onClick={() => void setTheme({ accentMode: 'manual', accent: tuneAccent(c), tint: tintFrom(c) })}
-                className="size-8 rounded-full ring-2 ring-transparent transition hover:scale-110 hover:ring-white/30"
+                className="size-8 rounded-full ring-2 ring-transparent transition hover:scale-110 hover:ring-white/30 max-md:size-9"
                 style={{ background: c }}
                 title={c}
               />
             ))}
-            <button onClick={() => void setTheme({ accentMode: 'manual', ...SUNSET })} className="h-8 rounded-full border border-line px-3 text-[11.5px] font-medium text-fg-2 hover:text-fg">
+            <button onClick={() => void setTheme({ accentMode: 'manual', ...SUNSET })} className="h-8 rounded-full border border-line px-3 text-[11.5px] font-medium text-fg-2 hover:text-fg max-md:h-9">
               Reset to sunset
             </button>
           </div>

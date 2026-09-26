@@ -32,7 +32,7 @@ import { Avatar, StatusDot } from '../ui/misc'
 import { Tooltip } from '../ui/overlay'
 import { LogoMark, Wordmark } from './logo'
 
-interface NavDef {
+export interface NavDef {
   to: string
   label: string
   icon: ReactNode
@@ -89,7 +89,18 @@ function NavItem({ item, active, collapsed }: { item: NavDef; active: boolean; c
   )
 }
 
-export function Sidebar({ collapsed, onToggle, onSearch }: { collapsed: boolean; onToggle: () => void; onSearch: () => void }): React.JSX.Element {
+export function Sidebar({
+  collapsed,
+  onToggle,
+  onSearch,
+  extraNav = []
+}: {
+  collapsed: boolean
+  onToggle: () => void
+  onSearch: () => void
+  /** More sections (the phone app adds "This phone"). */
+  extraNav?: NavDef[]
+}): React.JSX.Element {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const settings = useAppSettings()
@@ -138,7 +149,7 @@ export function Sidebar({ collapsed, onToggle, onSearch }: { collapsed: boolean;
           <NavItem key={n.to} item={n} active={n.match ? n.match(pathname) : pathname === n.to} collapsed={collapsed} />
         ))}
         <div className="mx-2 my-2 h-px bg-line" />
-        {NAV_MORE.map((n) => (
+        {[...NAV_MORE, ...extraNav].map((n) => (
           <NavItem key={n.to} item={n} active={n.match ? n.match(pathname) : pathname === n.to} collapsed={collapsed} />
         ))}
       </nav>

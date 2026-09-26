@@ -74,7 +74,7 @@ export function PlotCard({ title, icon, help, onRemove, action, children, classN
         <div className="ml-auto flex items-center gap-1">
           {action}
           {onRemove && (
-            <IconButton label="Remove" size="sm" onClick={onRemove} className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
+            <IconButton label="Remove" size="sm" onClick={onRemove} className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 max-md:size-8 max-md:opacity-100">
               <Trash2 className="size-3.5" />
             </IconButton>
           )}
@@ -148,7 +148,7 @@ export function PlotComponentsEditor({
           if (k === 'thirdPerson') {
             return (
               <PlotCard key={k} title={m.title} icon={m.icon} onRemove={() => remove(k)}>
-                <label className="flex items-center justify-between gap-4">
+                <label className="flex items-center justify-between gap-4 max-md:gap-3">
                   <span className="text-[12.5px] text-fg-2">{m.help}</span>
                   <Switch checked={plot.thirdPerson} onChange={(v) => onChange({ ...plot, thirdPerson: v })} />
                 </label>
@@ -168,7 +168,7 @@ export function PlotComponentsEditor({
                   <Select
                     size="sm"
                     align="end"
-                    className="w-[168px]"
+                    className="w-[168px] max-md:w-[140px]"
                     value={presetValue()}
                     onChange={(v) => {
                       if (v === 'scenario') onChange({ ...plot, aiInstructions: scenarioInstructions ?? '' })
@@ -211,7 +211,7 @@ export function PlotComponentsEditor({
             ))}
           </Menu>
         )}
-        <button onClick={() => setHelp(true)} className="flex items-center gap-1.5 text-[12px] font-medium text-fg-3 transition hover:text-fg-2">
+        <button onClick={() => setHelp(true)} className="flex items-center gap-1.5 text-[12px] font-medium text-fg-3 transition hover:text-fg-2 max-md:h-9">
           <CircleHelp className="size-3.5" /> Plot Components Help
         </button>
       </div>

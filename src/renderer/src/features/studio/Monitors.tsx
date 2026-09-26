@@ -23,7 +23,7 @@ import { fileUrl } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ease, spring } from '@/lib/motion'
 import { useDoc } from '@/stores/db'
-import { IconButton } from '@/components/ui/button'
+import { Button, IconButton } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/overlay'
 import { Badge, Kbd } from '@/components/ui/misc'
 import { kindIcon } from '@/components/media'
@@ -46,7 +46,8 @@ function MonitorFrame({
   actions,
   children,
   transport,
-  onPointerDown
+  onPointerDown,
+  compact
 }: {
   title: string
   subtitle?: ReactNode
@@ -55,6 +56,8 @@ function MonitorFrame({
   children: ReactNode
   transport: ReactNode
   onPointerDown?: () => void
+  /** Phone: no header — the monitor is the full-width preview at the top of the editor. */
+  compact?: boolean
 }): React.JSX.Element {
   return (
     <section
@@ -64,26 +67,27 @@ function MonitorFrame({
         focused ? 'border-[color-mix(in_oklab,var(--accent)_32%,var(--line))] shadow-[0_0_0_1px_color-mix(in_oklab,var(--accent)_10%,transparent)]' : 'border-line'
       )}
     >
-      <header className="flex h-9 shrink-0 items-center gap-2 border-b border-line px-3">
-        <span className={cn('size-1.5 rounded-full transition-colors duration-300', focused ? 'bg-accent shadow-[0_0_8px_var(--accent)]' : 'bg-white/15')} />
-        <span className="label-caps shrink-0 whitespace-nowrap text-fg-2">{title}</span>
-        {subtitle && <span className="min-w-0 truncate text-[11.5px] text-fg-3">{subtitle}</span>}
-        <div className="flex-1" />
-        <div className="flex shrink-0 items-center gap-1.5">{actions}</div>
-      </header>
+      {!compact && (
+        <header className="flex h-9 shrink-0 items-center gap-2 border-b border-line px-3">
+          <span className={cn('size-1.5 rounded-full transition-colors duration-300', focused ? 'bg-accent shadow-[0_0_8px_var(--accent)]' : 'bg-white/15')} />
+          <span className="label-caps shrink-0 whitespace-nowrap text-fg-2">{title}</span>
+          {subtitle && <span className="min-w-0 truncate text-[11.5px] text-fg-3">{subtitle}</span>}
+          <div className="flex-1" />
+          <div className="flex shrink-0 items-center gap-1.5">{actions}</div>
+        </header>
+      )}
       {children}
       {transport}
     </section>
   )
 }
 
-function useFitBox(ref: React.RefObject<HTMLDivElement | null>, aspect: number): { w: number; h: number } {
+function useFitBox(ref: React.RefObject<HTMLDivElement | null>, aspect: number, pad = 12): { w: number; h: number } {
   const [box, setBox] = useState({ w: 0, h: 0 })
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
     const measure = (): void => {
-      const pad = 12
       const W = Math.max(0, el.clientWidth - pad * 2)
       const H = Math.max(0, el.clientHeight - pad * 2)
       let w = W
@@ -98,11 +102,11 @@ function useFitBox(ref: React.RefObject<HTMLDivElement | null>, aspect: number):
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [ref, aspect])
+  }, [ref, aspect, pad])
   return box
 }
 
-function TransportButton({ label, onClick, children, big, active, disabled }: { label: ReactNode; onClick: () => void; children: ReactNode; big?: boolean; active?: boolean; disabled?: boolean }): React.JSX.Element {
+function TransportButton({ label, onClick, children, big, active, disabled, compact }: { label: ReactNode; onClick: () => void; children: ReactNode; big?: boolean; active?: boolean; disabled?: boolean; compact?: boolean }): React.JSX.Element {
   return (
     <Tooltip content={label}>
       <motion.button
@@ -110,11 +114,12 @@ function TransportButton({ label, onClick, children, big, active, disabled }: { 
         transition={spring}
         disabled={disabled}
         onClick={onClick}
+        aria-label={typeof label === 'string' ? label : undefined}
         className={cn(
-          'grid place-items-center rounded-full transition-[background,color,box-shadow] duration-200 disabled:opacity-35',
+          'grid shrink-0 place-items-center rounded-full transition-[background,color,box-shadow] duration-200 disabled:opacity-35',
           big
-            ? 'size-8.5 bg-white text-black shadow-[0_6px_20px_-6px_rgb(255_255_255/0.4)] hover:bg-white/90 [&>svg]:size-3.5'
-            : cn('size-7 text-fg-2 hover:bg-white/[0.08] hover:text-fg [&>svg]:size-3.5', active && 'text-accent')
+            ? cn('bg-white text-black shadow-[0_6px_20px_-6px_rgb(255_255_255/0.4)] hover:bg-white/90 [&>svg]:size-3.5', compact ? 'size-9' : 'size-8.5')
+            : cn('text-fg-2 hover:bg-white/[0.08] hover:text-fg [&>svg]:size-3.5', compact ? 'size-[30px] active:bg-white/[0.08]' : 'size-7', active && 'text-accent')
         )}
       >
         {children}
@@ -134,7 +139,28 @@ function tip(label: string, key?: string): ReactNode {
 
 // ─── Timeline Viewer (program) ───────────────────────────────────────────────
 
-export function TimelineViewer(): React.JSX.Element {
+/** Phone monitors keep the timeline's frame, capped so the timeline below keeps room. */
+const PHONE_MONITOR_MAX_H = '30vh'
+
+/** Pointer drag along a horizontal bar (seek/scrub), touch-safe. */
+function dragAlong(e: React.PointerEvent<HTMLDivElement>, apply: (x: number) => void): void {
+  const pid = e.pointerId
+  apply(e.clientX)
+  const move = (ev: PointerEvent): void => {
+    if (ev.pointerId === pid) apply(ev.clientX)
+  }
+  const up = (ev: PointerEvent): void => {
+    if (ev.pointerId !== pid) return
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', up)
+    window.removeEventListener('pointercancel', up)
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up)
+  window.addEventListener('pointercancel', up)
+}
+
+export function TimelineViewer({ compact }: { compact?: boolean } = {}): React.JSX.Element {
   const tl = useEditor((s) => s.tl)!
   const focused = useEditor((s) => s.focus === 'program')
   const assets = useAssetMap()
@@ -146,10 +172,12 @@ export function TimelineViewer(): React.JSX.Element {
   const { playing, rate } = useClockPlaying()
   const [loop, setLoop] = useState(clock.loop)
   const [muted, setMuted] = useState(false)
-  const box = useFitBox(wrapRef, tl.width / tl.height)
+  const box = useFitBox(wrapRef, tl.width / tl.height, compact ? 0 : 12)
   const duration = timelineDuration(tl)
   const durRef = useRef(duration)
   durRef.current = duration
+  // Phones drop the hours field while the cut is under an hour.
+  const tcOf = useCallback((t: number) => (compact && durRef.current < 3600 ? timecode(t, tl.fps).slice(3) : timecode(t, tl.fps)), [compact, tl.fps])
 
   useEffect(() => {
     engine.attach(stageRef.current!)
@@ -167,33 +195,71 @@ export function TimelineViewer(): React.JSX.Element {
   useEffect(
     () =>
       clock.onTime((t) => {
-        if (tcRef.current) tcRef.current.textContent = timecode(t, tl.fps)
+        if (tcRef.current) tcRef.current.textContent = tcOf(t)
         if (barRef.current) barRef.current.style.transform = `scaleX(${durRef.current > 0 ? Math.min(1, t / durRef.current) : 0})`
       }),
-    [tl.fps]
+    [tcOf]
   )
 
   programControls.fullscreen = () => void wrapRef.current?.requestFullscreen?.()
 
   const seekBar = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const el = e.currentTarget
-    const apply = (x: number): void => {
+    clock.pause()
+    dragAlong(e, (x) => {
       const r = el.getBoundingClientRect()
       clock.seek(Math.round(((x - r.left) / r.width) * durRef.current * clock.fps) / clock.fps)
-    }
-    clock.pause()
-    apply(e.clientX)
-    const move = (ev: PointerEvent): void => apply(ev.clientX)
-    const up = (): void => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
+    })
   }, [])
+
+  const steps = (
+    <>
+      <TransportButton compact={compact} label={tip('Go to start', 'Home')} onClick={() => (clock.pause(), clock.seek(0))}>
+        <SkipBack />
+      </TransportButton>
+      <TransportButton compact={compact} label={tip('Previous frame', '←')} onClick={() => clock.step(-1)}>
+        <StepBack />
+      </TransportButton>
+      <TransportButton big compact={compact} label={tip(playing ? 'Pause' : 'Play', 'Space')} onClick={() => clock.toggle()} disabled={duration <= 0}>
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span key={playing ? 'p' : 'l'} initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={{ duration: 0.16, ease }}>
+            {playing ? <Pause className="size-3.5 fill-current" /> : <Play className="ml-0.5 size-3.5 fill-current" />}
+          </motion.span>
+        </AnimatePresence>
+      </TransportButton>
+      <TransportButton compact={compact} label={tip('Next frame', '→')} onClick={() => clock.step(1)}>
+        <StepForward />
+      </TransportButton>
+      <TransportButton compact={compact} label={tip('Go to end', 'End')} onClick={() => (clock.pause(), clock.seek(clock.end))}>
+        <SkipForward />
+      </TransportButton>
+    </>
+  )
+  const extras = (
+    <>
+      <TransportButton
+        compact={compact}
+        label="Loop playback"
+        active={loop}
+        onClick={() => {
+          clock.loop = !clock.loop
+          setLoop(clock.loop)
+        }}
+      >
+        <Repeat />
+      </TransportButton>
+      <TransportButton compact={compact} label={muted ? 'Unmute monitor' : 'Mute monitor'} onClick={() => setMuted((m) => !m)}>
+        {muted ? <VolumeX /> : <Volume2 />}
+      </TransportButton>
+      <TransportButton compact={compact} label="Full screen" onClick={() => programControls.fullscreen()}>
+        <Expand />
+      </TransportButton>
+    </>
+  )
 
   return (
     <MonitorFrame
+      compact={compact}
       title="Timeline Viewer"
       subtitle={tl.name}
       focused={focused}
@@ -204,64 +270,54 @@ export function TimelineViewer(): React.JSX.Element {
         </Badge>
       }
       transport={
-        <div className="shrink-0">
-          <div className="group/bar relative h-3 cursor-pointer px-3" onPointerDown={seekBar}>
-            <div className="absolute inset-x-3 top-1/2 h-[3px] -translate-y-1/2 overflow-hidden rounded-full bg-white/[0.08] transition-[height] duration-200 group-hover/bar:h-[5px]">
-              <div ref={barRef} className="h-full w-full origin-left bg-grad will-change-transform" style={{ transform: 'scaleX(0)' }} />
+        compact ? (
+          <div className="shrink-0">
+            <div className="relative h-5 cursor-pointer touch-none px-3" onPointerDown={seekBar}>
+              <div className="absolute inset-x-3 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-white/[0.08]">
+                <div ref={barRef} className="h-full w-full origin-left bg-grad will-change-transform" style={{ transform: 'scaleX(0)' }} />
+              </div>
+            </div>
+            <div className="flex h-11 items-center gap-1 px-2 pb-0.5">
+              <div className="flex w-[58px] shrink-0 flex-col font-mono leading-tight tabular-nums">
+                <span ref={tcRef} className="text-[11px] text-fg">
+                  00:00:00
+                </span>
+                <span className="text-[10px] text-fg-3">{tcOf(duration)}</span>
+              </div>
+              <div className="flex min-w-0 flex-1 items-center justify-center gap-0.5">{steps}</div>
+              <div className="flex shrink-0 items-center justify-end">{extras}</div>
             </div>
           </div>
-          <div className="flex h-11 items-center gap-1 px-3">
-            <span ref={tcRef} className="w-[88px] font-mono text-[11.5px] text-fg tabular-nums">
-              00:00:00:00
-            </span>
-            <div className="flex flex-1 items-center justify-center gap-0.5">
-              <TransportButton label={tip('Go to start', 'Home')} onClick={() => (clock.pause(), clock.seek(0))}>
-                <SkipBack />
-              </TransportButton>
-              <TransportButton label={tip('Previous frame', '←')} onClick={() => clock.step(-1)}>
-                <StepBack />
-              </TransportButton>
-              <TransportButton big label={tip(playing ? 'Pause' : 'Play', 'Space')} onClick={() => clock.toggle()} disabled={duration <= 0}>
-                <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.span key={playing ? 'p' : 'l'} initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={{ duration: 0.16, ease }}>
-                    {playing ? <Pause className="size-3.5 fill-current" /> : <Play className="ml-0.5 size-3.5 fill-current" />}
-                  </motion.span>
-                </AnimatePresence>
-              </TransportButton>
-              <TransportButton label={tip('Next frame', '→')} onClick={() => clock.step(1)}>
-                <StepForward />
-              </TransportButton>
-              <TransportButton label={tip('Go to end', 'End')} onClick={() => (clock.pause(), clock.seek(clock.end))}>
-                <SkipForward />
-              </TransportButton>
+        ) : (
+          <div className="shrink-0">
+            <div className="group/bar relative h-3 cursor-pointer px-3" onPointerDown={seekBar}>
+              <div className="absolute inset-x-3 top-1/2 h-[3px] -translate-y-1/2 overflow-hidden rounded-full bg-white/[0.08] transition-[height] duration-200 group-hover/bar:h-[5px]">
+                <div ref={barRef} className="h-full w-full origin-left bg-grad will-change-transform" style={{ transform: 'scaleX(0)' }} />
+              </div>
             </div>
-            <div className="flex w-[88px] items-center justify-end gap-0.5">
-              {playing && Math.abs(rate) !== 1 && <span className="mr-1 font-mono text-[10.5px] text-accent">{rate > 0 ? `${rate}×` : `◀ ${-rate}×`}</span>}
-              <TransportButton
-                label="Loop playback"
-                active={loop}
-                onClick={() => {
-                  clock.loop = !clock.loop
-                  setLoop(clock.loop)
-                }}
-              >
-                <Repeat />
-              </TransportButton>
-              <TransportButton label={muted ? 'Unmute monitor' : 'Mute monitor'} onClick={() => setMuted((m) => !m)}>
-                {muted ? <VolumeX /> : <Volume2 />}
-              </TransportButton>
-              <TransportButton label="Full screen" onClick={() => programControls.fullscreen()}>
-                <Expand />
-              </TransportButton>
+            <div className="flex h-11 items-center gap-1 px-3">
+              <span ref={tcRef} className="w-[88px] font-mono text-[11.5px] text-fg tabular-nums">
+                00:00:00:00
+              </span>
+              <div className="flex flex-1 items-center justify-center gap-0.5">{steps}</div>
+              <div className="flex w-[88px] items-center justify-end gap-0.5">
+                {playing && Math.abs(rate) !== 1 && <span className="mr-1 font-mono text-[10.5px] text-accent">{rate > 0 ? `${rate}×` : `◀ ${-rate}×`}</span>}
+                {extras}
+              </div>
             </div>
           </div>
-        </div>
+        )
       }
     >
-      <div ref={wrapRef} className="relative grid min-h-0 flex-1 place-items-center bg-black/35" onDoubleClick={() => programControls.fullscreen()}>
+      <div
+        ref={wrapRef}
+        className={cn('relative grid place-items-center bg-black/35', compact ? 'w-full shrink-0' : 'min-h-0 flex-1')}
+        style={compact ? { aspectRatio: `${tl.width} / ${tl.height}`, maxHeight: PHONE_MONITOR_MAX_H } : undefined}
+        onDoubleClick={() => programControls.fullscreen()}
+      >
         <div
           ref={stageRef}
-          className="relative overflow-hidden bg-black shadow-[0_20px_50px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/[0.06]"
+          className={cn('relative overflow-hidden bg-black', !compact && 'shadow-[0_20px_50px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/[0.06]')}
           style={{ width: box.w, height: box.h, containerType: 'size' }}
           onClick={() => clock.toggle()}
         />
@@ -289,12 +345,13 @@ export function TimelineViewer(): React.JSX.Element {
 // ─── Clip Viewer (source) ────────────────────────────────────────────────────
 
 
-export function ClipViewer(): React.JSX.Element {
+export function ClipViewer({ compact }: { compact?: boolean } = {}): React.JSX.Element {
   const sourceId = useEditor((s) => s.sourceId)
   const asset = useDoc('assets', sourceId)
   const focused = useEditor((s) => s.focus === 'source')
   return (
     <MonitorFrame
+      compact={compact}
       title="Clip Viewer"
       subtitle={asset?.name}
       focused={focused}
@@ -317,7 +374,7 @@ export function ClipViewer(): React.JSX.Element {
       <AnimatePresence mode="wait" initial={false}>
         {asset ? (
           <motion.div key={asset.id} className="flex min-h-0 flex-1 flex-col" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }}>
-            <SourcePlayer asset={asset} />
+            <SourcePlayer asset={asset} compact={compact} />
           </motion.div>
         ) : (
           <motion.div key="empty" className="grid min-h-0 flex-1 place-items-center bg-black/25" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -337,8 +394,9 @@ export function ClipViewer(): React.JSX.Element {
   )
 }
 
-function SourcePlayer({ asset }: { asset: Asset }): React.JSX.Element {
+function SourcePlayer({ asset, compact }: { asset: Asset; compact?: boolean }): React.JSX.Element {
   const marks = useEditor((s) => s.marks[asset.id])
+  const frameAspect = useEditor((s) => (s.tl ? s.tl.width / s.tl.height : 16 / 9))
   const wrapRef = useRef<HTMLDivElement>(null)
   const mediaRef = useRef<HTMLVideoElement & HTMLAudioElement>(null)
   const tcRef = useRef<HTMLSpanElement>(null)
@@ -346,7 +404,7 @@ function SourcePlayer({ asset }: { asset: Asset }): React.JSX.Element {
   const [playing, setPlaying] = useState(false)
   const [dur, setDur] = useState(asset.kind === 'image' ? DEFAULT_STILL : (asset.duration ?? 0))
   const aspect = asset.width && asset.height ? asset.width / asset.height : asset.kind === 'audio' ? 16 / 9 : 16 / 9
-  const box = useFitBox(wrapRef, aspect)
+  const box = useFitBox(wrapRef, aspect, compact ? 0 : 12)
   const fps = useEditor((s) => s.tl?.fps ?? 30)
   const peaks = usePeaks(asset, asset.kind === 'audio')
   const isMedia = asset.kind !== 'image'
@@ -356,10 +414,10 @@ function SourcePlayer({ asset }: { asset: Asset }): React.JSX.Element {
   const paint = useCallback(
     (t: number) => {
       lastTime.current = t
-      if (tcRef.current) tcRef.current.textContent = timecode(t, fps)
+      if (tcRef.current) tcRef.current.textContent = compact ? timecode(t, fps).slice(3) : timecode(t, fps)
       if (headRef.current) headRef.current.style.left = `${dur > 0 ? (t / dur) * 100 : 0}%`
     },
-    [dur, fps]
+    [dur, fps, compact]
   )
 
   // rAF while playing
@@ -437,18 +495,10 @@ function SourcePlayer({ asset }: { asset: Asset }): React.JSX.Element {
   const scrubBar = (e: React.PointerEvent<HTMLDivElement>): void => {
     const el = e.currentTarget
     mediaRef.current?.pause()
-    const apply = (x: number): void => {
+    dragAlong(e, (x) => {
       const r = el.getBoundingClientRect()
       seek(((x - r.left) / r.width) * dur)
-    }
-    apply(e.clientX)
-    const move = (ev: PointerEvent): void => apply(ev.clientX)
-    const up = (): void => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
+    })
   }
 
   const inPct = marks?.in !== undefined && dur ? (marks.in / dur) * 100 : 0
@@ -457,13 +507,20 @@ function SourcePlayer({ asset }: { asset: Asset }): React.JSX.Element {
 
   return (
     <>
-      <div ref={wrapRef} className="relative grid min-h-0 flex-1 place-items-center bg-black/35">
+      <div
+        ref={wrapRef}
+        className={cn('relative grid place-items-center bg-black/35', compact ? 'w-full shrink-0' : 'min-h-0 flex-1')}
+        style={compact ? { aspectRatio: String(frameAspect), maxHeight: PHONE_MONITOR_MAX_H } : undefined}
+      >
         <div
-          draggable
+          draggable={!compact}
           onDragStart={(e) => startAssetDrag(e, asset, range())}
           onDragEnd={endAssetDrag}
           onClick={() => isMedia && toggle()}
-          className="relative cursor-grab overflow-hidden bg-black shadow-[0_20px_50px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/[0.06] active:cursor-grabbing"
+          className={cn(
+            'relative overflow-hidden bg-black',
+            !compact && 'cursor-grab shadow-[0_20px_50px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/[0.06] active:cursor-grabbing'
+          )}
           style={{ width: box.w, height: box.h }}
         >
           {asset.kind === 'video' && (
@@ -538,33 +595,46 @@ function SourcePlayer({ asset }: { asset: Asset }): React.JSX.Element {
 
       <div className="@container shrink-0">
         {isMedia ? (
-          <div className="group/bar relative mx-3 h-3 cursor-pointer" onPointerDown={scrubBar}>
+          <div className={cn('group/bar relative mx-3 cursor-pointer', compact ? 'h-5 touch-none' : 'h-3')} onPointerDown={scrubBar}>
             <div className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-white/[0.08] transition-[height] duration-200 group-hover/bar:h-[5px]" />
             <div
               className="absolute top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-grad opacity-80 transition-[height] duration-200 group-hover/bar:h-[5px]"
               style={{ left: `${inPct}%`, width: `${Math.max(0, outPct - inPct)}%` }}
             />
-            {marks?.in !== undefined && <div className="absolute top-0 h-3 w-[2px] -translate-x-1/2 rounded-full bg-accent-2" style={{ left: `${inPct}%` }} />}
-            {marks?.out !== undefined && <div className="absolute top-0 h-3 w-[2px] -translate-x-1/2 rounded-full bg-accent" style={{ left: `${outPct}%` }} />}
+            {marks?.in !== undefined && <div className={cn('absolute w-[2px] -translate-x-1/2 rounded-full bg-accent-2', compact ? 'top-1 h-3' : 'top-0 h-3')} style={{ left: `${inPct}%` }} />}
+            {marks?.out !== undefined && <div className={cn('absolute w-[2px] -translate-x-1/2 rounded-full bg-accent', compact ? 'top-1 h-3' : 'top-0 h-3')} style={{ left: `${outPct}%` }} />}
             <div ref={headRef} className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_3px_rgb(0_0_0/0.35)]" style={{ left: '0%' }} />
           </div>
         ) : (
-          <div className="h-3" />
+          <div className={compact ? 'h-5' : 'h-3'} />
         )}
-        <div className="flex h-11 items-center gap-1 px-3">
-          <span ref={tcRef} className="min-w-[76px] shrink-0 font-mono text-[11px] tabular-nums text-fg">
-            {isMedia ? '00:00:00:00' : 'Still'}
-          </span>
+        <div className={cn('flex h-11 items-center gap-1', compact ? 'px-2 pb-0.5' : 'px-3')}>
+          {compact ? (
+            <div className="flex w-[58px] shrink-0 flex-col font-mono leading-tight tabular-nums">
+              <span ref={tcRef} className="text-[11px] text-fg">
+                {isMedia ? '00:00:00' : 'Still'}
+              </span>
+              {isMedia && (
+                <span className="text-[10px] text-fg-3" title="Marked duration">
+                  {timecode(Math.max(0, markedLen), fps).slice(3)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <span ref={tcRef} className="min-w-[76px] shrink-0 font-mono text-[11px] tabular-nums text-fg">
+              {isMedia ? '00:00:00:00' : 'Still'}
+            </span>
+          )}
           <div className="flex flex-1 items-center justify-center gap-0.5">
             {isMedia && (
               <>
-                <TransportButton label={tip('Mark in', 'I')} onClick={() => sourceControls.markIn()} active={marks?.in !== undefined}>
+                <TransportButton compact={compact} label={tip('Mark in', 'I')} onClick={() => sourceControls.markIn()} active={marks?.in !== undefined}>
                   <span className="font-mono text-[12px] font-bold">{'{'}</span>
                 </TransportButton>
-                <TransportButton big label={tip(playing ? 'Pause' : 'Play', 'Space')} onClick={toggle}>
+                <TransportButton big compact={compact} label={tip(playing ? 'Pause' : 'Play', 'Space')} onClick={toggle}>
                   {playing ? <Pause className="size-3.5 fill-current" /> : <Play className="ml-0.5 size-3.5 fill-current" />}
                 </TransportButton>
-                <TransportButton label={tip('Mark out', 'O')} onClick={() => sourceControls.markOut()} active={marks?.out !== undefined}>
+                <TransportButton compact={compact} label={tip('Mark out', 'O')} onClick={() => sourceControls.markOut()} active={marks?.out !== undefined}>
                   <span className="font-mono text-[12px] font-bold">{'}'}</span>
                 </TransportButton>
               </>
@@ -572,21 +642,35 @@ function SourcePlayer({ asset }: { asset: Asset }): React.JSX.Element {
             {!isMedia && <span className="truncate text-[11px] text-fg-3">Lands as a {DEFAULT_STILL}s clip</span>}
           </div>
           <div className="flex shrink-0 items-center justify-end gap-1">
-            {isMedia && (
+            {isMedia && !compact && (
               <span className="mr-0.5 hidden font-mono text-[10.5px] text-fg-3 tabular-nums @[360px]:inline" title="Marked duration">
                 {timecode(Math.max(0, markedLen), fps).slice(3)}
               </span>
             )}
-            <Tooltip content={tip('Insert at playhead (ripple)', ',')}>
-              <IconButton label="Insert at playhead" size="sm" variant="secondary" onClick={() => sourceControls.insert(false)}>
-                <ListPlus className="size-3.5" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip content={tip('Overwrite at playhead', '.')}>
-              <IconButton label="Overwrite at playhead" size="sm" variant="primary" onClick={() => sourceControls.insert(true)}>
-                <ArrowDownToLine className="size-3.5" />
-              </IconButton>
-            </Tooltip>
+            {compact ? (
+              <>
+                {/* Phones: labelled buttons once there's room (no tooltips on touch). */}
+                <Button size="sm" variant="secondary" className="h-8.5 px-2.5" icon={<ListPlus className="size-3.5" />} onClick={() => sourceControls.insert(false)} aria-label="Insert at playhead">
+                  <span className="hidden @[370px]:inline">Insert</span>
+                </Button>
+                <Button size="sm" variant="primary" className="h-8.5 px-2.5" icon={<ArrowDownToLine className="size-3.5" />} onClick={() => sourceControls.insert(true)} aria-label="Overwrite at playhead">
+                  <span className="hidden @[370px]:inline">Overwrite</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Tooltip content={tip('Insert at playhead (ripple)', ',')}>
+                  <IconButton label="Insert at playhead" size="sm" variant="secondary" onClick={() => sourceControls.insert(false)}>
+                    <ListPlus className="size-3.5" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip content={tip('Overwrite at playhead', '.')}>
+                  <IconButton label="Overwrite at playhead" size="sm" variant="primary" onClick={() => sourceControls.insert(true)}>
+                    <ArrowDownToLine className="size-3.5" />
+                  </IconButton>
+                </Tooltip>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -594,3 +678,66 @@ function SourcePlayer({ asset }: { asset: Asset }): React.JSX.Element {
   )
 }
 
+// ─── Phone monitor ───────────────────────────────────────────────────────────
+
+/**
+ * Phone editor preview: the Timeline Viewer at full width, with the Clip Viewer
+ * sliding over it when an asset is being previewed. Both keep the timeline's
+ * frame so switching never shifts the layout; the program engine stays mounted.
+ */
+export function MobileMonitor(): React.JSX.Element {
+  const sourceId = useEditor((s) => s.sourceId)
+  const asset = useDoc('assets', sourceId)
+  const showSource = useEditor((s) => !!s.sourceId && s.focus === 'source') && !!asset
+  return (
+    <div className="relative grid min-w-0 [&>*]:col-start-1 [&>*]:row-start-1">
+      <div className="isolate flex min-w-0" aria-hidden={showSource || undefined}>
+        <TimelineViewer compact />
+      </div>
+      <AnimatePresence initial={false}>
+        {showSource && (
+          <motion.div
+            key="source"
+            className="z-10 flex min-w-0 rounded-[14px] bg-solid"
+            initial={{ opacity: 0, scale: 0.985 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.985 }}
+            transition={{ duration: 0.22, ease }}
+          >
+            <ClipViewer compact />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {asset && (
+          <motion.div
+            key="switch"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.22, ease }}
+            className="z-20 m-2 flex h-8 items-center gap-0.5 self-start justify-self-start rounded-full border border-white/10 bg-black/55 p-0.5 text-[11.5px] font-semibold backdrop-blur-md"
+          >
+            {(['program', 'source'] as const).map((f) => {
+              const active = (f === 'source') === showSource
+              return (
+                <button
+                  key={f}
+                  onClick={() => useEditor.setState({ focus: f })}
+                  className={cn('relative flex h-7 min-w-0 items-center gap-1.5 rounded-full px-2.5 transition-colors duration-200', active ? 'text-white' : 'text-white/60')}
+                >
+                  {active && <motion.span layoutId="studio-monitor-switch" className="absolute inset-0 rounded-full bg-white/[0.16]" transition={spring} />}
+                  <span className="relative whitespace-nowrap">{f === 'program' ? 'Timeline' : 'Clip'}</span>
+                  {f === 'source' && <span className="relative max-w-[92px] truncate font-medium text-white/60">{asset.name}</span>}
+                </button>
+              )
+            })}
+            <button onClick={() => editor.setSource(null)} className="grid size-7 shrink-0 place-items-center rounded-full text-white/60 transition-colors active:bg-white/10" aria-label="Close clip">
+              <X className="size-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

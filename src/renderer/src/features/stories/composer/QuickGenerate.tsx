@@ -14,6 +14,7 @@ import { Field } from '@/components/ui/misc'
 import { errorText } from '@/lib/api'
 import { useDefaultLlm, type LlmChoice } from '@/lib/llm'
 import { ease, rise, stagger } from '@/lib/motion'
+import { isTouch } from '@/lib/platform'
 import { toast, useToasts } from '@/stores/toast'
 import { ThinkingBlock } from '@/features/create/Messages'
 import { useCanPaint } from '../components/cover'
@@ -118,8 +119,8 @@ export function QuickGenerate({ onCompose }: { onCompose: (brief: string) => voi
   }
 
   return (
-    <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-5">
-      <motion.div variants={rise} className="flex flex-col gap-4 rounded-[20px] border border-line bg-white/[0.03] p-5 hairline">
+    <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-5 max-md:grid-cols-1 max-md:gap-3">
+      <motion.div variants={rise} className="flex flex-col gap-4 rounded-[20px] border border-line bg-white/[0.03] p-5 hairline max-md:p-4">
         <Field label="Describe your story">
           <Textarea
             value={brief}
@@ -132,20 +133,22 @@ export function QuickGenerate({ onCompose }: { onCompose: (brief: string) => voi
             disabled={running}
             placeholder="A premise, a vibe, a character, a twist — a sentence is enough. e.g. You're a disgraced knight hired to escort a cursed princess who keeps trying to escape."
             className="text-[13.5px]"
-            autoFocus
+            autoFocus={!isTouch}
           />
         </Field>
-        <div className="flex flex-wrap gap-1.5">
+        {/* Phones: one swipeable row of ideas. */}
+        <div className="flex flex-wrap gap-1.5 max-md:-mx-4 max-md:flex-nowrap max-md:overflow-x-auto max-md:px-4">
           {EXAMPLES.map((e) => (
-            <Chip key={e} disabled={running} onClick={() => setBrief(e)} className="h-7 text-[11.5px]">
+            <Chip key={e} disabled={running} onClick={() => setBrief(e)} className="h-7 text-[11.5px] max-md:h-8 max-md:shrink-0 max-md:whitespace-nowrap">
               {e}
             </Chip>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1 max-md:gap-3">
           <Field label="Opening">
             <Segmented
               size="sm"
+              className="max-md:flex max-md:w-full max-md:[&>button]:h-8 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center"
               value={pref}
               onChange={setPref}
               items={[
@@ -158,6 +161,7 @@ export function QuickGenerate({ onCompose }: { onCompose: (brief: string) => voi
           <Field label="Story cards">
             <Segmented
               size="sm"
+              className="max-md:flex max-md:w-full max-md:[&>button]:h-8 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center"
               value={count}
               onChange={setCount}
               items={[
@@ -175,25 +179,26 @@ export function QuickGenerate({ onCompose }: { onCompose: (brief: string) => voi
           disabled={!canPaint}
           onChange={setPaint}
         />
-        <div className="mt-1 flex items-center gap-2 border-t border-line pt-4">
-          <ModelPicker value={llm ?? defLlm} onChange={setLlm} />
-          <div className="flex-1" />
-          <Button variant="ghost" icon={<MessagesSquare className="size-3.5" />} disabled={running} onClick={() => onCompose(brief)}>
+        {/* Phones: model on its own row, then a full-width Generate, then “Compose instead”. */}
+        <div className="mt-1 flex items-center gap-2 border-t border-line pt-4 max-md:flex-wrap">
+          <ModelPicker value={llm ?? defLlm} onChange={setLlm} className="max-md:h-9 max-md:w-full max-md:max-w-none max-md:[&>span:nth-child(2)]:flex-1 max-md:[&>span:nth-child(2)]:text-left" />
+          <div className="flex-1 max-md:hidden" />
+          <Button variant="ghost" icon={<MessagesSquare className="size-3.5" />} disabled={running} onClick={() => onCompose(brief)} className="max-md:order-last max-md:w-full">
             Compose instead
           </Button>
           {running ? (
-            <Button variant="secondary" icon={<Square className="size-3 fill-current" />} onClick={() => runCtrl?.abort()}>
+            <Button variant="secondary" icon={<Square className="size-3 fill-current" />} onClick={() => runCtrl?.abort()} className="max-md:h-11 max-md:flex-1">
               Stop
             </Button>
           ) : (
-            <Button variant="primary" size="lg" icon={<WandSparkles className="size-4" />} disabled={!brief.trim()} onClick={go}>
+            <Button variant="primary" size="lg" icon={<WandSparkles className="size-4" />} disabled={!brief.trim()} onClick={go} className="max-md:flex-1">
               Generate scenario
             </Button>
           )}
         </div>
       </motion.div>
 
-      <motion.div variants={rise} className="relative overflow-hidden rounded-[20px] border border-line bg-white/[0.02] p-5 hairline">
+      <motion.div variants={rise} className="relative overflow-hidden rounded-[20px] border border-line bg-white/[0.02] p-5 hairline max-md:p-4">
         <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full opacity-40 blur-[80px]" style={{ background: 'radial-gradient(circle, var(--accent-2), transparent 70%)' }} />
         <AnimatePresence mode="wait" initial={false}>
           {running ? (

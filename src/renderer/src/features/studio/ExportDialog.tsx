@@ -10,6 +10,7 @@ import { ease, spring } from '@/lib/motion'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/overlay'
 import { ProgressBar, ProgressRing } from '@/components/ui/misc'
+import { REVEAL_LABEL, RevealIcon } from '@/components/media'
 import { AspectGlyph } from './common'
 import { flushSave } from './store'
 import { shortDuration, timelineDuration } from './model'
@@ -125,8 +126,8 @@ export function ExportDialog({ open, onClose, tl }: { open: boolean; onClose: ()
           </Button>
         ) : phase === 'done' ? (
           <>
-            <Button variant="ghost" icon={<FolderOpen className="size-3.5" />} onClick={() => result?.path && void invoke('sys:showInFolder', result.path)}>
-              Show in folder
+            <Button variant="ghost" icon={<RevealIcon className="size-3.5" />} onClick={() => result?.path && void invoke('sys:showInFolder', result.path)}>
+              {REVEAL_LABEL}
             </Button>
             <div className="flex-1" />
             <Button variant="secondary" icon={<Play className="size-3.5" />} onClick={() => result?.path && void invoke('sys:openPath', result.path)}>
@@ -170,22 +171,22 @@ export function ExportDialog({ open, onClose, tl }: { open: boolean; onClose: ()
             </div>
             <div>
               <div className="label-caps mb-1.5">Save to</div>
-              <div className="flex items-center gap-2 rounded-xl border border-line bg-white/[0.03] p-2 pl-3">
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-white/[0.03] p-2 pl-3 max-md:flex-wrap">
                 <span className={cn('grid size-7 shrink-0 place-items-center rounded-lg', outPath ? 'bg-grad text-white' : 'bg-white/[0.06] text-fg-2')}>
                   {outPath ? <FileVideo className="size-3.5" /> : <Library className="size-3.5" />}
                 </span>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 max-md:basis-[calc(100%-44px)]">
                   <div className="truncate text-[12.5px] font-medium">{outPath ? outPath.split(/[\\/]/).pop() : 'Stitch library'}</div>
                   <div className="truncate text-[11px] text-fg-3" title={outPath ?? undefined}>
                     {outPath ?? 'Lands in Assets — choose a file for an extra copy'}
                   </div>
                 </div>
                 {outPath && (
-                  <Button size="xs" variant="ghost" onClick={() => setOutPath(null)}>
+                  <Button size="xs" variant="ghost" className="max-md:ml-auto max-md:h-9 max-md:px-3" onClick={() => setOutPath(null)}>
                     Clear
                   </Button>
                 )}
-                <Button size="sm" variant="secondary" onClick={() => void choose()}>
+                <Button size="sm" variant="secondary" className={cn('max-md:h-9', !outPath && 'max-md:ml-auto')} onClick={() => void choose()}>
                   Choose file…
                 </Button>
               </div>

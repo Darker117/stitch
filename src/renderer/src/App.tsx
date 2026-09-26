@@ -1,5 +1,5 @@
 import { cloneElement, lazy, Suspense, useEffect, useState, type ComponentType, type ReactElement } from 'react'
-import { createHashRouter, Outlet, RouterProvider, useLocation, useNavigate, useOutlet } from 'react-router'
+import { createHashRouter, Outlet, RouterProvider, useLocation, useNavigate, useOutlet, type RouteObject } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { Background } from '@/components/shell/background'
 import { JobTray } from '@/components/shell/job-tray'
@@ -56,7 +56,7 @@ function groupKey(pathname: string): string {
   return '/' + parts.slice(0, 2).join('/')
 }
 
-function AnimatedOutlet(): React.JSX.Element {
+export function AnimatedOutlet(): React.JSX.Element {
   const location = useLocation()
   const outlet = useOutlet()
   return (
@@ -117,37 +117,44 @@ function Immersive(): React.JSX.Element {
   )
 }
 
-const router = createHashRouter([
-  {
-    element: <Shell />,
-    children: [
-      { path: '/', element: <CreatePage /> },
-      { path: '/chat/:id', element: <CreatePage /> },
-      { path: '/stories', element: <StoriesHome /> },
-      { path: '/stories/new', element: <TemplatesPage /> },
-      { path: '/stories/scenario/:id', element: <ScenarioEditor /> },
-      { path: '/stories/compose', element: <ComposerPage /> },
-      { path: '/characters', element: <CharactersPage /> },
-      { path: '/characters/:id', element: <CharacterDetail /> },
-      { path: '/generate/:kind', element: <GeneratePage /> },
-      { path: '/studio', element: <StudioHome /> },
-      { path: '/studio/:id', element: <EditorPage /> },
-      { path: '/assets', element: <AssetsPage /> },
-      { path: '/projects', element: <ProjectsPage /> },
-      { path: '/projects/:id', element: <ProjectsPage /> },
-      { path: '/models', element: <ModelsPage /> },
-      { path: '/skills', element: <SkillsPage /> },
-      { path: '/connectors', element: <ConnectorsPage /> },
-      { path: '/settings', element: <SettingsPage /> }
-    ]
-  },
-  {
-    element: <Immersive />,
-    children: [{ path: '/play/:id', element: <PlayScreen /> }]
-  }
-])
+/** Pages inside the app chrome (the desktop sidebar, or the phone app's tab bar). */
+export const shellRoutes: RouteObject[] = [
+  { path: '/', element: <CreatePage /> },
+  { path: '/chat/:id', element: <CreatePage /> },
+  { path: '/stories', element: <StoriesHome /> },
+  { path: '/stories/new', element: <TemplatesPage /> },
+  { path: '/stories/scenario/:id', element: <ScenarioEditor /> },
+  { path: '/stories/compose', element: <ComposerPage /> },
+  { path: '/characters', element: <CharactersPage /> },
+  { path: '/characters/:id', element: <CharacterDetail /> },
+  { path: '/generate/:kind', element: <GeneratePage /> },
+  { path: '/studio', element: <StudioHome /> },
+  { path: '/studio/:id', element: <EditorPage /> },
+  { path: '/assets', element: <AssetsPage /> },
+  { path: '/projects', element: <ProjectsPage /> },
+  { path: '/projects/:id', element: <ProjectsPage /> },
+  { path: '/models', element: <ModelsPage /> },
+  { path: '/skills', element: <SkillsPage /> },
+  { path: '/connectors', element: <ConnectorsPage /> },
+  { path: '/settings', element: <SettingsPage /> }
+]
 
-export function App(): React.JSX.Element {
+/** Full-screen pages (the story player). */
+export const immersiveRoutes: RouteObject[] = [{ path: '/play/:id', element: <PlayScreen /> }]
+
+type AppRouter = ReturnType<typeof createHashRouter>
+let desktopRouter: AppRouter | null = null
+
+function getDesktopRouter(): AppRouter {
+  desktopRouter ??= createHashRouter([
+    { element: <Shell />, children: shellRoutes },
+    { element: <Immersive />, children: immersiveRoutes }
+  ])
+  return desktopRouter
+}
+
+/** The whole app. The phone app passes its own router (same pages, mobile chrome). */
+export function App({ router }: { router?: AppRouter } = {}): React.JSX.Element {
   const settings = useSettings((s) => s.settings)
   const load = useSettings((s) => s.load)
   const initGen = useGen((s) => s.init)
@@ -188,7 +195,7 @@ export function App(): React.JSX.Element {
         ) : (
           <motion.div key="app" className="isolate h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, ease }}>
             <Background bg={settings.theme.background} />
-            <RouterProvider router={router} />
+            <RouterProvider router={router ?? getDesktopRouter()} />
             <AnimatePresence>{!settings.onboardingDone && <Onboarding key="onboarding" />}</AnimatePresence>
           </motion.div>
         )}

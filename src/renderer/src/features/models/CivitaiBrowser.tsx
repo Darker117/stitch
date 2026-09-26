@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, ChevronLeft, ChevronRight, CircleAlert, Copy, Download, FolderOpen, Globe, KeyRound, SlidersHorizontal, ThumbsUp, X } from 'lucide-react'
+import { isPhone } from '@/lib/platform'
 import type { CivitaiFile, CivitaiModel, CivitaiQuery, CivitaiVersion, LocalModel } from '@shared/types'
 import { baseFamily, CIVITAI_TYPE_FILTERS, FAMILY_ORDER, folderForCivitai, folderLabel, kindForCivitaiType, MODEL_FOLDERS } from '@shared/civitai'
 import { errorText, invoke } from '@/lib/api'
@@ -65,7 +66,7 @@ function BaseModelPicker({ value, onChange }: { value: string[]; onChange: (v: s
       align="start"
       className="w-[440px] p-0"
       trigger={
-        <Button size="sm" variant={value.length ? 'secondary' : 'outline'} icon={<SlidersHorizontal className="size-3.5" />} className={cn(value.length && 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)]')}>
+        <Button size="sm" variant={value.length ? 'secondary' : 'outline'} icon={<SlidersHorizontal className="size-3.5" />} className={cn('max-md:h-9 max-md:min-w-0 max-md:flex-1', value.length && 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)]')}>
           {value.length === 0 ? 'Base models' : value.length === 1 ? value[0] : `${value.length} base models`}
         </Button>
       }
@@ -100,7 +101,7 @@ function BaseModelPicker({ value, onChange }: { value: string[]; onChange: (v: s
                       whileTap={{ scale: 0.95 }}
                       onClick={() => toggle(b)}
                       className={cn(
-                        'inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-[11.5px] font-medium transition-[background,border-color,color] duration-150',
+                        'inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-[11.5px] font-medium transition-[background,border-color,color] duration-150 max-md:h-8.5 max-md:px-2.5',
                         on ? 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] text-fg' : 'border-line text-fg-2 hover:border-line-strong hover:bg-white/[0.05] hover:text-fg'
                       )}
                     >
@@ -152,9 +153,9 @@ function CivitaiCard({ model, index, downloaded, onOpen }: { model: CivitaiModel
           {model.creator && <div className="mt-0.5 truncate text-[11px] text-white/60">by {model.creator}</div>}
         </div>
       </div>
-      <div className="flex min-w-0 items-center gap-2 px-2.5 py-2">
-        <BaseTag base={v?.baseModel} className="min-w-0" />
-        <span className="ml-auto flex shrink-0 items-center gap-2.5 text-[10.5px] text-fg-3 tabular-nums">
+      <div className="flex min-w-0 items-center gap-2 px-2.5 py-2 max-md:gap-1.5 max-md:px-2">
+        <BaseTag base={v?.baseModel} className="min-w-0 max-md:shrink" />
+        <span className="ml-auto flex shrink-0 items-center gap-2.5 text-[10.5px] text-fg-3 tabular-nums max-md:gap-1.5">
           <span className="flex items-center gap-0.5">
             <Download className="size-3" />
             {formatCount(model.stats?.downloadCount)}
@@ -200,7 +201,7 @@ function Carousel({ version, modelNsfw }: { version: CivitaiVersion; modelNsfw: 
   const img = images[index]
   return (
     <div className="relative shrink-0">
-      <div className="relative h-[440px] overflow-hidden bg-black/30">
+      <div className="relative h-[440px] overflow-hidden bg-black/30 max-md:h-[50vh]">
         <AnimatePresence initial={false} custom={dir} mode="popLayout">
           <motion.div
             key={`${version.id}-${index}`}
@@ -337,7 +338,7 @@ function CivitaiDetail({ initial, local }: { initial: CivitaiModel; local: Local
     <>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <Carousel version={version} modelNsfw={model.nsfw} />
-        <div className="space-y-6 px-6 pt-5 pb-8">
+        <div className="space-y-6 px-6 pt-5 pb-8 max-md:px-5">
           <div className="space-y-2.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <KindTag kind={kind} icon />
@@ -445,7 +446,7 @@ function CivitaiDetail({ initial, local }: { initial: CivitaiModel; local: Local
       </div>
 
       {/* Download bar */}
-      <div className="shrink-0 border-t border-line bg-[color-mix(in_oklab,var(--panel-solid)_70%,transparent)] px-5 py-3.5 backdrop-blur-xl">
+      <div className="shrink-0 border-t border-line bg-[color-mix(in_oklab,var(--panel-solid)_70%,transparent)] px-5 py-3.5 backdrop-blur-xl max-md:px-4 max-md:py-3">
         <AnimatePresence mode="wait" initial={false}>
           {active ? (
             <motion.div key="active" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25, ease }} className="space-y-2">
@@ -461,10 +462,10 @@ function CivitaiDetail({ initial, local }: { initial: CivitaiModel; local: Local
               <ProgressBar value={active.total ? active.received / active.total : undefined} />
             </motion.div>
           ) : (
-            <motion.div key="idle" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25, ease }} className="flex items-center gap-2">
+            <motion.div key="idle" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25, ease }} className="flex items-center gap-2 max-md:flex-wrap">
               <Select
                 size="sm"
-                className="w-[210px]"
+                className="w-[210px] max-md:h-10 max-md:w-auto max-md:min-w-0 max-md:flex-1"
                 value={dest}
                 onChange={setDest}
                 options={[
@@ -472,19 +473,20 @@ function CivitaiDetail({ initial, local }: { initial: CivitaiModel; local: Local
                   ...MODEL_FOLDERS.map((f) => ({ value: f.key, label: f.label, hint: f.key }))
                 ]}
               />
-              <div className="min-w-0 flex-1 truncate text-right text-[11px] text-fg-3">{lastDone?.error && !installed ? <span className="text-danger">{lastDone.error}</span> : file ? formatBytes(file.sizeKB * 1024) : ''}</div>
+              <div className="min-w-0 flex-1 truncate text-right text-[11px] text-fg-3 max-md:order-last max-md:basis-full max-md:text-left max-md:empty:hidden">{lastDone?.error && !installed ? <span className="text-danger">{lastDone.error}</span> : file ? formatBytes(file.sizeKB * 1024) : ''}</div>
               {installed ? (
-                <Button variant="secondary" icon={<FolderOpen className="size-3.5" />} onClick={() => void invoke('sys:showInFolder', installed.path)}>
-                  Show in folder
+                // Model files live on the PC — on the phone just say it's there.
+                <Button variant="secondary" className="max-md:h-10" disabled={isPhone} icon={isPhone ? <Check className="size-3.5 text-success" /> : <FolderOpen className="size-3.5" />} onClick={() => void invoke('sys:showInFolder', installed.path)}>
+                  {isPhone ? 'Installed on your PC' : 'Show in folder'}
                 </Button>
               ) : !status?.hasKey ? (
                 <Tooltip content="Downloads need a free Civitai API key">
-                  <Button variant="primary" icon={<KeyRound className="size-3.5" />} onClick={() => setKeyDialog(true)}>
+                  <Button variant="primary" className="max-md:h-10" icon={<KeyRound className="size-3.5" />} onClick={() => setKeyDialog(true)}>
                     Connect to download
                   </Button>
                 </Tooltip>
               ) : (
-                <Button variant="primary" loading={starting} disabled={!file || (!autoFolder && dest === 'auto')} icon={<Download className="size-3.5" />} onClick={() => void download()}>
+                <Button variant="primary" className="max-md:h-10" loading={starting} disabled={!file || (!autoFolder && dest === 'auto')} icon={<Download className="size-3.5" />} onClick={() => void download()}>
                   Download
                 </Button>
               )}
@@ -547,25 +549,27 @@ export function CivitaiBrowser(): React.JSX.Element {
 
   return (
     <motion.div key="civitai" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.3, ease }}>
-      <div className="sticky top-0 z-10 space-y-2.5 border-y border-line bg-[color-mix(in_oklab,var(--panel-solid)_82%,transparent)] px-8 py-3 backdrop-blur-xl">
-        <div className="flex items-center gap-2">
-          <SearchField value={text} onChange={setText} placeholder="Search Civitai — styles, characters, checkpoints…" className="w-[320px]" />
+      <div className="sticky top-0 z-10 space-y-2.5 border-y border-line bg-[color-mix(in_oklab,var(--panel-solid)_82%,transparent)] px-8 py-3 backdrop-blur-xl max-md:static max-md:px-4">
+        <div className="flex items-center gap-2 max-md:flex-wrap">
+          <SearchField value={text} onChange={setText} placeholder="Search Civitai — styles, characters, checkpoints…" className="w-[320px] max-md:w-full" />
           <BaseModelPicker value={filters.baseModels} onChange={(b) => setFilters({ baseModels: b })} />
-          <Select size="sm" className="w-[160px]" value={filters.sort} onChange={(v) => setFilters({ sort: v })} options={SORTS.map((s) => ({ value: s, label: s }))} />
+          <Select size="sm" className="w-[160px] max-md:h-9 max-md:w-[calc(50%-4px)]" value={filters.sort} onChange={(v) => setFilters({ sort: v })} options={SORTS.map((s) => ({ value: s, label: s }))} />
           <Tooltip content={filters.query ? 'Civitai ignores the time window while searching' : undefined}>
-            <div className={cn(filters.query && 'cursor-not-allowed')}>
+            <div className={cn('max-md:w-[calc(50%-4px)]', filters.query && 'cursor-not-allowed')}>
               <div className={cn('transition-opacity duration-200', filters.query && 'pointer-events-none opacity-45')}>
-                <Select size="sm" className="w-[130px]" value={filters.period} onChange={(v) => setFilters({ period: v })} options={PERIODS} />
+                <Select size="sm" className="w-[130px] max-md:h-9 max-md:w-full" value={filters.period} onChange={(v) => setFilters({ period: v })} options={PERIODS} />
               </div>
             </div>
           </Tooltip>
-          <div className="flex-1" />
-          <label className="flex shrink-0 items-center gap-2 text-[12px] text-fg-2">
-            Include NSFW results
+          <div className="flex-1 max-md:hidden" />
+          <label className="flex shrink-0 items-center gap-2 text-[12px] text-fg-2 max-md:h-9 max-md:min-w-0 max-md:flex-1 max-md:justify-between max-md:rounded-[10px] max-md:border max-md:border-line max-md:bg-white/[0.035] max-md:pr-2 max-md:pl-3">
+            <span>
+              Include NSFW<span className="max-md:hidden"> results</span>
+            </span>
             <Switch size="sm" checked={filters.nsfw} onChange={(v) => setFilters({ nsfw: v })} />
           </label>
         </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
+        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] max-md:-mx-4 max-md:px-4">
           {CIVITAI_TYPE_FILTERS.map((t) => {
             const on = filters.types.includes(t.label)
             return (
@@ -573,7 +577,7 @@ export function CivitaiBrowser(): React.JSX.Element {
                 key={t.label}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => toggleType(t.label)}
-                className={cn('inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-medium transition-[background,border-color,color] duration-200', !on && 'border-line bg-white/[0.035] text-fg-2 hover:border-line-strong hover:text-fg')}
+                className={cn('inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-medium transition-[background,border-color,color] duration-200 max-md:h-9 max-md:rounded-full max-md:px-3', !on && 'border-line bg-white/[0.035] text-fg-2 hover:border-line-strong hover:text-fg')}
                 style={on ? kindTone(t.kind) : undefined}
               >
                 <span className="size-1.5 rounded-full" style={{ background: kindColor(t.kind, 0.8) }} />
@@ -587,7 +591,7 @@ export function CivitaiBrowser(): React.JSX.Element {
                 setText('')
                 setFilters({ types: [], baseModels: [], query: '' })
               }}
-              className="ml-1 shrink-0 text-[11.5px] font-medium text-fg-3 hover:text-fg"
+              className="ml-1 shrink-0 text-[11.5px] font-medium text-fg-3 hover:text-fg max-md:h-9 max-md:pr-4"
             >
               Reset filters
             </button>
@@ -595,7 +599,7 @@ export function CivitaiBrowser(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="px-8 py-6">
+      <div className="px-8 py-6 max-md:px-4 max-md:pt-4 max-md:pb-8">
         {error && !items.length ? (
           <EmptyState
             icon={<CircleAlert />}
@@ -610,7 +614,7 @@ export function CivitaiBrowser(): React.JSX.Element {
         ) : !loading && done && !items.length ? (
           <EmptyState icon={<SlidersHorizontal />} title="No models match" body="Try fewer filters, another base model or a different search." />
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-3.5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-3.5 max-md:grid-cols-2 max-md:gap-2.5">
             {items.map((m, i) => (
               <CivitaiCard key={m.id} model={m} index={i} downloaded={m.versions.some((v) => localVersions.has(v.id))} onOpen={() => setOpen(m)} />
             ))}

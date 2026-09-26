@@ -122,7 +122,8 @@ export function CoverEditor({ doc, collection, template, info }: { doc: StoryDoc
     <div className="flex flex-col gap-2">
       <DropZone kinds={['image', 'video']} meta={{ projectId: doc.projectId }} onAssets={(a) => a[0] && void setCover(target, a[0].id)} className="rounded-2xl">
         <div className="group relative">
-          <CoverArt coverAssetId={doc.coverAssetId} template={template} title={doc.title} className="aspect-[16/8] w-full rounded-2xl ring-1 ring-line">
+          {/* Phones: the empty state needs more height for its copy and buttons. */}
+          <CoverArt coverAssetId={doc.coverAssetId} template={template} title={doc.title} className={cn('aspect-[16/8] w-full rounded-2xl ring-1 ring-line', !has && !running && 'max-md:aspect-[6/5]')}>
             <CoverProgressLayer progress={progress} />
             <AnimatePresence>
               {!has && !running && (
@@ -132,20 +133,20 @@ export function CoverEditor({ doc, collection, template, info }: { doc: StoryDoc
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.35, ease }}
-                  className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[linear-gradient(to_top,rgb(0_0_0/0.78),rgb(0_0_0/0.42)_60%,rgb(0_0_0/0.3))] p-6 text-center backdrop-blur-[3px]"
+                  className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[linear-gradient(to_top,rgb(0_0_0/0.78),rgb(0_0_0/0.42)_60%,rgb(0_0_0/0.3))] p-6 text-center backdrop-blur-[3px] max-md:p-4"
                 >
                   <div className="label-caps text-white/55">No cover yet</div>
                   <div className="font-serif text-[20px] leading-tight font-semibold text-white">Give your story a face</div>
                   <p className="max-w-[400px] text-[12px] leading-relaxed text-white/65">Paint one from your title, description and opening — or upload an image, pick one from your library, or drop it right here.</p>
                   <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-                    <Button size="sm" variant="primary" icon={<WandSparkles className="size-3.5" />} disabled={!!paintHint} onClick={() => paint()} title={paintHint}>
+                    <Button size="sm" variant="primary" icon={<WandSparkles className="size-3.5" />} disabled={!!paintHint} onClick={() => paint()} title={paintHint} className="max-md:h-9">
                       Paint from story
                     </Button>
-                    <ArtDirection onPaint={paint} disabled={!!paintHint} />
-                    <Button size="sm" variant="glass" icon={<Upload className="size-3.5" />} onClick={() => void upload()} className="bg-black/35 text-white">
+                    <ArtDirection onPaint={paint} disabled={!!paintHint} className="max-md:size-9" />
+                    <Button size="sm" variant="glass" icon={<Upload className="size-3.5" />} onClick={() => void upload()} className="bg-black/35 text-white max-md:h-9">
                       Upload
                     </Button>
-                    <Button size="sm" variant="glass" icon={<Images className="size-3.5" />} onClick={() => setPicker(true)} className="bg-black/35 text-white">
+                    <Button size="sm" variant="glass" icon={<Images className="size-3.5" />} onClick={() => setPicker(true)} className="bg-black/35 text-white max-md:h-9">
                       Library
                     </Button>
                   </div>
@@ -162,7 +163,7 @@ export function CoverEditor({ doc, collection, template, info }: { doc: StoryDoc
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.2, ease }}
-                className="absolute top-3 right-3 flex items-center gap-0.5 rounded-full border border-white/10 bg-black/40 p-1 opacity-0 backdrop-blur-md transition-opacity duration-300 group-focus-within:opacity-100 group-hover:opacity-100"
+                className="absolute top-3 right-3 flex items-center gap-0.5 rounded-full border border-white/10 bg-black/40 p-1 opacity-0 backdrop-blur-md transition-opacity duration-300 group-focus-within:opacity-100 group-hover:opacity-100 max-md:top-2 max-md:right-2 max-md:opacity-100 max-md:[&>button]:size-8"
               >
                 <IconButton label={paintHint ?? 'Paint a new cover from the story'} size="sm" disabled={!!paintHint} onClick={() => paint()} className="rounded-full text-white/85 hover:bg-white/15 hover:text-white">
                   <WandSparkles className="size-3.5" />

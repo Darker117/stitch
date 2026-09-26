@@ -42,13 +42,21 @@ import { LOCAL_SPEAKERS, designVoice, localProvider } from './local'
 import { openaiProvider } from './openai'
 import { POCKET_VOICES, pocketProvider } from './pocket'
 
+/** "This phone" voices are synthesized by the phone app itself; the PC never sees them. */
+const onPhoneOnly: VoiceProvider = {
+  voices: async () => [],
+  speak: () => Promise.reject(new Error('This voice runs on the phone — pick a PC voice to use it here.')),
+  test: async () => 'Runs on the phone'
+}
+
 const PROVIDERS: Record<VoiceKind, VoiceProvider> = {
   'local-qwen': localProvider,
   'local-kokoro': kokoroProvider,
   'local-pocket': pocketProvider,
   elevenlabs: elevenlabsProvider,
   'openai-tts': openaiProvider,
-  azure: azureProvider
+  azure: azureProvider,
+  device: onPhoneOnly
 }
 
 function voiceConnectors(): VoiceConnector[] {

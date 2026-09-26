@@ -6,17 +6,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { Boxes, Check, Download, FolderOpen, HardDrive, Mic2, Music2, RefreshCw, Settings2, Trash2, Unlink } from 'lucide-react'
+import { Boxes, Check, Download, FolderOpen, HardDrive, Mic2, MoreHorizontal, Music2, RefreshCw, Settings2, Trash2, Unlink } from 'lucide-react'
 import type { VoiceEngineInfo } from '@shared/ipc'
 import type { LocalModel, ManagedModel, ModelInventory, ModelLocation, ModelLocationKind } from '@shared/types'
 import { folderLabel } from '@shared/civitai'
 import { errorText, invoke, on } from '@/lib/api'
 import { cn, formatBytes, pluralize, timeAgo } from '@/lib/utils'
 import { ease, rise, spring, stagger } from '@/lib/motion'
+import { isPhone, useCompact } from '@/lib/platform'
 import { Button, Chip, IconButton } from '@/components/ui/button'
 import { SearchField } from '@/components/ui/input'
 import { Badge, EmptyState, ProgressBar, Skeleton, Spinner } from '@/components/ui/misc'
-import { Dialog, Select, Tooltip } from '@/components/ui/overlay'
+import { Dialog, Menu, MenuItem, Select, Tooltip } from '@/components/ui/overlay'
 import { KindTag, ModelThumb } from '@/components/model-tags'
 import { refreshLocalModels } from '@/components/model-library'
 import { useGen } from '@/stores/gen'
@@ -88,14 +89,14 @@ function LocationCard({ loc, onForget }: { loc: ModelLocation; onForget: () => v
             {loc.path}
           </div>
         </div>
-        <div className="flex shrink-0 gap-0.5 opacity-70 transition-opacity group-hover:opacity-100">
+        <div className="flex shrink-0 gap-0.5 opacity-70 transition-opacity group-hover:opacity-100 max-md:-mt-1 max-md:-mr-1 max-md:opacity-100">
           {loc.exists && (
-            <IconButton label="Open folder" size="sm" onClick={() => openFolder(loc.path)}>
+            <IconButton label="Open folder" size="sm" className="max-md:size-9" onClick={() => openFolder(loc.path)}>
               <FolderOpen className="size-3.5" />
             </IconButton>
           )}
           {loc.removable && (
-            <IconButton label="Forget this folder (files stay)" size="sm" onClick={onForget}>
+            <IconButton label="Forget this folder (files stay)" size="sm" className="max-md:size-9" onClick={onForget}>
               <Unlink className="size-3.5" />
             </IconButton>
           )}
@@ -164,14 +165,14 @@ function VoiceEngines({ bytes }: { bytes?: number }): React.JSX.Element | null {
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-1">
         <h3 className="flex items-center gap-2 text-[14px] font-semibold tracking-tight">
           <Mic2 className="size-4 text-accent" /> Voice engines
         </h3>
         {bytes ? <span className="text-[11.5px] text-fg-3">{formatBytes(bytes)} of voice weights on disk</span> : null}
       </div>
       {engines ? (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 max-md:grid-cols-1 max-md:gap-2.5">
           {local.map((e) => (
             <div key={e.id} className="glass hairline flex flex-col gap-2.5 rounded-2xl p-4">
               <div className="flex items-center gap-2">
@@ -197,16 +198,16 @@ function VoiceEngines({ bytes }: { bytes?: number }): React.JSX.Element | null {
                 </span>
                 <div className="flex gap-1">
                   {e.installed && e.path && (
-                    <IconButton label="Open folder" size="xs" onClick={() => openFolder(e.path!)}>
+                    <IconButton label="Open folder" size="xs" className="max-md:size-8" onClick={() => openFolder(e.path!)}>
                       <FolderOpen className="size-3.5" />
                     </IconButton>
                   )}
                   {e.installed ? (
-                    <Button size="xs" variant="ghost" className="hover:text-danger" loading={busy === e.id} disabled={!!e.installing} icon={<Trash2 className="size-3" />} onClick={() => setConfirm(e)}>
+                    <Button size="xs" variant="ghost" className="hover:text-danger max-md:h-8 max-md:px-2.5" loading={busy === e.id} disabled={!!e.installing} icon={<Trash2 className="size-3" />} onClick={() => setConfirm(e)}>
                       Remove
                     </Button>
                   ) : (
-                    <Button size="xs" loading={busy === e.id} disabled={!!e.installing} icon={<Download className="size-3" />} onClick={() => void act(e, 'install')}>
+                    <Button size="xs" className="max-md:h-8 max-md:px-2.5" loading={busy === e.id} disabled={!!e.installing} icon={<Download className="size-3" />} onClick={() => void act(e, 'install')}>
                       Install
                     </Button>
                   )}
@@ -306,7 +307,7 @@ function CatalogCard({ id, onInstall }: { id: string; onInstall: () => void }): 
             <Check className="size-2.5" /> Installed
           </Badge>
         ) : (
-          <Button size="xs" variant={missing < entry.files.length ? 'secondary' : 'primary'} icon={<Download className="size-3" />} disabled={!plan} onClick={onInstall}>
+          <Button size="xs" className="max-md:h-8 max-md:px-2.5" variant={missing < entry.files.length ? 'secondary' : 'primary'} icon={<Download className="size-3" />} disabled={!plan} onClick={onInstall}>
             {plan && missing < entry.files.length && missing > 0 ? `Add missing · ${formatBytes(plan.bytes)}` : 'Install'}
           </Button>
         )}
@@ -333,6 +334,7 @@ export function ModelManager(): React.JSX.Element {
   const [installEntry, setInstallEntry] = useState<string | null>(null)
   const [tokenOpen, setTokenOpen] = useState(false)
   const [rescanning, setRescanning] = useState(false)
+  const compact = useCompact()
   useEffect(() => initDownloads(), [initDownloads])
 
   const locName = useMemo(() => new Map((inv?.locations ?? []).map((l) => [l.id, l.label])), [inv])
@@ -386,10 +388,10 @@ export function ModelManager(): React.JSX.Element {
   const voiceLoc = inv?.locations.find((l) => l.kind === 'voice')
 
   return (
-    <motion.div key="manage" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.3, ease }} className="space-y-8 px-8 pt-5 pb-12">
+    <motion.div key="manage" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.3, ease }} className="space-y-8 px-8 pt-5 pb-12 max-md:space-y-7 max-md:px-4 max-md:pt-4">
       {/* Default path + actions */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-3 max-md:gap-2">
+        <div className="min-w-0 flex-1 max-md:basis-full">
           <div className="label-caps">Default models path</div>
           <div className="mt-1 flex min-w-0 items-center gap-2 text-[12.5px]">
             {home ? (
@@ -400,19 +402,19 @@ export function ModelManager(): React.JSX.Element {
                 <span className="shrink-0 text-fg-3">· {home.label}</span>
               </>
             ) : (
-              <Skeleton className="h-4 w-80" />
+              <Skeleton className="h-4 w-80 max-md:w-full" />
             )}
           </div>
         </div>
         <Tooltip content="Change the default in Settings → Models & storage">
-          <Button size="sm" variant="ghost" icon={<Settings2 className="size-3.5" />} onClick={() => navigate('/settings?tab=storage')}>
+          <Button size="sm" variant="ghost" className="max-md:h-9 max-md:-ml-2.5" icon={<Settings2 className="size-3.5" />} onClick={() => navigate('/settings?tab=storage')}>
             Change
           </Button>
         </Tooltip>
-        <Button size="sm" variant="secondary" icon={<HfMark size={15} />} onClick={() => setTokenOpen(true)}>
+        <Button size="sm" variant="secondary" className="max-md:h-9 max-md:min-w-0 max-md:flex-1" icon={<HfMark size={15} />} onClick={() => setTokenOpen(true)}>
           {hf?.hasToken ? (hf.username ?? 'Hugging Face') : 'Hugging Face token'}
         </Button>
-        <Button size="sm" variant="secondary" loading={rescanning} icon={<RefreshCw className="size-3.5" />} onClick={() => void rescan()}>
+        <Button size="sm" variant="secondary" className="max-md:h-9" loading={rescanning} icon={<RefreshCw className="size-3.5" />} onClick={() => void rescan()}>
           Rescan
         </Button>
       </div>
@@ -428,7 +430,7 @@ export function ModelManager(): React.JSX.Element {
           {inv && <span className="text-[11.5px] text-fg-3">Scanned {timeAgo(inv.scannedAt)}</span>}
         </div>
         {inv ? (
-          <motion.div variants={stagger(0.04, 0.02)} initial="initial" animate="animate" className="grid grid-cols-3 gap-3">
+          <motion.div variants={stagger(0.04, 0.02)} initial="initial" animate="animate" className="grid grid-cols-3 gap-3 max-md:grid-cols-1 max-md:gap-2.5">
             {inv.locations
               .filter((l) => l.kind !== 'voice')
               .map((l) => (
@@ -436,7 +438,7 @@ export function ModelManager(): React.JSX.Element {
               ))}
           </motion.div>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3 max-md:grid-cols-1 max-md:gap-2.5">
             {[0, 1, 2].map((i) => (
               <Skeleton key={i} className="h-36 rounded-2xl" />
             ))}
@@ -449,27 +451,27 @@ export function ModelManager(): React.JSX.Element {
       {/* Models */}
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="mr-2 flex items-center gap-2 text-[14px] font-semibold tracking-tight">
+          <h3 className="mr-2 flex items-center gap-2 text-[14px] font-semibold tracking-tight max-md:mr-0 max-md:basis-full">
             <Boxes className="size-4 text-accent" /> Models
             {inv && <span className="text-[12px] font-medium text-fg-3 tabular-nums">{models.length}</span>}
           </h3>
-          <SearchField value={q} onChange={setQ} placeholder="Search models or recipes…" className="w-[260px]" />
+          <SearchField value={q} onChange={setQ} placeholder="Search models or recipes…" className="w-[260px] max-md:w-full" />
           <Select
             size="sm"
-            className="w-[230px]"
+            className="w-[230px] max-md:h-9 max-md:w-full"
             value={loc}
             onChange={setLoc}
             options={[{ value: 'all', label: 'All locations' }, ...(inv?.locations ?? []).filter((l) => l.files > 0).map((l) => ({ value: l.id, label: `${l.label} (${l.files})` }))]}
           />
-          <div className="flex-1" />
+          <div className="flex-1 max-md:hidden" />
           {(['size', 'name', 'unused'] as Sort[]).map((s) => (
-            <Chip key={s} active={sort === s} onClick={() => setSort(s)}>
+            <Chip key={s} active={sort === s} onClick={() => setSort(s)} className="max-md:h-9 max-md:rounded-full max-md:px-3">
               {s === 'size' ? 'Largest' : s === 'name' ? 'Name' : 'Unused first'}
             </Chip>
           ))}
         </div>
         <div className="glass hairline overflow-hidden rounded-2xl">
-          <div className="grid grid-cols-[minmax(0,1fr)_120px_minmax(0,220px)_150px_84px_68px] items-center gap-3 border-b border-line px-4 py-2 text-[10.5px] font-semibold tracking-wide text-fg-3 uppercase">
+          <div className="grid grid-cols-[minmax(0,1fr)_120px_minmax(0,220px)_150px_84px_68px] items-center gap-3 border-b border-line px-4 py-2 text-[10.5px] font-semibold tracking-wide text-fg-3 uppercase max-md:hidden">
             <span>Model</span>
             <span>Type</span>
             <span>Used by</span>
@@ -486,7 +488,7 @@ export function ModelManager(): React.JSX.Element {
           ) : !models.length ? (
             <EmptyState className="py-12" icon={<Boxes />} title={q ? 'No matches' : 'No model files yet'} body={q ? 'Try another search.' : 'Install a recipe’s models below, or download from Civitai.'} />
           ) : (
-            <div className="max-h-[560px] overflow-y-auto">
+            <div className="max-h-[560px] overflow-y-auto max-md:max-h-[64vh]">
               <AnimatePresence initial={false}>
                 {models.map((m) => (
                   <motion.div
@@ -496,53 +498,103 @@ export function ModelManager(): React.JSX.Element {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0, x: 24, transition: { duration: 0.2 } }}
                     transition={spring}
-                    className="group grid grid-cols-[minmax(0,1fr)_120px_minmax(0,220px)_150px_84px_68px] items-center gap-3 border-b border-line/60 px-4 py-2 last:border-b-0 hover:bg-white/[0.03]"
+                    className={cn(
+                      'group items-center border-b border-line/60 last:border-b-0',
+                      compact ? 'flex gap-3 py-2.5 pr-1.5 pl-3.5' : 'grid grid-cols-[minmax(0,1fr)_120px_minmax(0,220px)_150px_84px_68px] gap-3 px-4 py-2 hover:bg-white/[0.03]'
+                    )}
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <ModelThumb model={asLocal(m)} compact className="size-9 shrink-0 rounded-lg" />
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <span className="truncate text-[12.5px] font-medium" title={m.name}>
-                            {m.meta?.source === 'civitai' ? m.meta.name : m.name.split('/').pop()}
-                          </span>
-                          {m.partial && <Badge tone="warning">Partial download</Badge>}
-                        </div>
-                        <div className="truncate text-[10.5px] text-fg-3" title={m.path}>
-                          {folderLabel(m.folder)} · {m.name}
-                        </div>
-                      </div>
-                    </div>
-                    <KindTag kind={m.kind} className="justify-self-start" />
-                    <div className="flex min-w-0 flex-wrap gap-1">
-                      {m.usedBy.length ? (
-                        <>
-                          {m.usedBy.slice(0, 2).map((u) => (
-                            <span key={u.id} className="max-w-full truncate rounded-md border border-line bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] text-fg-2">
-                              {u.name}
+                    {compact ? (
+                      <>
+                        <ModelThumb model={asLocal(m)} compact className="size-11 shrink-0 rounded-xl" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 truncate text-[12.5px] font-medium" title={m.name}>
+                              {m.meta?.source === 'civitai' ? m.meta.name : m.name.split('/').pop()}
                             </span>
-                          ))}
-                          {m.usedBy.length > 2 && (
-                            <Tooltip content={m.usedBy.map((u) => u.name).join(', ')}>
-                              <span className="px-1 text-[10.5px] text-fg-3">+{m.usedBy.length - 2}</span>
-                            </Tooltip>
+                            <span className="ml-auto shrink-0 text-[11px] text-fg-2 tabular-nums">{formatBytes(m.size)}</span>
+                          </div>
+                          <div className="mt-0.5 truncate text-[10.5px] text-fg-3" title={m.path}>
+                            {folderLabel(m.folder)} · {locName.get(m.locationId) ?? '—'}
+                          </div>
+                          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
+                            <KindTag kind={m.kind} />
+                            {m.partial && <Badge tone="warning">Partial download</Badge>}
+                            {m.usedBy.slice(0, 2).map((u) => (
+                              <span key={u.id} className="max-w-full truncate rounded-md border border-line bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] text-fg-2">
+                                {u.name}
+                              </span>
+                            ))}
+                            {m.usedBy.length > 2 && <span className="px-1 text-[10.5px] text-fg-3">+{m.usedBy.length - 2}</span>}
+                            {!m.usedBy.length && <span className="text-[10.5px] text-fg-3/70">Not used by a recipe</span>}
+                          </div>
+                        </div>
+                        <Menu
+                          align="end"
+                          trigger={
+                            <IconButton label="Model actions" className="size-10 shrink-0 rounded-full">
+                              <MoreHorizontal className="size-4" />
+                            </IconButton>
+                          }
+                        >
+                          {!isPhone && (
+                            <MenuItem icon={<FolderOpen />} onSelect={() => void invoke('sys:showInFolder', m.path)}>
+                              Show in folder
+                            </MenuItem>
                           )}
-                        </>
-                      ) : (
-                        <span className="text-[10.5px] text-fg-3/70">Not used by a recipe</span>
-                      )}
-                    </div>
-                    <span className="truncate text-[11px] text-fg-3" title={locName.get(m.locationId)}>
-                      {locName.get(m.locationId) ?? '—'}
-                    </span>
-                    <span className="text-right text-[11.5px] text-fg-2 tabular-nums">{formatBytes(m.size)}</span>
-                    <div className="flex justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
-                      <IconButton label="Show in folder" size="xs" onClick={() => void invoke('sys:showInFolder', m.path)}>
-                        <FolderOpen className="size-3.5" />
-                      </IconButton>
-                      <IconButton label="Delete" size="xs" className="hover:text-danger" onClick={() => setConfirm(m)}>
-                        <Trash2 className="size-3.5" />
-                      </IconButton>
-                    </div>
+                          <MenuItem icon={<Trash2 />} danger onSelect={() => setConfirm(m)}>
+                            Move to Recycle Bin…
+                          </MenuItem>
+                        </Menu>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <ModelThumb model={asLocal(m)} compact className="size-9 shrink-0 rounded-lg" />
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span className="truncate text-[12.5px] font-medium" title={m.name}>
+                                {m.meta?.source === 'civitai' ? m.meta.name : m.name.split('/').pop()}
+                              </span>
+                              {m.partial && <Badge tone="warning">Partial download</Badge>}
+                            </div>
+                            <div className="truncate text-[10.5px] text-fg-3" title={m.path}>
+                              {folderLabel(m.folder)} · {m.name}
+                            </div>
+                          </div>
+                        </div>
+                        <KindTag kind={m.kind} className="justify-self-start" />
+                        <div className="flex min-w-0 flex-wrap gap-1">
+                          {m.usedBy.length ? (
+                            <>
+                              {m.usedBy.slice(0, 2).map((u) => (
+                                <span key={u.id} className="max-w-full truncate rounded-md border border-line bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] text-fg-2">
+                                  {u.name}
+                                </span>
+                              ))}
+                              {m.usedBy.length > 2 && (
+                                <Tooltip content={m.usedBy.map((u) => u.name).join(', ')}>
+                                  <span className="px-1 text-[10.5px] text-fg-3">+{m.usedBy.length - 2}</span>
+                                </Tooltip>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-[10.5px] text-fg-3/70">Not used by a recipe</span>
+                          )}
+                        </div>
+                        <span className="truncate text-[11px] text-fg-3" title={locName.get(m.locationId)}>
+                          {locName.get(m.locationId) ?? '—'}
+                        </span>
+                        <span className="text-right text-[11.5px] text-fg-2 tabular-nums">{formatBytes(m.size)}</span>
+                        <div className="flex justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
+                          <IconButton label="Show in folder" size="xs" onClick={() => void invoke('sys:showInFolder', m.path)}>
+                            <FolderOpen className="size-3.5" />
+                          </IconButton>
+                          <IconButton label="Delete" size="xs" className="hover:text-danger" onClick={() => setConfirm(m)}>
+                            <Trash2 className="size-3.5" />
+                          </IconButton>
+                        </div>
+                      </>
+                    )}
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -561,7 +613,7 @@ export function ModelManager(): React.JSX.Element {
             <p className="mt-1 text-[12px] text-fg-3">Exact files each built-in recipe needs, from Hugging Face — sizes and checksums verified.</p>
           </div>
         </div>
-        <motion.div variants={stagger(0.03, 0.02)} initial="initial" animate="animate" className="grid grid-cols-3 gap-3">
+        <motion.div variants={stagger(0.03, 0.02)} initial="initial" animate="animate" className="grid grid-cols-3 gap-3 max-md:grid-cols-1 max-md:gap-2.5">
           {catalog.map((e) => (
             <CatalogCard key={e.id} id={e.id} onInstall={() => setInstallEntry(e.id)} />
           ))}

@@ -36,7 +36,7 @@ function TagsField({ tags, onChange }: { tags: string[]; onChange: (t: string[])
     <Field label="Tags" count={tags.length} max={LIMITS.tags}>
       <div className="flex gap-2">
         <Input value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="Add a tag…" disabled={tags.length >= LIMITS.tags} />
-        <IconButton label="Add tag" variant="secondary" onClick={add} disabled={!v.trim() || tags.length >= LIMITS.tags}>
+        <IconButton label="Add tag" variant="secondary" onClick={add} disabled={!v.trim() || tags.length >= LIMITS.tags} className="max-md:size-9">
           <Plus className="size-4" />
         </IconButton>
       </div>
@@ -44,9 +44,9 @@ function TagsField({ tags, onChange }: { tags: string[]; onChange: (t: string[])
         <div className="mt-1 flex flex-wrap gap-1.5">
           <AnimatePresence initial={false}>
             {tags.map((t) => (
-              <motion.span key={t} layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={spring} className="flex h-7 items-center gap-1 rounded-full border border-line bg-white/[0.05] pr-1 pl-2.5 text-[12px] text-fg-2">
+              <motion.span key={t} layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={spring} className="flex h-7 items-center gap-1 rounded-full border border-line bg-white/[0.05] pr-1 pl-2.5 text-[12px] text-fg-2 max-md:h-8">
                 #{t}
-                <button onClick={() => onChange(tags.filter((x) => x !== t))} className="grid size-5 place-items-center rounded-full text-fg-3 hover:bg-white/10 hover:text-fg">
+                <button onClick={() => onChange(tags.filter((x) => x !== t))} className="grid size-5 place-items-center rounded-full text-fg-3 hover:bg-white/10 hover:text-fg max-md:size-6">
                   <X className="size-3" />
                 </button>
               </motion.span>

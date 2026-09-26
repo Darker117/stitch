@@ -7,8 +7,9 @@ import type { GpuSettings as Gpu, GpuWorkload } from '@shared/types'
 import { errorText, invoke } from '@/lib/api'
 import { cn, formatBytes } from '@/lib/utils'
 import { rise, spring, stagger } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 import { Button } from '@/components/ui/button'
-import { SwitchRow } from '@/components/ui/controls'
+import { Segmented, SwitchRow } from '@/components/ui/controls'
 import { Badge, SectionTitle, Spinner, StatusDot } from '@/components/ui/misc'
 import { Dialog } from '@/components/ui/overlay'
 import { useGen } from '@/stores/gen'
@@ -34,6 +35,7 @@ export function GpuSettings(): React.JSX.Element {
   const [draft, setDraft] = useState<Gpu>(settings.gpu)
   const [applying, setApplying] = useState(false)
   const [logs, setLogs] = useState<{ id: string; lines: string[] } | null>(null)
+  const compact = useCompact()
 
   useEffect(() => {
     void invoke('gpu:list').then(setGpus)
@@ -81,7 +83,7 @@ export function GpuSettings(): React.JSX.Element {
       <div>
         <SectionTitle icon={<Cpu />}>Graphics cards</SectionTitle>
         <p className="mt-1 text-[12.5px] text-fg-3">Choose which GPUs Stitch may use. Each selected GPU gets its own ComfyUI so image and video jobs can run at the same time.</p>
-        <motion.div variants={stagger(0.05)} initial="initial" animate="animate" className="mt-4 grid grid-cols-2 gap-3">
+        <motion.div variants={stagger(0.05)} initial="initial" animate="animate" className="mt-4 grid grid-cols-2 gap-3 max-md:grid-cols-1 max-md:gap-2.5">
           {gpus.map((g) => {
             const on = enabled.includes(g.index)
             const live = comfy.find((c) => c.managed && c.connectorId === `comfy-gpu${g.index}`)
@@ -136,40 +138,67 @@ export function GpuSettings(): React.JSX.Element {
       <div>
         <SectionTitle>Workload assignment</SectionTitle>
         <p className="mt-1 text-[12.5px] text-fg-3">Pin each part of Stitch to a GPU, or let it balance automatically across the selected ones.</p>
-        <div className="mt-4 overflow-hidden rounded-2xl border border-line">
-          <div className="grid border-b border-line bg-white/[0.03] text-[11px] font-semibold tracking-wide text-fg-3 uppercase" style={{ gridTemplateColumns: `1.6fr repeat(${enabled.length + 1}, 1fr)` }}>
-            <div className="px-4 py-2.5">Workload</div>
-            <div className="px-2 py-2.5 text-center">Auto</div>
-            {enabled.map((g) => (
-              <div key={g} className="truncate px-2 py-2.5 text-center">
-                {short(gpus.find((x) => x.index === g)?.name ?? `GPU ${g}`)}
+        {compact ? (
+          // Phone: one card per workload with a gliding GPU picker instead of the radio table.
+          <div className="mt-4 space-y-2.5">
+            {WORKLOADS.map((w) => {
+              const cur = draft.assign[w.key]
+              const value = typeof cur === 'number' && enabled.includes(cur) ? String(cur) : 'auto'
+              return (
+                <div key={w.key} className="space-y-3 rounded-2xl border border-line bg-white/[0.02] p-3.5">
+                  <div className="flex items-center gap-3">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-line bg-white/[0.04] text-fg-2 [&>svg]:size-4">{w.icon}</span>
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium">{w.label}</div>
+                      <div className="text-[11.5px] text-fg-3">{w.hint}</div>
+                    </div>
+                  </div>
+                  <Segmented
+                    value={value}
+                    onChange={(v) => assign(w.key, v === 'auto' ? 'auto' : Number(v))}
+                    items={[{ value: 'auto', label: 'Auto' }, ...enabled.map((g) => ({ value: String(g), label: short(gpus.find((x) => x.index === g)?.name ?? `GPU ${g}`) }))]}
+                    className="flex w-full [&>button]:h-9 [&>button]:min-w-0 [&>button]:flex-1 [&>button]:justify-center [&>button]:px-1.5 [&>button>span]:min-w-0 [&>button>span]:overflow-hidden"
+                  />
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="mt-4 overflow-hidden rounded-2xl border border-line">
+            <div className="grid border-b border-line bg-white/[0.03] text-[11px] font-semibold tracking-wide text-fg-3 uppercase" style={{ gridTemplateColumns: `1.6fr repeat(${enabled.length + 1}, 1fr)` }}>
+              <div className="px-4 py-2.5">Workload</div>
+              <div className="px-2 py-2.5 text-center">Auto</div>
+              {enabled.map((g) => (
+                <div key={g} className="truncate px-2 py-2.5 text-center">
+                  {short(gpus.find((x) => x.index === g)?.name ?? `GPU ${g}`)}
+                </div>
+              ))}
+            </div>
+            {WORKLOADS.map((w) => (
+              <div key={w.key} className="grid items-center border-b border-line last:border-b-0" style={{ gridTemplateColumns: `1.6fr repeat(${enabled.length + 1}, 1fr)` }}>
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <span className="grid size-8 place-items-center rounded-lg border border-line bg-white/[0.04] text-fg-2 [&>svg]:size-4">{w.icon}</span>
+                  <div>
+                    <div className="text-[13px] font-medium">{w.label}</div>
+                    <div className="text-[11px] text-fg-3">{w.hint}</div>
+                  </div>
+                </div>
+                {(['auto', ...enabled] as (number | 'auto')[]).map((opt) => {
+                  const cur = draft.assign[w.key]
+                  const active = cur === opt || (opt === 'auto' && typeof cur === 'number' && !enabled.includes(cur))
+                  return (
+                    <div key={String(opt)} className="flex justify-center py-3">
+                      <button onClick={() => assign(w.key, opt)} className={cn('relative grid size-6 place-items-center rounded-full border transition-colors duration-300', active ? 'border-transparent' : 'border-line-strong hover:border-white/30')}>
+                        {active && <motion.span layoutId={`gpu-${w.key}`} className="absolute inset-0 rounded-full bg-grad" transition={spring} />}
+                        {active && <Check className="relative size-3.5 text-white" strokeWidth={3} />}
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             ))}
           </div>
-          {WORKLOADS.map((w) => (
-            <div key={w.key} className="grid items-center border-b border-line last:border-b-0" style={{ gridTemplateColumns: `1.6fr repeat(${enabled.length + 1}, 1fr)` }}>
-              <div className="flex items-center gap-3 px-4 py-3">
-                <span className="grid size-8 place-items-center rounded-lg border border-line bg-white/[0.04] text-fg-2 [&>svg]:size-4">{w.icon}</span>
-                <div>
-                  <div className="text-[13px] font-medium">{w.label}</div>
-                  <div className="text-[11px] text-fg-3">{w.hint}</div>
-                </div>
-              </div>
-              {(['auto', ...enabled] as (number | 'auto')[]).map((opt) => {
-                const cur = draft.assign[w.key]
-                const active = cur === opt || (opt === 'auto' && typeof cur === 'number' && !enabled.includes(cur))
-                return (
-                  <div key={String(opt)} className="flex justify-center py-3">
-                    <button onClick={() => assign(w.key, opt)} className={cn('relative grid size-6 place-items-center rounded-full border transition-colors duration-300', active ? 'border-transparent' : 'border-line-strong hover:border-white/30')}>
-                      {active && <motion.span layoutId={`gpu-${w.key}`} className="absolute inset-0 rounded-full bg-grad" transition={spring} />}
-                      {active && <Check className="relative size-3.5 text-white" strokeWidth={3} />}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          ))}
-        </div>
+        )}
       </div>
 
       <div className="space-y-4 rounded-2xl border border-line p-4">
@@ -180,9 +209,9 @@ export function GpuSettings(): React.JSX.Element {
           onChange={(v) => setDraft((d) => ({ ...d, managed: v }))}
         />
         <SwitchRow label="Start with Stitch" help="Launch the managed ComfyUI instances automatically when Stitch opens." checked={settings.comfyAutoLaunch} onChange={(v) => void update({ comfyAutoLaunch: v })} disabled={!draft.managed} />
-        <div className="flex items-center justify-end gap-2 pt-1">
+        <div className="flex items-center justify-end gap-2 pt-1 max-md:justify-between">
           {dirty && <span className="text-[12px] text-fg-3">Unsaved changes</span>}
-          <Button variant="primary" loading={applying} icon={<Power className="size-3.5" />} onClick={() => void apply()}>
+          <Button variant="primary" className="max-md:ml-auto" loading={applying} icon={<Power className="size-3.5" />} onClick={() => void apply()}>
             Apply layout
           </Button>
         </div>
@@ -193,24 +222,24 @@ export function GpuSettings(): React.JSX.Element {
           <SectionTitle>Managed ComfyUI instances</SectionTitle>
           <div className="mt-3 space-y-2">
             {managed.map((c) => (
-              <div key={c.connectorId} className="glass hairline flex items-center gap-3 rounded-xl px-4 py-3">
+              <div key={c.connectorId} className="glass hairline flex items-center gap-3 rounded-xl px-4 py-3 max-md:flex-wrap max-md:px-3.5">
                 <StatusDot state={c.online ? 'online' : c.processState === 'starting' ? 'busy' : c.processState === 'crashed' ? 'warn' : 'offline'} />
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 max-md:basis-[calc(100%-2rem)]">
                   <div className="text-[13px] font-medium">{c.name}</div>
                   <div className="text-[11.5px] text-fg-3">
                     {c.url} · {c.online ? `running · ${c.queueRemaining} queued` : c.processState}
                   </div>
                 </div>
                 {c.processState === 'starting' && <Spinner className="size-3.5 text-fg-3" />}
-                <Button size="sm" variant="ghost" icon={<ScrollText className="size-3.5" />} onClick={async () => setLogs({ id: c.name, lines: await invoke('comfy:logs', c.connectorId) })}>
+                <Button size="sm" variant="ghost" className="max-md:ml-auto max-md:h-9" icon={<ScrollText className="size-3.5" />} onClick={async () => setLogs({ id: c.name, lines: await invoke('comfy:logs', c.connectorId) })}>
                   Logs
                 </Button>
                 {c.processState === 'running' || c.processState === 'starting' ? (
-                  <Button size="sm" icon={<Square className="size-3" />} onClick={() => void invoke('comfy:stop', c.connectorId)}>
+                  <Button size="sm" className="max-md:h-9" icon={<Square className="size-3" />} onClick={() => void invoke('comfy:stop', c.connectorId)}>
                     Stop
                   </Button>
                 ) : (
-                  <Button size="sm" icon={<Play className="size-3" />} onClick={() => invoke('comfy:launch', c.connectorId).catch((e) => toast.error('Could not start', errorText(e)))}>
+                  <Button size="sm" className="max-md:h-9" icon={<Play className="size-3" />} onClick={() => invoke('comfy:launch', c.connectorId).catch((e) => toast.error('Could not start', errorText(e)))}>
                     Start
                   </Button>
                 )}

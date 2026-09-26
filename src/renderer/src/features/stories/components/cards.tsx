@@ -122,7 +122,7 @@ function CardMenu({ card, onEdit, onDuplicate, onDelete }: { card: StoryCard; on
     <Menu
       align="end"
       trigger={
-        <button onClick={(e) => e.stopPropagation()} className="grid size-7 place-items-center rounded-lg text-fg-3 opacity-70 transition hover:bg-white/10 hover:text-fg hover:opacity-100" aria-label={`${card.name} options`}>
+        <button onClick={(e) => e.stopPropagation()} className="grid size-7 place-items-center rounded-lg text-fg-3 opacity-70 transition hover:bg-white/10 hover:text-fg hover:opacity-100 max-md:-my-1 max-md:-mr-1 max-md:size-9 max-md:opacity-100" aria-label={`${card.name} options`}>
           <Ellipsis className="size-4" />
         </button>
       }
@@ -161,7 +161,7 @@ function CardTile({ card, view, onOpen, onDuplicate, onDelete }: { card: StoryCa
       onClick={onOpen}
       className={cn(
         'group relative flex cursor-default flex-col overflow-hidden rounded-2xl border border-line bg-white/[0.03] transition-[border-color,background,box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:border-line-strong hover:bg-white/[0.055] hover:shadow-[0_18px_40px_-24px_rgb(0_0_0/0.9)]',
-        compact ? 'h-[92px] p-3' : 'h-[178px] p-4'
+        compact ? 'h-[92px] p-3' : 'h-[178px] p-4 max-md:h-auto max-md:min-h-[120px]'
       )}
     >
       <div className="flex items-start gap-2">
@@ -220,13 +220,16 @@ export function StoryCardsBoard({
   }
 
   const cols = view === 'list' ? 'grid-cols-1' : view === 'compact' ? (columns === 3 ? 'grid-cols-4' : 'grid-cols-3') : columns === 3 ? 'grid-cols-3' : 'grid-cols-2'
+  // Phones: rich tiles in one column, compact tiles two-up.
+  const phoneCols = view === 'compact' ? 'max-md:grid-cols-2' : 'max-md:grid-cols-1'
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
+      {/* Phones: search gets its own row above the filters and view switch. */}
+      <div className="flex items-center gap-2 max-md:flex-wrap">
         <Menu
           trigger={
-            <Button size="sm" variant="secondary" icon={<SlidersHorizontal className="size-3.5" />} className="tracking-wide uppercase">
+            <Button size="sm" variant="secondary" icon={<SlidersHorizontal className="size-3.5" />} className="tracking-wide uppercase max-md:h-9">
               Filters{types.length ? ` · ${types.length}` : ''}
             </Button>
           }
@@ -246,13 +249,14 @@ export function StoryCardsBoard({
             </>
           )}
         </Menu>
-        <SearchField value={q} onChange={setQ} placeholder="Search cards" className="w-[200px] max-w-[40%]" />
+        <SearchField value={q} onChange={setQ} placeholder="Search cards" className="w-[200px] max-w-[40%] max-md:order-first max-md:w-full max-md:max-w-none" />
         <div className="flex-1" />
         {toolbarExtra}
         <Segmented
           size="sm"
           value={view}
           onChange={setView}
+          className="max-md:[&>button]:h-7.5 max-md:[&>button]:px-3"
           items={[
             { value: 'grid', label: <LayoutGrid className="size-3.5" /> },
             { value: 'compact', label: <Rows3 className="size-3.5" /> },
@@ -261,20 +265,20 @@ export function StoryCardsBoard({
         />
       </div>
 
-      <motion.div layout className={cn('grid gap-2.5', cols)}>
+      <motion.div layout className={cn('grid gap-2.5', cols, phoneCols)}>
         <motion.button
           layout
           whileTap={{ scale: 0.98 }}
           onClick={() => setEditing({ card: newCard({ type: types.length === 1 ? types[0] : 'character', generator: { ...DEFAULT_GENERATOR } }), isNew: true })}
           className={cn(
             'group flex items-center justify-center gap-2 rounded-2xl border border-dashed border-[color-mix(in_oklab,var(--accent)_40%,transparent)] bg-[color-mix(in_oklab,var(--accent)_7%,transparent)] px-5 text-center text-[13px] font-semibold text-accent transition-colors hover:bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]',
-            view === 'grid' ? 'h-[178px] flex-col' : view === 'compact' ? 'h-[92px] flex-col' : 'h-12'
+            view === 'grid' ? 'h-[178px] flex-col max-md:h-14 max-md:flex-row' : view === 'compact' ? 'h-[92px] flex-col' : 'h-12'
           )}
         >
           <span className="grid size-8 place-items-center rounded-full bg-[color-mix(in_oklab,var(--accent)_16%,transparent)] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-90">
             <Plus className="size-4" />
           </span>
-          <span className={cn('max-w-[220px] leading-snug', view === 'compact' && 'text-[12px]')}>{view === 'list' ? 'Add a story card' : 'Add character info, location, faction, and more'}</span>
+          <span className={cn('max-w-[220px] leading-snug', view === 'compact' && 'text-[12px]', view === 'grid' && 'max-md:text-left')}>{view === 'list' ? 'Add a story card' : 'Add character info, location, faction, and more'}</span>
         </motion.button>
         <AnimatePresence initial={false} mode="popLayout">
           {list.map((c) => (
@@ -312,7 +316,7 @@ function AiLink({ onClick, busy, children }: { onClick: () => void; busy: boolea
     <button
       onClick={onClick}
       disabled={busy}
-      className="ml-auto flex items-center gap-1.5 text-[12px] font-semibold text-accent transition hover:brightness-125 disabled:opacity-60"
+      className="ml-auto flex items-center gap-1.5 text-[12px] font-semibold text-accent transition hover:brightness-125 disabled:opacity-60 max-md:min-h-9"
     >
       {busy ? <Spinner className="size-3.5" /> : <WandSparkles className="size-3.5" />}
       {children}
@@ -482,19 +486,28 @@ export function StoryCardModal({
             </Button>
           </div>
 
-          <div className="px-5 pt-4">
+          <div className="px-5 pt-4 max-md:px-4">
             <Segmented
               caps
               value={tab}
               onChange={setTab}
+              className="max-md:flex max-md:w-full max-md:[&>button]:h-9 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center"
               items={[
                 { value: 'details', label: 'Details' },
-                { value: 'generator', label: 'Generator settings' }
+                {
+                  value: 'generator',
+                  label: (
+                    <>
+                      <span className="max-md:hidden">Generator settings</span>
+                      <span className="md:hidden">Generator</span>
+                    </>
+                  )
+                }
               ]}
             />
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-5">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-5 max-md:px-4">
             <AnimatePresence mode="wait" initial={false}>
               {tab === 'details' ? (
                 <motion.div key="d" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.22, ease }} className="flex flex-col gap-4">
@@ -508,7 +521,7 @@ export function StoryCardModal({
                     </Field>
                     {draft.type === 'custom' && (
                       <Field label="Category">
-                        <Input value={draft.customType ?? ''} onChange={(e) => set({ customType: e.target.value })} placeholder="e.g. Item, Spell" className="w-[160px]" />
+                        <Input value={draft.customType ?? ''} onChange={(e) => set({ customType: e.target.value })} placeholder="e.g. Item, Spell" className="w-[160px] max-md:w-[128px]" />
                       </Field>
                     )}
                   </div>

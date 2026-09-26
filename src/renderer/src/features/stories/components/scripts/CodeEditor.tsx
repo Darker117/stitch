@@ -1,6 +1,8 @@
 // JavaScript editor for story scripts (CodeMirror 6): line numbers, Tab to
 // indent, JS highlighting in the theme's colours, folding, search, bracket
 // matching and live syntax-error marks. Handles 400 KB libraries smoothly.
+// On phones (`dense`) the gutters tighten and lines can soft-wrap (`wrap`);
+// `onView` hands out the view so a toolbar can undo, indent or search.
 import { useEffect, useRef } from 'react'
 import { autocompletion, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
@@ -51,6 +53,18 @@ const theme = EditorView.theme(
   { dark: true }
 )
 
+/** Tighter gutters and type for phone widths. */
+const dense = EditorView.theme({
+  '&': { fontSize: '12px' },
+  '.cm-content': { padding: '10px 0' },
+  '.cm-line': { padding: '0 10px 0 6px' },
+  '.cm-lineNumbers .cm-gutterElement': { padding: '0 4px 0 8px', minWidth: '30px' },
+  '.cm-foldGutter .cm-gutterElement': { padding: '0 2px' },
+  '.cm-gutter-lint': { width: '8px' },
+  '.cm-panel.cm-search': { padding: '8px 10px' },
+  '.cm-panel.cm-search input, .cm-panel.cm-search button': { fontSize: '13px', height: '32px' }
+})
+
 const highlight = HighlightStyle.define([
   { tag: [t.keyword, t.controlKeyword, t.moduleKeyword, t.operatorKeyword, t.definitionKeyword, t.modifier], color: 'var(--accent-2)' },
   { tag: [t.string, t.special(t.string), t.character], color: 'color-mix(in oklab, var(--accent) 72%, #fff)' },
@@ -85,7 +99,7 @@ const syntaxErrors = linter(
   { delay: 700 }
 )
 
-function extensions(onChange: (text: string) => void, editable: Compartment, readOnly: boolean, hint?: string): Extension[] {
+function extensions(onChange: (text: string) => void, editable: Compartment, readOnly: boolean, hint?: string, look?: { compartment: Compartment; wrap: boolean; dense: boolean }): Extension[] {
   return [
     lineNumbers(),
     highlightActiveLineGutter(),
@@ -112,10 +126,15 @@ function extensions(onChange: (text: string) => void, editable: Compartment, rea
     theme,
     ...(hint ? [cmPlaceholder(hint)] : []),
     editable.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
+    ...(look ? [look.compartment.of(lookExtensions(look.wrap, look.dense))] : []),
     EditorView.updateListener.of((u) => {
       if (u.docChanged) onChange(u.state.doc.toString())
     })
   ]
+}
+
+function lookExtensions(wrap: boolean, isDense: boolean): Extension[] {
+  return [...(wrap ? [EditorView.lineWrapping] : []), ...(isDense ? [dense] : [])]
 }
 
 /**
@@ -129,7 +148,10 @@ export function CodeEditor({
   readOnly = false,
   placeholder,
   className,
-  autoFocus
+  autoFocus,
+  wrap = false,
+  dense: isDense = false,
+  onView
 }: {
   value: string
   resetKey?: string | number
@@ -138,26 +160,39 @@ export function CodeEditor({
   placeholder?: string
   className?: string
   autoFocus?: boolean
+  /** Soft-wrap long lines. */
+  wrap?: boolean
+  /** Phone density: tighter gutters and type. */
+  dense?: boolean
+  /** Receives the view when it is (re)built, and null when it goes away. */
+  onView?: (view: EditorView | null) => void
 }): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   const editable = useRef(new Compartment())
+  const look = useRef(new Compartment())
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const valueRef = useRef(value)
   valueRef.current = value
+  const lookRef = useRef({ wrap, dense: isDense })
+  lookRef.current = { wrap, dense: isDense }
+  const onViewRef = useRef(onView)
+  onViewRef.current = onView
 
   useEffect(() => {
     if (!host.current) return
     const v = new EditorView({
       parent: host.current,
-      state: EditorState.create({ doc: valueRef.current, extensions: extensions((t) => onChangeRef.current(t), editable.current, readOnly, placeholder) })
+      state: EditorState.create({ doc: valueRef.current, extensions: extensions((t) => onChangeRef.current(t), editable.current, readOnly, placeholder, { compartment: look.current, ...lookRef.current }) })
     })
     view.current = v
+    onViewRef.current?.(v)
     if (autoFocus) v.focus()
     return () => {
       v.destroy()
       view.current = null
+      onViewRef.current?.(null)
     }
     // Rebuilt only when the document is reset.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -166,6 +201,10 @@ export function CodeEditor({
   useEffect(() => {
     view.current?.dispatch({ effects: editable.current.reconfigure([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]) })
   }, [readOnly])
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: look.current.reconfigure(lookExtensions(wrap, isDense)) })
+  }, [wrap, isDense])
 
   return <div ref={host} className={cn('min-h-0 overflow-hidden', className)} />
 }

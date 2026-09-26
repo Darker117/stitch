@@ -13,7 +13,8 @@ export const VOICE_KIND_LABEL: Record<VoiceKind, string> = {
   'local-pocket': 'Pocket TTS',
   elevenlabs: 'ElevenLabs',
   'openai-tts': 'OpenAI',
-  azure: 'Azure'
+  azure: 'Azure',
+  device: 'This phone'
 }
 
 export const VOICE_KIND_TAGLINE: Record<VoiceKind, string> = {
@@ -22,7 +23,8 @@ export const VOICE_KIND_TAGLINE: Record<VoiceKind, string> = {
   'local-pocket': 'Local · Pocket TTS · CPU, voice cloning',
   elevenlabs: 'Cloud · voice library & instant cloning',
   'openai-tts': 'Cloud · steerable gpt-4o-mini-tts',
-  azure: 'Cloud · 400+ neural voices & styles'
+  azure: 'Cloud · 400+ neural voices & styles',
+  device: 'On-device · runs on your phone'
 }
 
 /** "707 MB" / "1.2 GB" for engine sizes. */
@@ -44,7 +46,8 @@ export const ENGINE_OF_KIND: Record<VoiceKind, VoiceEngineId> = {
   'local-pocket': 'pocket',
   elevenlabs: 'elevenlabs',
   'openai-tts': 'openai',
-  azure: 'azure'
+  azure: 'azure',
+  device: 'device'
 }
 
 export const isLocalKind = (kind: VoiceKind | undefined): boolean => !!kind && kind.startsWith('local-')
@@ -70,7 +73,9 @@ export const VOICE_MODELS: Record<VoiceKind, { value: string; label: string; hin
     { value: 'gpt-4o-mini-tts', label: 'gpt-4o-mini-tts', hint: 'Follows delivery notes' },
     { value: 'tts-1-hd', label: 'tts-1-hd', hint: 'Classic, high quality' }
   ],
-  azure: [{ value: 'neural', label: 'Neural', hint: 'Styles from delivery notes' }]
+  azure: [{ value: 'neural', label: 'Neural', hint: 'Styles from delivery notes' }],
+  // Filled at runtime from the phone's downloaded models (voice:models).
+  device: []
 }
 
 export const VOICE_LANGUAGES = ['Auto', 'English', 'Chinese', 'Japanese', 'Korean', 'German', 'French', 'Russian', 'Portuguese', 'Spanish', 'Italian']

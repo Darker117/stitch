@@ -5,6 +5,7 @@ import { Dialog as D, DropdownMenu as M, Popover as P, Select as S, Tooltip as T
 import { Check, ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ease, springSoft } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 
 // ─── Dialog ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,23 @@ export function Dialog({
   hideClose?: boolean
   headerAction?: ReactNode
 }): React.JSX.Element {
+  // Phone width: the dialog becomes a bottom sheet.
+  const compact = useCompact()
+  const motionProps = compact
+    ? {
+        style: { width: '100%' },
+        initial: { y: '100%' },
+        animate: { y: 0 },
+        exit: { y: '100%' },
+        transition: { type: 'spring' as const, stiffness: 380, damping: 38, mass: 0.9 }
+      }
+    : {
+        style: { width, x: '-50%', y: '-50%' },
+        initial: { opacity: 0, scale: 0.95, y: 'calc(-50% + 12px)' },
+        animate: { opacity: 1, scale: 1, y: '-50%' },
+        exit: { opacity: 0, scale: 0.97, y: 'calc(-50% + 6px)' },
+        transition: springSoft
+      }
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <AnimatePresence>
@@ -48,15 +66,14 @@ export function Dialog({
             <D.Content asChild forceMount aria-describedby={undefined}>
               <motion.div
                 className={cn(
-                  'glass-strong fixed top-1/2 left-1/2 z-50 flex max-h-[86vh] max-w-[calc(100vw-48px)] flex-col overflow-hidden rounded-[20px] shadow-[var(--shadow-pop)] outline-none',
+                  compact
+                    ? 'glass-strong fixed inset-x-0 bottom-0 z-50 flex max-h-[92vh] flex-col overflow-hidden rounded-t-[24px] border-b-0 pb-[var(--sab,0px)] shadow-[0_-30px_80px_-20px_rgb(0_0_0/0.8)] outline-none'
+                    : 'glass-strong fixed top-1/2 left-1/2 z-50 flex max-h-[86vh] max-w-[calc(100vw-48px)] flex-col overflow-hidden rounded-[20px] shadow-[var(--shadow-pop)] outline-none',
                   className
                 )}
-                style={{ width, x: '-50%', y: '-50%' }}
-                initial={{ opacity: 0, scale: 0.95, y: 'calc(-50% + 12px)' }}
-                animate={{ opacity: 1, scale: 1, y: '-50%' }}
-                exit={{ opacity: 0, scale: 0.97, y: 'calc(-50% + 6px)' }}
-                transition={springSoft}
+                {...motionProps}
               >
+                {compact && <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/20" />}
                 {(title || !hideClose) && (
                   <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
                     <div className="min-w-0">
@@ -114,7 +131,7 @@ export function Popover({
             initial={{ opacity: 0, scale: 0.96, y: side === 'top' ? 6 : -6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={springSoft}
-            className={cn('glass-strong rounded-2xl p-1.5 shadow-[var(--shadow-pop)]', className)}
+            className={cn('glass-strong max-w-[calc(100vw-24px)] rounded-2xl p-1.5 shadow-[var(--shadow-pop)]', className)}
             style={{ transformOrigin: 'var(--radix-popover-content-transform-origin)' }}
           >
             {children}
@@ -151,7 +168,7 @@ export function Menu({
             initial={{ opacity: 0, scale: 0.96, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={springSoft}
-            className={cn('glass-strong min-w-[200px] rounded-xl p-1 shadow-[var(--shadow-pop)]', className)}
+            className={cn('glass-strong max-w-[calc(100vw-24px)] min-w-[200px] rounded-xl p-1 shadow-[var(--shadow-pop)]', className)}
             style={{ transformOrigin: 'var(--radix-dropdown-menu-content-transform-origin)' }}
           >
             {children}

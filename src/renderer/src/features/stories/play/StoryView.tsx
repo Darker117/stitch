@@ -1,11 +1,12 @@
 // The story column: AI passages, player actions, streaming text and media.
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ChevronLeft, ChevronRight, Clapperboard, Eye, Pencil, RefreshCw, Trash2, Volume2 } from 'lucide-react'
 import type { Adventure, ID, StoryAction } from '@shared/types'
 import { Tooltip } from '@/components/ui/overlay'
 import { cn } from '@/lib/utils'
 import { ease } from '@/lib/motion'
+import { isTouch, useCompact } from '@/lib/platform'
 import { ThinkingBlock } from '@/features/create/Messages'
 import { isAiAction, playerLine } from '../engine/text'
 import { ActionIcon } from './bits'
@@ -31,6 +32,37 @@ function ToolButton({ label, onClick, children, disabled }: { label: string; onC
         {children}
       </button>
     </Tooltip>
+  )
+}
+
+type Tool = { label: string; icon: ReactNode; onClick: () => void; disabled?: boolean }
+
+/** Touch: the passage's tools as a row of labelled chips under the tapped passage. */
+function ToolRow({ tools, onDone }: { tools: Tool[]; onDone: () => void }): React.JSX.Element {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -4, scale: 0.98, transition: { duration: 0.14 } }}
+      transition={{ duration: 0.26, ease }}
+      className="flex origin-top-left flex-wrap gap-1.5 pt-2.5 pb-1 font-sans"
+    >
+      {tools.map((x) => (
+        <button
+          key={x.label}
+          onClick={(e) => {
+            e.stopPropagation()
+            onDone()
+            x.onClick()
+          }}
+          disabled={x.disabled}
+          className="flex h-9 items-center gap-1.5 rounded-full border border-line bg-[var(--panel)] px-3.5 text-[12px] font-medium text-fg-2 backdrop-blur-xl transition-[transform,opacity] duration-150 active:scale-95 disabled:opacity-40 [&>svg]:size-3.5 [&>svg]:text-accent"
+        >
+          {x.icon}
+          {x.label}
+        </button>
+      ))}
+    </motion.div>
   )
 }
 
@@ -112,7 +144,10 @@ const Passage = memo(function Passage({
   streaming,
   ctl,
   animateText,
-  onOpen
+  onOpen,
+  touch,
+  selected,
+  onSelect
 }: {
   adv: Adventure
   a: StoryAction
@@ -122,6 +157,10 @@ const Passage = memo(function Passage({
   ctl: PlayController
   animateText: boolean
   onOpen: (id: ID) => void
+  /** Touch layout: tap selects the passage and shows its tools (no hover). */
+  touch: boolean
+  selected: boolean
+  onSelect: (id: ID | null) => void
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const ai = isAiAction(a)
@@ -139,47 +178,45 @@ const Passage = memo(function Passage({
     else void ctl.edit(a.id, t)
   }
 
-  const toolbar = (
+  const tools: Tool[] = [
+    ...(ai
+      ? [
+          { label: 'See this moment', icon: <Eye className="size-3.5" />, onClick: () => void ctl.see(a.id), disabled: !!pending?.see },
+          { label: 'Animate', icon: <Clapperboard className="size-3.5" />, onClick: () => void ctl.animate(a.id), disabled: !!pending?.animate },
+          { label: 'Narrate', icon: <Volume2 className="size-3.5" />, onClick: () => void ctl.narrate(a.id), disabled: !!pending?.narrate }
+        ]
+      : []),
+    ...(a.type === 'see' ? [{ label: 'See again', icon: <RefreshCw className="size-3.5" />, onClick: () => void ctl.see(a.id, a.text || undefined), disabled: !!pending?.see }] : []),
+    ...(a.type !== 'see' ? [{ label: 'Edit', icon: <Pencil className="size-3.5" />, onClick: () => setEditing(true) }] : []),
+    { label: 'Delete', icon: <Trash2 className="size-3.5" />, onClick: () => void ctl.remove(a.id) }
+  ]
+
+  const toolbar = touch ? null : (
     <div className="pointer-events-none absolute -top-3 right-0 z-10 flex items-center gap-0.5 rounded-xl border border-line bg-[var(--panel)] p-0.5 opacity-0 shadow-[0_10px_30px_-12px_rgb(0_0_0/0.6)] backdrop-blur-xl transition-all duration-200 group-hover:pointer-events-auto group-hover:-translate-y-1 group-hover:opacity-100">
-      {ai && (
-        <>
-          <ToolButton label="See this moment" onClick={() => void ctl.see(a.id)} disabled={!!pending?.see}>
-            <Eye className="size-3.5" />
-          </ToolButton>
-          <ToolButton label="Animate" onClick={() => void ctl.animate(a.id)} disabled={!!pending?.animate}>
-            <Clapperboard className="size-3.5" />
-          </ToolButton>
-          <ToolButton label="Narrate" onClick={() => void ctl.narrate(a.id)} disabled={!!pending?.narrate}>
-            <Volume2 className="size-3.5" />
-          </ToolButton>
-        </>
-      )}
-      {a.type === 'see' && (
-        <ToolButton label="See again" onClick={() => void ctl.see(a.id, a.text || undefined)} disabled={!!pending?.see}>
-          <RefreshCw className="size-3.5" />
+      {tools.map((x) => (
+        <ToolButton key={x.label} label={x.label} onClick={x.onClick} disabled={x.disabled}>
+          {x.icon}
         </ToolButton>
-      )}
-      {a.type !== 'see' && (
-        <ToolButton label="Edit" onClick={() => setEditing(true)}>
-          <Pencil className="size-3.5" />
-        </ToolButton>
-      )}
-      <ToolButton label="Delete" onClick={() => void ctl.remove(a.id)}>
-        <Trash2 className="size-3.5" />
-      </ToolButton>
+      ))}
     </div>
   )
+  const toolRow = <AnimatePresence initial={false}>{touch && selected && !editing && <ToolRow key="tools" tools={tools} onDone={() => onSelect(null)} />}</AnimatePresence>
+  // Desktop: click edits in place. Touch: tap selects (tools appear), Edit is one of the tools.
+  const tap = (edit: () => void): void => {
+    if (!touch) return edit()
+    if (!editing) onSelect(selected ? null : a.id)
+  }
 
   if (!ai) {
     return (
-      <motion.div layout="position" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }} className="group relative my-5">
+      <motion.div layout="position" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }} className="group relative my-5" data-passage={a.id}>
         {toolbar}
         <div className="flex items-start gap-2.5" style={{ color: 'var(--st-muted)' }}>
           <span className="mt-[0.3em] h-[1.35em] w-[7px] shrink-0 rounded-l-[4px] border-y-2 border-l-2 border-[color-mix(in_oklab,var(--accent)_75%,transparent)]" />
           <span className="mt-[0.38em] shrink-0 text-accent">
             <ActionIcon type={a.type} className="size-[0.95em]" />
           </span>
-          <div className="min-w-0 flex-1 cursor-text" onClick={() => a.type !== 'see' && setEditing(true)}>
+          <div className="min-w-0 flex-1 cursor-text" onClick={() => tap(() => a.type !== 'see' && setEditing(true))}>
             {editing ? (
               <Editor text={a.text} onDone={done} />
             ) : (
@@ -188,6 +225,7 @@ const Passage = memo(function Passage({
           </div>
         </div>
         <div className="pl-[34px]">
+          {toolRow}
           <TurnMedia adv={adv} action={a} pending={pending} onOpen={onOpen} onAnimate={() => void ctl.animate(a.id)} autoplay={ctl.autoplay} />
         </div>
       </motion.div>
@@ -195,16 +233,17 @@ const Passage = memo(function Passage({
   }
 
   return (
-    <motion.div layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, ease }} className="group relative my-3">
+    <motion.div layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, ease }} className="group relative my-3" data-passage={a.id}>
       {!live && toolbar}
       <div
         className={cn(
-          '-mx-4 rounded-2xl px-4 py-2 transition-[background-color,box-shadow] duration-700',
-          (fresh || live) && 'bg-[color-mix(in_oklab,var(--accent)_7%,transparent)] shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--accent)_12%,transparent)]'
+          '-mx-4 rounded-2xl px-4 py-2 transition-[background-color,box-shadow] duration-700 max-md:-mx-3 max-md:px-3',
+          (fresh || live) && 'bg-[color-mix(in_oklab,var(--accent)_7%,transparent)] shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--accent)_12%,transparent)]',
+          touch && selected && !fresh && !live && 'bg-[color-mix(in_oklab,var(--fg)_5%,transparent)] duration-300'
         )}
       >
         {thought && !live && isLast && <Thinking reasoning={thought.text} ms={thought.ms} live={false} />}
-        <div className="cursor-text" onClick={() => !live && setEditing(true)} style={{ color: 'var(--st-text)' }}>
+        <div className="cursor-text" onClick={() => !live && tap(() => setEditing(true))} style={{ color: 'var(--st-text)' }}>
           {live && streaming ? (
             <StreamingText s={streaming} animate={animateText} />
           ) : editing ? (
@@ -214,18 +253,19 @@ const Passage = memo(function Passage({
           )}
         </div>
         {isLast && alts.length > 1 && !live && (
-          <div className="mt-2 flex items-center gap-1 text-[12px] text-fg-3">
-            <button onClick={() => void ctl.cycle(a.id, -1)} className="grid size-6 place-items-center rounded-md hover:bg-white/10 hover:text-fg" aria-label="Previous version">
-              <ChevronLeft className="size-3.5" />
+          <div className="mt-2 flex items-center gap-1 text-[12px] text-fg-3 max-md:-ml-2 max-md:gap-0.5 max-md:font-sans">
+            <button onClick={() => void ctl.cycle(a.id, -1)} className="grid size-6 place-items-center rounded-md hover:bg-white/10 hover:text-fg max-md:size-9 max-md:rounded-full max-md:active:bg-white/10" aria-label="Previous version">
+              <ChevronLeft className="size-3.5 max-md:size-4" />
             </button>
             <span className="tabular-nums">
               {altIdx < 0 ? '·' : altIdx + 1} / {alts.length}
             </span>
-            <button onClick={() => void ctl.cycle(a.id, 1)} className="grid size-6 place-items-center rounded-md hover:bg-white/10 hover:text-fg" aria-label="Next version">
-              <ChevronRight className="size-3.5" />
+            <button onClick={() => void ctl.cycle(a.id, 1)} className="grid size-6 place-items-center rounded-md hover:bg-white/10 hover:text-fg max-md:size-9 max-md:rounded-full max-md:active:bg-white/10" aria-label="Next version">
+              <ChevronRight className="size-3.5 max-md:size-4" />
             </button>
           </div>
         )}
+        {toolRow}
       </div>
       <TurnMedia adv={adv} action={a} pending={pending} onOpen={onOpen} onAnimate={() => void ctl.animate(a.id)} autoplay={ctl.autoplay} />
     </motion.div>
@@ -235,6 +275,17 @@ const Passage = memo(function Passage({
 export function StoryView({ adv, ctl, animateText, onOpen }: { adv: Adventure; ctl: PlayController; animateText: boolean; onOpen: (id: ID) => void }): React.JSX.Element {
   const s = ctl.streaming
   const newStream = s && !s.retry
+  const touch = useCompact() || isTouch
+  const [sel, setSel] = useState<ID | null>(null)
+  // Tapping anywhere outside the selected passage puts its tools away.
+  useEffect(() => {
+    if (!sel) return
+    const away = (e: PointerEvent): void => {
+      if (!(e.target as HTMLElement | null)?.closest?.(`[data-passage="${sel}"]`)) setSel(null)
+    }
+    document.addEventListener('pointerdown', away, true)
+    return () => document.removeEventListener('pointerdown', away, true)
+  }, [sel])
   return (
     <div>
       <AnimatePresence initial={false}>
@@ -249,12 +300,15 @@ export function StoryView({ adv, ctl, animateText, onOpen }: { adv: Adventure; c
             ctl={ctl}
             animateText={animateText}
             onOpen={onOpen}
+            touch={touch}
+            selected={sel === a.id}
+            onSelect={setSel}
           />
         ))}
       </AnimatePresence>
       {newStream && s && (
         <motion.div key={s.targetId} layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="my-3">
-          <div className="-mx-4 rounded-2xl bg-[color-mix(in_oklab,var(--accent)_7%,transparent)] px-4 py-2 shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--accent)_12%,transparent)]" style={{ color: 'var(--st-text)' }}>
+          <div className="-mx-4 rounded-2xl bg-[color-mix(in_oklab,var(--accent)_7%,transparent)] px-4 py-2 max-md:-mx-3 max-md:px-3 shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--accent)_12%,transparent)]" style={{ color: 'var(--st-text)' }}>
             <StreamingText s={s} animate={animateText} />
           </div>
         </motion.div>

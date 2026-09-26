@@ -70,12 +70,12 @@ function ScriptCard({ s }: { s: ScriptDraft }): React.JSX.Element {
 
   return (
     <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} transition={springSoft} className="overflow-hidden rounded-2xl border border-line bg-white/[0.03]">
-      <div className="flex items-start gap-3 p-4 pb-3">
+      <div className="flex items-start gap-3 p-4 pb-3 max-md:gap-2.5 max-md:p-3 max-md:pb-2.5">
         <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-grad-soft text-accent">
           <Code2 className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-md:flex-wrap max-md:gap-y-1">
             <div className="truncate text-[13.5px] font-semibold">{s.name || 'New script'}</div>
             <ScriptStatus s={s} />
           </div>
@@ -86,14 +86,14 @@ function ScriptCard({ s }: { s: ScriptDraft }): React.JSX.Element {
           <Switch size="sm" checked={s.attach} disabled={s.status === 'writing' || s.status === 'checking'} onChange={(v) => updateScript(s.id, { attach: v })} />
         </label>
         {mine ? (
-          <IconButton label="Stop" size="sm" onClick={stopScript}>
+          <IconButton label="Stop" size="sm" onClick={stopScript} className="max-md:size-9">
             <Square className="size-3 fill-current" />
           </IconButton>
         ) : (
           <Menu
             align="end"
             trigger={
-              <IconButton label="Script options" size="sm">
+              <IconButton label="Script options" size="sm" className="max-md:-my-1 max-md:size-9">
                 <Ellipsis className="size-4" />
               </IconButton>
             }
@@ -122,11 +122,13 @@ function ScriptCard({ s }: { s: ScriptDraft }): React.JSX.Element {
       )}
 
       <div className="border-t border-line bg-black/20">
-        <div className="flex items-center gap-2 px-3 pt-2.5">
+        {/* Phones: full-width hook switch with its hint underneath. */}
+        <div className="flex items-center gap-2 px-3 pt-2.5 max-md:flex-col max-md:items-stretch max-md:gap-1.5">
           <Segmented
             size="sm"
             value={shown}
             onChange={setHook}
+            className="max-md:flex max-md:w-full max-md:[&>button]:h-8 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center max-md:[&>button]:px-1"
             items={HOOKS.map((h) => ({
               value: h,
               label: (
@@ -137,7 +139,7 @@ function ScriptCard({ s }: { s: ScriptDraft }): React.JSX.Element {
               )
             }))}
           />
-          <span className="truncate text-[11px] text-fg-3">{HOOK_HINT[shown]}</span>
+          <span className="truncate text-[11px] text-fg-3 max-md:px-1">{HOOK_HINT[shown]}</span>
         </div>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={`${shown}-${editing}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="p-3">
@@ -174,10 +176,11 @@ function ScriptCard({ s }: { s: ScriptDraft }): React.JSX.Element {
         )}
         {!mine && s.status !== 'checking' && (
           <div className="flex gap-2 border-t border-line px-3 py-2.5">
-            <Input value={change} onChange={(e) => setChange(e.target.value)} placeholder="Ask for a change… e.g. start at 20 HP" className="h-8 text-[12px]" onKeyDown={(e) => e.key === 'Enter' && change.trim() && !busy && (void composeScript(s.request, { id: s.id, change }), setChange(''))} />
+            <Input value={change} onChange={(e) => setChange(e.target.value)} placeholder="Ask for a change… e.g. start at 20 HP" className="h-8 text-[12px] max-md:h-9" onKeyDown={(e) => e.key === 'Enter' && change.trim() && !busy && (void composeScript(s.request, { id: s.id, change }), setChange(''))} />
             <Button
               size="sm"
               variant="secondary"
+              className="max-md:h-9"
               icon={<WandSparkles className="size-3.5" />}
               disabled={!change.trim() || busy}
               onClick={() => {
@@ -209,15 +212,16 @@ export function ScriptsSection(): React.JSX.Element {
         Describe a mechanic and the composer writes an AI Dungeon-compatible script — Library, Input, Context and Output — checks it in the sandbox and attaches it to the scenario. You can also just ask for one in the chat.
       </p>
       <div className="flex gap-2">
-        <Input value={req} onChange={(e) => setReq(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && go()} icon={<Braces className="size-3.5" />} placeholder="e.g. Track my HP in the author's note and warn me when it's low" />
+        <Input value={req} onChange={(e) => setReq(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && go()} icon={<Braces className="size-3.5" />} placeholder="e.g. Track my HP in the author's note and warn me when it's low" className="max-md:min-w-0 max-md:flex-1" />
         <Button variant="primary" icon={<WandSparkles className="size-3.5" />} disabled={!req.trim() || busy} onClick={() => go()}>
-          Write script
+          <span className="max-md:hidden">Write script</span>
+          <span className="md:hidden">Write</span>
         </Button>
       </div>
       {!scripts.length && (
         <div className="flex flex-wrap gap-1.5">
           {IDEAS.map((i) => (
-            <Chip key={i} disabled={busy} onClick={() => go(i)}>
+            <Chip key={i} disabled={busy} onClick={() => go(i)} className="max-md:h-auto max-md:min-h-8 max-md:py-1 max-md:text-left">
               {i}
             </Chip>
           ))}

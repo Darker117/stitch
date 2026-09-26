@@ -10,6 +10,15 @@ npm run dist       # build the Windows installer into dist/
 ```
 See [`CLAUDE.md`](../CLAUDE.md) for architecture and conventions.
 
+## Phone app (Android)
+The Android companion lives in [`mobile/`](../mobile) — a Capacitor app that reuses this renderer's pages. Needs the Android SDK (with NDK) and JDK 21.
+```bash
+cd mobile
+npm install
+npm run apk        # web build → cap sync → android/app/build/outputs/apk/debug/app-debug.apk
+```
+Point `android/local.properties` at your SDK (`sdk.dir=…`). See [`mobile/CLAUDE.md`](../mobile/CLAUDE.md) for how it connects to the PC and how to preview it in a browser.
+
 ## Releasing an update
 Commit your changes, then:
 ```bash

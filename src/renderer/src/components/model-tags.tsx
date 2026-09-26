@@ -304,7 +304,7 @@ export function WordChip({ word, onClick, className, title }: { word: string; on
       }}
       title={title ?? (onClick ? `Insert “${word}”` : `Copy “${word}”`)}
       className={cn(
-        'group/chip inline-flex h-6 max-w-[220px] items-center gap-1 rounded-md border border-[color-mix(in_oklab,var(--accent)_28%,transparent)] bg-[color-mix(in_oklab,var(--accent)_9%,transparent)] px-1.5 font-mono text-[10.5px] text-fg transition-colors hover:border-[color-mix(in_oklab,var(--accent)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--accent)_16%,transparent)]',
+        'group/chip inline-flex h-6 max-w-[220px] items-center gap-1 rounded-md border border-[color-mix(in_oklab,var(--accent)_28%,transparent)] bg-[color-mix(in_oklab,var(--accent)_9%,transparent)] px-1.5 font-mono text-[10.5px] text-fg transition-colors hover:border-[color-mix(in_oklab,var(--accent)_50%,transparent)] hover:bg-[color-mix(in_oklab,var(--accent)_16%,transparent)] max-md:h-7.5 max-md:rounded-lg max-md:px-2 max-md:text-[11px]',
         className
       )}
     >

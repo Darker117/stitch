@@ -1,6 +1,6 @@
 // Chat transcript: markdown replies, attachments and live tool cards.
 import { memo, useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, AudioLines, BookOpen, Brain, Check, ChevronDown, Clapperboard, ImageIcon, Mic2, PenLine, ScanFace, Users, X } from 'lucide-react'
@@ -50,8 +50,8 @@ function ToolCard({ call, onApprove, pending, onOpen }: { call: ChatToolCall; on
 
   return (
     <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="glass hairline overflow-hidden rounded-2xl">
-      <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-        <span className={cn('grid size-7 place-items-center rounded-lg [&>svg]:size-3.5', call.status === 'error' ? 'bg-danger/15 text-danger' : 'bg-grad text-white')}>{meta.icon}</span>
+      <div className="flex items-center gap-2.5 px-3.5 py-2.5 max-md:px-3">
+        <span className={cn('grid size-7 shrink-0 place-items-center rounded-lg [&>svg]:size-3.5', call.status === 'error' ? 'bg-danger/15 text-danger' : 'bg-grad text-white')}>{meta.icon}</span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-[12.5px] font-medium">
             {call.status === 'done' ? meta.label.replace(/^(\w+)ing\b/, (m) => ({ Generating: 'Generated', Editing: 'Edited', Voicing: 'Voiced', Checking: 'Checked', Creating: 'Created', Writing: 'Wrote' })[m] ?? m) : meta.label}
@@ -64,12 +64,12 @@ function ToolCard({ call, onApprove, pending, onOpen }: { call: ChatToolCall; on
       </div>
 
       {pending && onApprove && (
-        <div className="flex items-center gap-2 border-t border-line px-3.5 py-2.5">
-          <span className="flex-1 text-[12px] text-fg-2">Run this generation?</span>
-          <Button size="sm" variant="ghost" icon={<X className="size-3.5" />} onClick={() => onApprove(false)}>
+        <div className="flex items-center gap-2 border-t border-line px-3.5 py-2.5 max-md:flex-wrap max-md:px-3">
+          <span className="flex-1 text-[12px] text-fg-2 max-md:basis-full max-md:pb-0.5">Run this generation?</span>
+          <Button size="sm" variant="ghost" icon={<X className="size-3.5" />} onClick={() => onApprove(false)} className="max-md:h-10 max-md:flex-1 max-md:rounded-xl max-md:border max-md:border-line">
             Skip
           </Button>
-          <Button size="sm" variant="primary" icon={<Check className="size-3.5" />} onClick={() => onApprove(true)}>
+          <Button size="sm" variant="primary" icon={<Check className="size-3.5" />} onClick={() => onApprove(true)} className="max-md:h-10 max-md:flex-[2] max-md:rounded-xl">
             Generate
           </Button>
         </div>
@@ -111,8 +111,8 @@ function ToolCard({ call, onApprove, pending, onOpen }: { call: ChatToolCall; on
 
       {call.status === 'error' && <div className="border-t border-line px-3.5 py-2 text-[11.5px] text-danger">{call.result}</div>}
       {call.status === 'done' && (call.name === 'create_character' || call.name === 'create_story') && res.id && (
-        <div className="border-t border-line px-3.5 py-2.5">
-          <Button size="sm" onClick={() => navigate(call.name === 'create_character' ? `/characters/${res.id}` : `/stories/scenario/${res.id}`)}>
+        <div className="border-t border-line px-3.5 py-2.5 max-md:px-3">
+          <Button size="sm" className="max-md:h-9 max-md:w-full" onClick={() => navigate(call.name === 'create_character' ? `/characters/${res.id}` : `/stories/scenario/${res.id}`)}>
             Open {call.name === 'create_character' ? 'character' : 'story'}
           </Button>
         </div>
@@ -131,7 +131,7 @@ export function ThinkingBlock({ reasoning, ms, live }: { reasoning: string; ms?:
   const seconds = ms ? Math.max(1, Math.round(ms / 1000)) : undefined
   return (
     <div className="flex flex-col">
-      <button onClick={() => setOpen((o) => !o)} className="group flex w-fit items-center gap-1.5 rounded-lg py-0.5 pr-2 text-[12.5px] font-medium text-fg-3 transition-colors hover:text-fg-2">
+      <button onClick={() => setOpen((o) => !o)} className="group flex w-fit items-center gap-1.5 rounded-lg py-0.5 pr-2 text-[12.5px] font-medium text-fg-3 transition-colors hover:text-fg-2 max-md:-my-1.5 max-md:min-h-9 max-md:py-1.5">
         <Brain className={cn('size-3.5', live && 'text-accent')} />
         {live ? (
           <span className="bg-[linear-gradient(90deg,var(--fg-3)_0%,var(--fg)_50%,var(--fg-3)_100%)] bg-[length:200%_100%] bg-clip-text text-transparent [animation:shimmer_1.8s_linear_infinite]">Thinking…</span>
@@ -144,7 +144,7 @@ export function ThinkingBlock({ reasoning, ms, live }: { reasoning: string; ms?:
       <AnimatePresence initial={false}>
         {open && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease }} className="overflow-hidden">
-            <div ref={body} className="selectable mt-1.5 max-h-[320px] overflow-y-auto border-l-2 border-[color-mix(in_oklab,var(--accent)_35%,transparent)] py-1 pl-3.5 text-[12.5px] leading-relaxed whitespace-pre-wrap text-fg-3">
+            <div ref={body} className="selectable mt-1.5 max-h-[320px] overflow-y-auto max-md:max-h-[260px] max-md:pl-3 border-l-2 border-[color-mix(in_oklab,var(--accent)_35%,transparent)] py-1 pl-3.5 text-[12.5px] leading-relaxed whitespace-pre-wrap text-fg-3">
               {reasoning}
             </div>
           </motion.div>
@@ -154,10 +154,21 @@ export function ThinkingBlock({ reasoning, ms, live }: { reasoning: string; ms?:
   )
 }
 
+// Wide tables scroll inside their own box on phones instead of pushing the page sideways.
+const MD_COMPONENTS: Components = {
+  table: ({ node: _node, ...props }) => (
+    <div className="max-md:overflow-x-auto">
+      <table {...props} />
+    </div>
+  )
+}
+
 const Markdown = memo(function Markdown({ text }: { text: string }) {
   return (
-    <div className="prose-stitch selectable">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+    <div className="prose-stitch selectable max-md:break-words">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+        {text}
+      </ReactMarkdown>
     </div>
   )
 })
@@ -180,7 +191,7 @@ export function Messages({
   const thinking = running && last?.role === 'assistant' && !last.content && !last.toolCalls?.length && !last.reasoning
 
   return (
-    <div className="mx-auto flex w-full max-w-[760px] flex-col gap-6 px-6 pt-6 pb-10">
+    <div className="mx-auto flex w-full max-w-[760px] flex-col gap-6 px-6 pt-6 pb-10 max-md:gap-5 max-md:px-4 max-md:pt-4 max-md:pb-4">
       <AnimatePresence initial={false}>
         {visible.map((m) =>
           m.role === 'user' ? (
@@ -189,14 +200,14 @@ export function Messages({
                 <div className="flex flex-wrap justify-end gap-2">
                   {m.attachments!.map((id) => {
                     const a = assets.find((x) => x.id === id)
-                    return a ? <AssetThumb key={id} asset={a} className="size-20" onClick={() => setLightbox(id)} /> : null
+                    return a ? <AssetThumb key={id} asset={a} className="size-20 max-md:size-24" onClick={() => setLightbox(id)} /> : null
                   })}
                 </div>
               )}
-              {m.content && <div className="selectable max-w-[85%] rounded-2xl rounded-br-md border border-line bg-white/[0.07] px-4 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap">{m.content}</div>}
+              {m.content && <div className="selectable max-w-[85%] rounded-2xl rounded-br-md border border-line bg-white/[0.07] px-4 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap max-md:max-w-[88%] max-md:px-3.5 max-md:break-words">{m.content}</div>}
             </motion.div>
           ) : (
-            <motion.div key={m.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }} className="flex gap-3">
+            <motion.div key={m.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }} className="flex gap-3 max-md:gap-2.5">
               <div className="mt-0.5 shrink-0">
                 <Orb size={22} density={0.25} state={running && m.id === last?.id ? 'thinking' : 'idle'} />
               </div>

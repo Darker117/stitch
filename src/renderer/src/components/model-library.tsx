@@ -8,6 +8,7 @@ import { Slider as RS } from 'radix-ui'
 import { Check, ChevronDown, Layers, Plus, TextCursorInput, Wand2, X } from 'lucide-react'
 import type { LocalModel, LoraRef } from '@shared/types'
 import { invoke, on } from '@/lib/api'
+import { useCompact } from '@/lib/platform'
 import { cn, formatBytes } from '@/lib/utils'
 import { ease, spring } from '@/lib/motion'
 import { useGen } from '@/stores/gen'
@@ -16,7 +17,7 @@ import { Button, IconButton } from './ui/button'
 import { Switch } from './ui/controls'
 import { SearchField } from './ui/input'
 import { Badge, Spinner } from './ui/misc'
-import { Popover, Tooltip } from './ui/overlay'
+import { Dialog, Popover, Tooltip } from './ui/overlay'
 import { BaseTag, KindTag, ModelThumb, modelTitle, WordChip } from './model-tags'
 
 // ─── Shared store ────────────────────────────────────────────────────────────
@@ -139,7 +140,7 @@ function ModelRow({
       onClick={onClick}
       disabled={added}
       className={cn(
-        'group relative flex w-full items-center gap-2.5 rounded-xl p-1.5 text-left transition-colors duration-150',
+        'group relative flex w-full items-center gap-2.5 rounded-xl p-1.5 text-left transition-colors duration-150 max-md:gap-3 max-md:p-2',
         active ? 'bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]' : 'hover:bg-white/[0.06]',
         added && 'opacity-55'
       )}
@@ -179,7 +180,8 @@ function ModelList({
   added = [],
   onConfirm,
   auto,
-  emptyLabel
+  emptyLabel,
+  className
 }: {
   models: LocalModel[]
   baseModelMatch?: string
@@ -190,7 +192,9 @@ function ModelList({
   onConfirm?: (names: string[]) => void
   auto?: { label: string; active: boolean; onPick: () => void }
   emptyLabel: string
+  className?: string
 }): React.JSX.Element {
+  const compact = useCompact()
   const [q, setQ] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [picked, setPicked] = useState<string[]>([])
@@ -207,10 +211,10 @@ function ModelList({
   }, [models, q, showAll, re])
 
   return (
-    <div className="flex max-h-[min(520px,72vh)] w-full flex-col">
-      <div className="space-y-2 border-b border-line p-2">
+    <div className={cn('flex max-h-[min(520px,72vh)] w-full flex-col', className)}>
+      <div className="space-y-2 border-b border-line p-2 max-md:px-3">
         <SearchField
-          autoFocus
+          autoFocus={!compact}
           value={q}
           onChange={setQ}
           placeholder="Search names, bases, keywords"
@@ -224,9 +228,9 @@ function ModelList({
           </label>
         )}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-1.5 max-md:px-2">
         {auto && !q && (
-          <button onClick={auto.onPick} className={cn('flex w-full items-center gap-2.5 rounded-xl p-1.5 text-left transition-colors', auto.active ? 'bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]' : 'hover:bg-white/[0.06]')}>
+          <button onClick={auto.onPick} className={cn('flex w-full items-center gap-2.5 rounded-xl p-1.5 text-left transition-colors max-md:gap-3 max-md:p-2', auto.active ? 'bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]' : 'hover:bg-white/[0.06]')}>
             <span className="grid size-11 shrink-0 place-items-center rounded-lg border border-dashed border-line-strong text-fg-3">
               <Wand2 className="size-4" />
             </span>
@@ -274,9 +278,9 @@ function ModelList({
         )}
       </div>
       {multi && (
-        <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2">
+        <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2 max-md:py-3">
           <span className="text-[11.5px] text-fg-3">{picked.length ? `${picked.length} selected` : 'Pick one or more'}</span>
-          <Button size="sm" variant="primary" disabled={!picked.length} icon={<Plus className="size-3.5" />} onClick={() => onConfirm?.(picked)}>
+          <Button size="sm" variant="primary" disabled={!picked.length} icon={<Plus className="size-3.5" />} onClick={() => onConfirm?.(picked)} className="max-md:h-10 max-md:px-4">
             {picked.length > 1 ? `Add ${picked.length} LoRAs` : 'Add LoRA'}
           </Button>
         </div>
@@ -302,61 +306,74 @@ export function ModelFilePicker({
 }): React.JSX.Element {
   const { models, loading } = useLocalModels(folder)
   const [open, setOpen] = useState(false)
+  // Phones pick from a bottom sheet instead of a popover.
+  const compact = useCompact()
   const current = value ? models.find((m) => m.name === value) : undefined
   const re = compile(baseModelMatch)
-  return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      className="w-[min(460px,calc(100vw-32px))] p-0"
-      trigger={
-        <button
-          className={cn(
-            'group flex h-11 w-full min-w-0 items-center gap-2.5 rounded-[10px] border border-line bg-white/[0.035] pr-3 pl-1.5 text-left outline-none transition-[border-color,background] duration-200 hover:border-line-strong hover:bg-white/[0.06]',
-            open && 'border-line-strong bg-white/[0.06]'
-          )}
-        >
-          {current ? (
-            <ModelThumb model={current} compact className="size-8 shrink-0 rounded-lg ring-1 ring-line" />
-          ) : (
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-dashed border-line-strong text-fg-3">{loading ? <Spinner className="size-3.5" /> : <Wand2 className="size-3.5" />}</span>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className={cn('truncate text-[12.5px] font-medium', !value && 'text-fg-2')}>{current ? modelTitle(current) : (value ?? placeholder)}</div>
-            <div className="truncate text-[10.5px] text-fg-3">
-              {current
-                ? `${current.meta?.baseModel ?? 'Unknown base'} · ${formatBytes(current.size)}`
-                : value
-                  ? 'Not found in your models folders'
-                  : re
-                    ? `${models.filter((m) => compatible(m, re)).length} of ${models.length} compatible`
-                    : `${models.length} available`}
-            </div>
-          </div>
-          {value && !current && <Badge tone="warning">Missing</Badge>}
-          {current && !compatible(current, re) && <Badge tone="warning">Other base</Badge>}
-          <ChevronDown className={cn('size-3.5 shrink-0 text-fg-3 transition-transform duration-300', open && 'rotate-180')} />
-        </button>
-      }
+  const trigger = (
+    <button
+      {...(compact ? { onClick: () => setOpen(true) } : {})}
+      className={cn(
+        'group flex h-11 w-full min-w-0 items-center gap-2.5 rounded-[10px] border border-line bg-white/[0.035] pr-3 pl-1.5 text-left outline-none transition-[border-color,background] duration-200 hover:border-line-strong hover:bg-white/[0.06]',
+        open && 'border-line-strong bg-white/[0.06]'
+      )}
     >
-      <ModelList
-        models={models}
-        baseModelMatch={baseModelMatch}
-        selected={value ? [value] : []}
-        emptyLabel="No files in this folder yet — download some from the Models page."
-        auto={{
-          label: placeholder,
-          active: !value,
-          onPick: () => {
-            onChange(undefined)
-            setOpen(false)
-          }
-        }}
-        onPick={(m) => {
-          onChange(m.name)
+      {current ? (
+        <ModelThumb model={current} compact className="size-8 shrink-0 rounded-lg ring-1 ring-line" />
+      ) : (
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-dashed border-line-strong text-fg-3">{loading ? <Spinner className="size-3.5" /> : <Wand2 className="size-3.5" />}</span>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className={cn('truncate text-[12.5px] font-medium', !value && 'text-fg-2')}>{current ? modelTitle(current) : (value ?? placeholder)}</div>
+        <div className="truncate text-[10.5px] text-fg-3">
+          {current
+            ? `${current.meta?.baseModel ?? 'Unknown base'} · ${formatBytes(current.size)}`
+            : value
+              ? 'Not found in your models folders'
+              : re
+                ? `${models.filter((m) => compatible(m, re)).length} of ${models.length} compatible`
+                : `${models.length} available`}
+        </div>
+      </div>
+      {value && !current && <Badge tone="warning">Missing</Badge>}
+      {current && !compatible(current, re) && <Badge tone="warning">Other base</Badge>}
+      <ChevronDown className={cn('size-3.5 shrink-0 text-fg-3 transition-transform duration-300', open && 'rotate-180')} />
+    </button>
+  )
+  const list = (
+    <ModelList
+      models={models}
+      baseModelMatch={baseModelMatch}
+      selected={value ? [value] : []}
+      emptyLabel="No files in this folder yet — download some from the Models page."
+      className={compact ? 'h-[min(620px,70vh)] max-h-none' : undefined}
+      auto={{
+        label: placeholder,
+        active: !value,
+        onPick: () => {
+          onChange(undefined)
           setOpen(false)
-        }}
-      />
+        }
+      }}
+      onPick={(m) => {
+        onChange(m.name)
+        setOpen(false)
+      }}
+    />
+  )
+  if (compact) {
+    return (
+      <>
+        {trigger}
+        <Dialog open={open} onOpenChange={setOpen} title="Choose a model" description={current ? modelTitle(current) : placeholder}>
+          {list}
+        </Dialog>
+      </>
+    )
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen} className="w-[min(460px,calc(100vw-32px))] p-0" trigger={trigger}>
+      {list}
     </Popover>
   )
 }
@@ -369,7 +386,7 @@ function StrengthSlider({ value, onChange }: { value: number; onChange: (v: numb
   const lo = Math.min(pct(0), pct(value))
   const hi = Math.max(pct(0), pct(value))
   return (
-    <RS.Root value={[value]} min={-2} max={2} step={0.05} onValueChange={(v) => onChange(Math.round(v[0] * 100) / 100)} className="relative flex h-5 w-full touch-none items-center select-none">
+    <RS.Root value={[value]} min={-2} max={2} step={0.05} onValueChange={(v) => onChange(Math.round(v[0] * 100) / 100)} className="relative flex h-5 w-full touch-none items-center select-none max-md:h-8">
       <RS.Track className="relative h-[3px] grow overflow-hidden rounded-full bg-white/[0.1]">
         <div className="absolute inset-y-0 rounded-full bg-grad" style={{ left: `${lo}%`, width: `${hi - lo}%` }} />
       </RS.Track>
@@ -377,7 +394,7 @@ function StrengthSlider({ value, onChange }: { value: number; onChange: (v: numb
       <RS.Thumb
         aria-label="Strength"
         onDoubleClick={() => onChange(1)}
-        className="block size-3.5 rounded-full bg-white shadow-[0_2px_10px_rgb(0_0_0/0.4),0_0_0_4px_color-mix(in_oklab,var(--accent)_22%,transparent)] transition-transform duration-150 outline-none hover:scale-110 focus-visible:scale-110"
+        className="block size-3.5 rounded-full bg-white shadow-[0_2px_10px_rgb(0_0_0/0.4),0_0_0_4px_color-mix(in_oklab,var(--accent)_22%,transparent)] transition-transform duration-150 outline-none hover:scale-110 focus-visible:scale-110 max-md:size-5 max-md:active:scale-110"
       />
     </RS.Root>
   )
@@ -415,7 +432,7 @@ function StrengthInput({ value, onChange }: { value: number; onChange: (v: numbe
         }
       }}
       className={cn(
-        'h-6 w-12 shrink-0 rounded-md border border-transparent bg-white/[0.05] text-center font-mono text-[11px] tabular-nums outline-none transition-colors hover:border-line focus:border-[color-mix(in_oklab,var(--accent)_55%,transparent)]',
+        'h-6 w-12 shrink-0 rounded-md border border-transparent bg-white/[0.05] text-center font-mono text-[11px] tabular-nums outline-none transition-colors hover:border-line focus:border-[color-mix(in_oklab,var(--accent)_55%,transparent)] max-md:h-8 max-md:w-14 max-md:rounded-lg max-md:text-[12px]',
         value < 0 && 'text-warning'
       )}
     />
@@ -466,7 +483,7 @@ function LoraCard({
             {model && incompatible && <Badge tone="warning">Other base</Badge>}
           </div>
         </div>
-        <IconButton label="Remove LoRA" size="xs" onClick={onRemove}>
+        <IconButton label="Remove LoRA" size="xs" onClick={onRemove} className="max-md:-mt-1 max-md:-mr-1 max-md:size-8">
           <X className="size-3.5" />
         </IconButton>
       </div>
@@ -475,7 +492,7 @@ function LoraCard({
         <StrengthInput value={lora.strength} onChange={(s) => onChange({ ...lora, strength: s })} />
       </div>
       {words.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center gap-1">
+        <div className="mt-2 flex flex-wrap items-center gap-1 max-md:gap-1.5">
           {words.map((w) => (
             <WordChip key={w} word={w} onClick={onInsertWords ? (x) => onInsertWords([x]) : undefined} />
           ))}
@@ -484,7 +501,7 @@ function LoraCard({
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => onInsertWords(words)}
-                className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[10.5px] font-medium text-fg-3 transition hover:bg-white/[0.06] hover:text-fg"
+                className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[10.5px] font-medium text-fg-3 transition hover:bg-white/[0.06] hover:text-fg max-md:h-7.5 max-md:px-2 max-md:text-[11px]"
               >
                 <TextCursorInput className="size-3" /> Add words
               </motion.button>
@@ -509,9 +526,40 @@ export function LoraStack({
 }): React.JSX.Element {
   const { models } = useLocalModels('loras')
   const [open, setOpen] = useState(false)
+  // Phones pick from a bottom sheet instead of a popover.
+  const compact = useCompact()
   const re = compile(baseModelMatch)
   const byName = useMemo(() => new Map(models.map((m) => [m.name, m])), [models])
   const allWords = useMemo(() => [...new Set(value.filter((l) => l.strength !== 0).flatMap((l) => byName.get(l.name)?.meta?.trainedWords ?? []))], [value, byName])
+
+  const addButton = (
+    <button
+      {...(compact ? { onClick: () => setOpen(true) } : {})}
+      className={cn(
+        'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-line-strong text-[12px] font-medium text-fg-2 transition-[background,border-color,color] duration-200 hover:border-[color-mix(in_oklab,var(--accent)_45%,transparent)] hover:bg-[color-mix(in_oklab,var(--accent)_7%,transparent)] hover:text-fg max-md:h-11 max-md:basis-full',
+        open && 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)] text-fg'
+      )}
+    >
+      <Plus className="size-3.5" /> Add LoRA
+      {value.length > 0 && <span className="text-fg-3">· {value.length} added</span>}
+    </button>
+  )
+  const list = (
+    <ModelList
+      multi
+      models={models}
+      baseModelMatch={baseModelMatch}
+      selected={[]}
+      added={value.map((v) => v.name)}
+      emptyLabel="No LoRAs yet — find some on the Models page."
+      className={compact ? 'h-[min(620px,70vh)] max-h-none' : undefined}
+      onConfirm={(names) => {
+        const fresh = names.filter((n) => !value.some((v) => v.name === n)).map((name) => ({ name, strength: 0.8 }))
+        onChange([...value, ...fresh])
+        setOpen(false)
+      }}
+    />
+  )
 
   return (
     <div className="flex flex-col gap-2">
@@ -528,39 +576,21 @@ export function LoraStack({
           />
         ))}
       </AnimatePresence>
-      <motion.div layout transition={spring} className="flex items-center gap-2">
-        <Popover
-          open={open}
-          onOpenChange={setOpen}
-          className="w-[min(460px,calc(100vw-32px))] p-0"
-          trigger={
-            <button
-              className={cn(
-                'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-line-strong text-[12px] font-medium text-fg-2 transition-[background,border-color,color] duration-200 hover:border-[color-mix(in_oklab,var(--accent)_45%,transparent)] hover:bg-[color-mix(in_oklab,var(--accent)_7%,transparent)] hover:text-fg',
-                open && 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)] text-fg'
-              )}
-            >
-              <Plus className="size-3.5" /> Add LoRA
-              {value.length > 0 && <span className="text-fg-3">· {value.length} added</span>}
-            </button>
-          }
-        >
-          <ModelList
-            multi
-            models={models}
-            baseModelMatch={baseModelMatch}
-            selected={[]}
-            added={value.map((v) => v.name)}
-            emptyLabel="No LoRAs yet — find some on the Models page."
-            onConfirm={(names) => {
-              const fresh = names.filter((n) => !value.some((v) => v.name === n)).map((name) => ({ name, strength: 0.8 }))
-              onChange([...value, ...fresh])
-              setOpen(false)
-            }}
-          />
-        </Popover>
+      <motion.div layout transition={spring} className="flex items-center gap-2 max-md:flex-wrap">
+        {compact ? (
+          <>
+            {addButton}
+            <Dialog open={open} onOpenChange={setOpen} title="Add LoRAs" description="Pick one or more — each starts at 0.80 strength.">
+              {list}
+            </Dialog>
+          </>
+        ) : (
+          <Popover open={open} onOpenChange={setOpen} className="w-[min(460px,calc(100vw-32px))] p-0" trigger={addButton}>
+            {list}
+          </Popover>
+        )}
         {onInsertWords && allWords.length > 0 && (
-          <Button size="sm" variant="ghost" icon={<TextCursorInput className="size-3.5" />} onClick={() => onInsertWords(allWords)} title={allWords.join(', ')}>
+          <Button size="sm" variant="ghost" icon={<TextCursorInput className="size-3.5" />} onClick={() => onInsertWords(allWords)} title={allWords.join(', ')} className="max-md:h-9 max-md:flex-1">
             Insert keywords
           </Button>
         )}

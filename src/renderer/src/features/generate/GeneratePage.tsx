@@ -11,10 +11,13 @@ import {
   Film,
   FolderOpen,
   ImageIcon,
+  LayoutGrid,
   Mic2,
   Minus,
+  MoreHorizontal,
   Plus,
   RotateCcw,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
   Wand2,
@@ -24,19 +27,21 @@ import type { Asset, Character, GenJob, GenKind, RecipeInfo } from '@shared/type
 import { errorText, invoke, streamLlm } from '@/lib/api'
 import { sceneImageRequest } from '@/lib/characters'
 import { defaultLlm } from '@/lib/llm'
+import { useCompact } from '@/lib/platform'
 import { cn, formatBytes, formatEta } from '@/lib/utils'
 import { ease, spring, springSoft } from '@/lib/motion'
 import { Page } from '@/components/shell/page'
-import { AssetLightbox, AssetThumb } from '@/components/media'
+import { AssetLightbox, AssetThumb, REVEAL_LABEL, RevealIcon } from '@/components/media'
 import { Button, IconButton } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/controls'
 import { Textarea } from '@/components/ui/input'
 import { Badge, EmptyState, Field, ProgressBar, Spinner } from '@/components/ui/misc'
-import { Popover, Tooltip } from '@/components/ui/overlay'
+import { Dialog, Menu, MenuItem, MenuSeparator, Popover, Tooltip } from '@/components/ui/overlay'
 import { db, useCollection } from '@/stores/db'
 import { isActive, useGen } from '@/stores/gen'
 import { toast } from '@/stores/toast'
 import { InstallModelsCard, useInstallSizes } from '../models/install'
+import { LiveDot, Pane, PaneTabs } from './mobile'
 import { CastPicker, ParamControl, StyleTags } from './params'
 
 // Voice panel is built separately; load it only if present.
@@ -74,104 +79,157 @@ const ENHANCE: Record<string, string> = {
 
 function RecipePicker({ kind, recipes, value, onChange }: { kind: GenKind; recipes: RecipeInfo[]; value?: RecipeInfo; onChange: (id: string) => void }): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  // Phones get a bottom sheet instead of a popover.
+  const compact = useCompact()
   const list = recipes.filter((r) => r.kind === kind)
   const sizes = useInstallSizes(open ? list.filter((r) => r.builtin && !r.available).map((r) => r.id) : [])
-  return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      className="w-[380px] p-1.5"
-      trigger={
-        <button className="group flex w-full items-center gap-3 rounded-xl border border-line bg-white/[0.03] p-2.5 text-left transition hover:border-line-strong hover:bg-white/[0.06]">
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-grad text-white [&>svg]:size-4">{TAB_META[kind].icon}</span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 text-[13px] font-semibold">
-              {value?.name ?? 'Choose a model'}
-              {value && !value.available && <Badge tone="warning">Missing files</Badge>}
-            </div>
-            <div className="truncate text-[11.5px] text-fg-3">{value ? `${value.family} · ${value.estSeconds ? formatEta(value.estSeconds) : ''}` : ''}</div>
-          </div>
-          <ChevronDown className="size-4 text-fg-3 transition-transform duration-300 group-data-[state=open]:rotate-180" />
-        </button>
-      }
+  const trigger = (
+    <button
+      {...(compact ? { 'data-state': open ? 'open' : 'closed', onClick: () => setOpen(true) } : {})}
+      className="group flex w-full items-center gap-3 rounded-xl border border-line bg-white/[0.03] p-2.5 text-left transition hover:border-line-strong hover:bg-white/[0.06] max-md:active:scale-[0.99]"
     >
-      <div className="max-h-[420px] overflow-y-auto">
-        {list.map((r) => (
-          <button
-            key={r.id}
-            onClick={() => {
-              onChange(r.id)
-              setOpen(false)
-            }}
-            className={cn('relative flex w-full items-start gap-3 rounded-xl p-2.5 text-left transition-colors', value?.id === r.id ? 'text-fg' : 'text-fg-2 hover:bg-white/[0.05]')}
-          >
-            {value?.id === r.id && <motion.span layoutId="recipe-active" className="absolute inset-0 rounded-xl bg-white/[0.07]" transition={springSoft} />}
-            <div className="relative min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-[13px] font-semibold text-fg">
-                {r.name}
-                {!r.builtin && <Badge tone="accent">Skill</Badge>}
-                {!r.available && <Badge tone="warning">Not installed</Badge>}
-              </div>
-              <div className="mt-0.5 text-[11.5px] leading-snug text-fg-3">{r.description}</div>
-              {!r.available && r.missing?.length ? (
-                <div className="mt-1 text-[11px] text-warning/90">
-                  {sizes[r.id] ? <span className="font-semibold text-accent">Download available · {formatBytes(sizes[r.id])}</span> : <>Needs: {r.missing.join(', ')}</>}
-                </div>
-              ) : null}
-            </div>
-            {r.estSeconds ? <span className="relative mt-0.5 text-[11px] text-fg-3 tabular-nums">{formatEta(r.estSeconds)}</span> : null}
-          </button>
-        ))}
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-grad text-white [&>svg]:size-4">{TAB_META[kind].icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 text-[13px] font-semibold">
+          <span className="min-w-0 truncate">{value?.name ?? 'Choose a model'}</span>
+          {value && !value.available && <Badge tone="warning">Missing files</Badge>}
+        </div>
+        <div className="truncate text-[11.5px] text-fg-3">{value ? `${value.family} · ${value.estSeconds ? formatEta(value.estSeconds) : ''}` : ''}</div>
       </div>
+      <ChevronDown className="size-4 shrink-0 text-fg-3 transition-transform duration-300 group-data-[state=open]:rotate-180" />
+    </button>
+  )
+  const body = (
+    <div className="max-h-[420px] overflow-y-auto max-md:max-h-none">
+      {list.map((r) => (
+        <button
+          key={r.id}
+          onClick={() => {
+            onChange(r.id)
+            setOpen(false)
+          }}
+          className={cn('relative flex w-full items-start gap-3 rounded-xl p-2.5 text-left transition-colors', value?.id === r.id ? 'text-fg' : 'text-fg-2 hover:bg-white/[0.05]')}
+        >
+          {value?.id === r.id && <motion.span layoutId="recipe-active" className="absolute inset-0 rounded-xl bg-white/[0.07]" transition={springSoft} />}
+          <div className="relative min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-[13px] font-semibold text-fg">
+              {r.name}
+              {!r.builtin && <Badge tone="accent">Skill</Badge>}
+              {!r.available && <Badge tone="warning">Not installed</Badge>}
+            </div>
+            <div className="mt-0.5 text-[11.5px] leading-snug text-fg-3">{r.description}</div>
+            {!r.available && r.missing?.length ? (
+              <div className="mt-1 text-[11px] text-warning/90">
+                {sizes[r.id] ? <span className="font-semibold text-accent">Download available · {formatBytes(sizes[r.id])}</span> : <>Needs: {r.missing.join(', ')}</>}
+              </div>
+            ) : null}
+          </div>
+          {r.estSeconds ? <span className="relative mt-0.5 text-[11px] text-fg-3 tabular-nums">{formatEta(r.estSeconds)}</span> : null}
+        </button>
+      ))}
+    </div>
+  )
+  if (compact) {
+    return (
+      <>
+        {trigger}
+        <Dialog open={open} onOpenChange={setOpen} title={`${TAB_META[kind].label} models`} description={value ? `Using ${value.name}` : undefined}>
+          <div className="p-2 pb-3">{body}</div>
+        </Dialog>
+      </>
+    )
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen} className="w-[380px] p-1.5" trigger={trigger}>
+      {body}
     </Popover>
+  )
+}
+
+/** Phone: the hover actions of a result live in a "⋯" menu that's always visible. */
+function JobMenu({ asset, onReuse, onAnimate }: { asset: Asset; onReuse: () => void; onAnimate: () => void }): React.JSX.Element {
+  return (
+    <div className="absolute top-1.5 right-1.5" onClick={(e) => e.stopPropagation()}>
+      <Menu
+        align="end"
+        trigger={
+          <motion.button whileTap={{ scale: 0.88 }} transition={spring} aria-label="Actions" className="grid size-9 place-items-center rounded-full bg-black/45 text-white/90 ring-1 ring-white/10 backdrop-blur-md">
+            <MoreHorizontal className="size-4" />
+          </motion.button>
+        }
+      >
+        {asset.kind === 'image' && (
+          <MenuItem icon={<Film />} onSelect={onAnimate}>
+            Animate with H3
+          </MenuItem>
+        )}
+        <MenuItem icon={<RotateCcw />} onSelect={onReuse}>
+          Reuse settings
+        </MenuItem>
+        <MenuItem icon={<RevealIcon />} onSelect={() => void invoke('sys:showInFolder', asset.path)}>
+          {REVEAL_LABEL}
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem icon={<Trash2 />} danger onSelect={() => void invoke('assets:delete', asset.id, true)}>
+          Delete
+        </MenuItem>
+      </Menu>
+    </div>
   )
 }
 
 function JobCard({ job, onOpen, onReuse, onAnimate }: { job: GenJob; onOpen: (id: string) => void; onReuse: (j: GenJob) => void; onAnimate: (assetId: string) => void }): React.JSX.Element {
   const assets = useCollection('assets')
   const cancel = useGen((s) => s.cancel)
+  const compact = useCompact()
   const outs = job.outputs.map((id) => assets.find((a) => a.id === id)).filter(Boolean) as Asset[]
   const pct = job.progress?.max ? job.progress.value / job.progress.max : undefined
   const aspect = String(job.params.aspect ?? (job.kind === 'video' ? '16:9' : '1:1')).replace(':', ' / ')
+  // Audio cards are wide strips on desktop; the phone's two-column grid needs them squarer.
+  const audioAspect = compact ? '5 / 4' : '16 / 7'
 
   return (
-    <motion.div layout initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }} transition={spring} className="group relative">
+    <motion.div layout initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }} transition={spring} className="group relative max-md:space-y-2.5">
       {outs.length ? (
         outs.map((a) => (
-          <div key={a.id} style={{ aspectRatio: a.kind === 'audio' ? '16 / 7' : a.width && a.height ? `${a.width} / ${a.height}` : aspect }}>
+          <div key={a.id} style={{ aspectRatio: a.kind === 'audio' ? audioAspect : a.width && a.height ? `${a.width} / ${a.height}` : aspect }}>
           <AssetThumb asset={a} onClick={() => onOpen(a.id)} className="size-full" fit="cover">
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-10 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
               <div className="line-clamp-2 text-[11.5px] text-white/85">{a.prompt}</div>
             </div>
-            <div className="absolute top-2 right-2 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
-              {a.kind === 'image' && (
-                <Tooltip content="Animate with H3">
-                  <IconButton label="Animate" size="sm" variant="glass" onClick={() => onAnimate(a.id)}>
-                    <Film className="size-3.5" />
+            {compact ? (
+              <JobMenu asset={a} onReuse={() => onReuse(job)} onAnimate={() => onAnimate(a.id)} />
+            ) : (
+              <div className="absolute top-2 right-2 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+                {a.kind === 'image' && (
+                  <Tooltip content="Animate with H3">
+                    <IconButton label="Animate" size="sm" variant="glass" onClick={() => onAnimate(a.id)}>
+                      <Film className="size-3.5" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                <Tooltip content="Reuse settings">
+                  <IconButton label="Reuse" size="sm" variant="glass" onClick={() => onReuse(job)}>
+                    <RotateCcw className="size-3.5" />
                   </IconButton>
                 </Tooltip>
-              )}
-              <Tooltip content="Reuse settings">
-                <IconButton label="Reuse" size="sm" variant="glass" onClick={() => onReuse(job)}>
-                  <RotateCcw className="size-3.5" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip content="Show in folder">
-                <IconButton label="Show in folder" size="sm" variant="glass" onClick={() => invoke('sys:showInFolder', a.path)}>
-                  <FolderOpen className="size-3.5" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip content="Delete">
-                <IconButton label="Delete" size="sm" variant="glass" onClick={() => void invoke('assets:delete', a.id, true)}>
-                  <Trash2 className="size-3.5" />
-                </IconButton>
-              </Tooltip>
-            </div>
+                <Tooltip content="Show in folder">
+                  <IconButton label="Show in folder" size="sm" variant="glass" onClick={() => invoke('sys:showInFolder', a.path)}>
+                    <FolderOpen className="size-3.5" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip content="Delete">
+                  <IconButton label="Delete" size="sm" variant="glass" onClick={() => void invoke('assets:delete', a.id, true)}>
+                    <Trash2 className="size-3.5" />
+                  </IconButton>
+                </Tooltip>
+              </div>
+            )}
           </AssetThumb>
           </div>
         ))
       ) : (
-        <div className="relative overflow-hidden rounded-xl bg-white/[0.03] ring-1 ring-line" style={{ aspectRatio: job.kind === 'audio' ? '16 / 7' : aspect }}>
+        <div className="relative overflow-hidden rounded-xl bg-white/[0.03] ring-1 ring-line" style={{ aspectRatio: job.kind === 'audio' ? audioAspect : aspect }}>
           {job.preview ? <img src={job.preview} className="absolute inset-0 size-full object-cover" /> : <div className="shimmer absolute inset-0" />}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-3 pt-12">
             {job.status === 'error' ? (
@@ -192,12 +250,12 @@ function JobCard({ job, onOpen, onReuse, onAnimate }: { job: GenJob; onOpen: (id
             )}
           </div>
           {isActive(job) && (
-            <button onClick={() => void cancel(job.id)} className="absolute top-2 right-2 grid size-7 place-items-center rounded-lg bg-black/50 text-white/80 opacity-0 backdrop-blur transition group-hover:opacity-100 hover:text-white" title="Cancel">
+            <button onClick={() => void cancel(job.id)} className="absolute top-2 right-2 grid size-7 place-items-center rounded-lg bg-black/50 text-white/80 opacity-0 backdrop-blur transition group-hover:opacity-100 hover:text-white max-md:top-1.5 max-md:right-1.5 max-md:size-9 max-md:rounded-full max-md:opacity-100" title="Cancel">
               <X className="size-3.5" />
             </button>
           )}
           {!isActive(job) && (
-            <button onClick={() => void invoke('db:delete', 'jobs', job.id).then(() => useGen.setState((s) => { const j = { ...s.jobs }; delete j[job.id]; return { jobs: j } }))} className="absolute top-2 right-2 grid size-7 place-items-center rounded-lg bg-black/50 text-white/80 opacity-0 backdrop-blur transition group-hover:opacity-100" title="Dismiss">
+            <button onClick={() => void invoke('db:delete', 'jobs', job.id).then(() => useGen.setState((s) => { const j = { ...s.jobs }; delete j[job.id]; return { jobs: j } }))} className="absolute top-2 right-2 grid size-7 place-items-center rounded-lg bg-black/50 text-white/80 opacity-0 backdrop-blur transition group-hover:opacity-100 max-md:top-1.5 max-md:right-1.5 max-md:size-9 max-md:rounded-full max-md:opacity-100" title="Dismiss">
               <X className="size-3.5" />
             </button>
           )}
@@ -218,6 +276,11 @@ function GeneratorPanel({ kind }: { kind: GenKind }): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [enhancing, setEnhancing] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
+  // Phone: the two columns become Create / Results panes.
+  const compact = useCompact()
+  const [view, setView] = useState<'create' | 'results'>('create')
+  const controlsScroll = useRef<HTMLDivElement>(null)
+  const resultsScroll = useRef<HTMLDivElement>(null)
   const kindRecipes = recipes.filter((r) => r.kind === kind)
   const recipe = kindRecipes.find((r) => r.id === form.recipe[kind]) ?? kindRecipes.find((r) => r.available) ?? kindRecipes[0]
   const params = (recipe && form.params[recipe.id]) ?? {}
@@ -291,6 +354,11 @@ function GeneratorPanel({ kind }: { kind: GenKind }): React.JSX.Element {
         }
         await submit({ recipeId: recipe.id, params: p, batch: kind === 'image' ? form.count : 1, characterIds: form.cast })
       }
+      // Phone: follow the new job to Results so its live preview is on screen.
+      if (compact) {
+        setView('results')
+        resultsScroll.current?.scrollTo({ top: 0, behavior: 'smooth' })
+      }
     } catch (err) {
       toast.error('Could not start', errorText(err))
     } finally {
@@ -304,6 +372,10 @@ function GeneratorPanel({ kind }: { kind: GenKind }): React.JSX.Element {
     const pKey = r.params.find((p) => p.type === 'prompt')?.key ?? 'prompt'
     const { [pKey]: pr, ...rest } = j.params
     form.set((s) => ({ recipe: { ...s.recipe, [kind]: r.id }, params: { ...s.params, [r.id]: { ...rest, seed: -1 } }, prompt: { ...s.prompt, [kind]: String(pr ?? '') } }))
+    if (compact) {
+      setView('create')
+      controlsScroll.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    }
   }
 
   // LoRA activation words go at the end of the prompt, without duplicates.
@@ -317,115 +389,153 @@ function GeneratorPanel({ kind }: { kind: GenKind }): React.JSX.Element {
   const mainParams = recipe?.params.filter((p) => !p.advanced && p.type !== 'prompt') ?? []
   const advParams = recipe?.params.filter((p) => p.advanced) ?? []
 
-  return (
-    <div className="flex h-full min-h-0">
-      {/* Controls */}
-      <div className="flex w-[380px] shrink-0 flex-col border-r border-line">
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-          <RecipePicker kind={kind} recipes={recipes} value={recipe} onChange={(id) => form.set((s) => ({ recipe: { ...s.recipe, [kind]: id } }))} />
-          {recipe && !recipe.available && <InstallModelsCard key={recipe.id} recipe={recipe} />}
-          {promptSpec && (
-            <Field
-              label={promptSpec.label || 'Prompt'}
-              help={promptSpec.help}
-              action={
-                <button onClick={() => void enhance()} disabled={enhancing || !prompt.trim()} className="flex items-center gap-1 text-[11.5px] font-semibold text-accent transition hover:brightness-125 disabled:opacity-40">
-                  {enhancing ? <Spinner className="size-3" /> : <Wand2 className="size-3" />} Enhance
-                </button>
-              }
-            >
-              <div className="glow-border rounded-[12px]" data-active={enhancing || undefined}>
-                <Textarea
-                  value={prompt}
-                  minRows={5}
-                  maxRows={14}
-                  placeholder={kind === 'video' ? 'Describe the shots, motion and the sound…' : kind === 'audio' ? (music ? 'Genre, mood, instruments, vocals, tempo…' : 'Describe the music or sound…') : 'Describe what you want to see…'}
-                  onChange={(e) => form.set((s) => ({ prompt: { ...s.prompt, [kind]: e.target.value } }))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void generate()
-                  }}
-                />
-              </div>
-              {music && <StyleTags value={prompt} onChange={(v) => form.set((s) => ({ prompt: { ...s.prompt, [kind]: v } }))} />}
-            </Field>
-          )}
-          {(kind === 'image' || hasRefs) && (
-            <Field label="Cast" help={form.cast.length ? 'Locked references keep these characters on-model.' : undefined}>
-              <CastPicker value={form.cast} onChange={(cast) => form.set(() => ({ cast }))} />
-            </Field>
-          )}
-          {mainParams.map((spec) => (
-            <ParamControl key={`${recipe!.id}-${spec.key}`} spec={spec} value={params[spec.key]} onChange={(v) => setParam(spec.key, v)} baseModelMatch={recipe!.baseModelMatch} onInsertWords={insertWords} />
-          ))}
-          {advParams.length > 0 && (
-            <div className="rounded-xl border border-line">
-              <button onClick={() => setAdvanced((a) => !a)} className="flex h-10 w-full items-center justify-between px-3.5 text-[12px] font-semibold text-fg-2 hover:text-fg">
-                Advanced
-                <ChevronDown className={cn('size-3.5 transition-transform duration-300', advanced && 'rotate-180')} />
+  const controls = (
+    <div className="flex w-[380px] shrink-0 flex-col border-r border-line max-md:h-full max-md:w-full max-md:border-r-0">
+      <div ref={controlsScroll} className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 max-md:px-4 max-md:pt-4 max-md:pb-6">
+        <RecipePicker kind={kind} recipes={recipes} value={recipe} onChange={(id) => form.set((s) => ({ recipe: { ...s.recipe, [kind]: id } }))} />
+        {recipe && !recipe.available && <InstallModelsCard key={recipe.id} recipe={recipe} />}
+        {promptSpec && (
+          <Field
+            label={promptSpec.label || 'Prompt'}
+            help={promptSpec.help}
+            action={
+              <button onClick={() => void enhance()} disabled={enhancing || !prompt.trim()} className="flex items-center gap-1 text-[11.5px] font-semibold text-accent transition hover:brightness-125 disabled:opacity-40">
+                {enhancing ? <Spinner className="size-3" /> : <Wand2 className="size-3" />} Enhance
               </button>
-              <AnimatePresence initial={false}>
-                {advanced && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease }} className="overflow-hidden">
-                    <div className="space-y-4 border-t border-line p-3.5">
-                      {advParams.map((spec) => (
-                        <ParamControl key={`${recipe!.id}-${spec.key}`} spec={spec} value={params[spec.key]} onChange={(v) => setParam(spec.key, v)} baseModelMatch={recipe!.baseModelMatch} onInsertWords={insertWords} />
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            }
+          >
+            <div className="glow-border rounded-[12px]" data-active={enhancing || undefined}>
+              <Textarea
+                value={prompt}
+                minRows={compact ? 4 : 5}
+                maxRows={compact ? 9 : 14}
+                placeholder={kind === 'video' ? 'Describe the shots, motion and the sound…' : kind === 'audio' ? (music ? 'Genre, mood, instruments, vocals, tempo…' : 'Describe the music or sound…') : 'Describe what you want to see…'}
+                onChange={(e) => form.set((s) => ({ prompt: { ...s.prompt, [kind]: e.target.value } }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void generate()
+                }}
+              />
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2 border-t border-line p-4">
-          {kind === 'image' && (
-            <div className="flex h-11 items-center rounded-xl border border-line">
-              <button onClick={() => form.set((s) => ({ count: Math.max(1, s.count - 1) }))} className="grid h-full w-8 place-items-center text-fg-3 hover:text-fg">
-                <Minus className="size-3.5" />
-              </button>
-              <span className="w-5 text-center text-[13px] font-semibold tabular-nums">{form.count}</span>
-              <button onClick={() => form.set((s) => ({ count: Math.min(4, s.count + 1) }))} className="grid h-full w-8 place-items-center text-fg-3 hover:text-fg">
-                <Plus className="size-3.5" />
-              </button>
-            </div>
-          )}
-          <Button variant="primary" size="lg" className="flex-1" loading={busy} disabled={!recipe || !recipe.available} icon={<Sparkles className="size-4" />} onClick={() => void generate()}>
-            Generate
-            {recipe?.estSeconds ? <span className="ml-1 text-[12px] font-medium opacity-75">{formatEta(recipe.estSeconds)}</span> : null}
-          </Button>
-        </div>
-      </div>
-
-      {/* Results */}
-      <div className="min-w-0 flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-line bg-[color-mix(in_oklab,var(--panel-solid)_80%,transparent)] px-5 backdrop-blur-xl">
-          <div className="text-[12.5px] font-medium text-fg-2">
-            {feed.length ? `${feed.length} generation${feed.length === 1 ? '' : 's'}` : 'Your generations'}
-            {running > 0 && <span className="ml-2 text-accent">· {running} running</span>}
-          </div>
-          {feed.some((j) => !isActive(j)) && (
-            <Button size="sm" variant="ghost" icon={<Copy className="size-3.5" />} onClick={() => navigate('/assets')}>
-              Open library
-            </Button>
-          )}
-        </div>
-        {feed.length === 0 ? (
-          <EmptyState
-            className="h-[calc(100%-48px)]"
-            icon={TAB_META[kind].icon}
-            title={kind === 'video' ? 'Direct your first shot' : kind === 'audio' ? 'Make some noise' : 'Paint your first image'}
-            body={kind === 'video' ? 'MiniMax H3 renders video with synced dialogue, effects and music on your GPU.' : 'Results appear here as they render, with live previews.'}
-          />
-        ) : (
-          <div className={cn('grid gap-3 p-5', kind === 'video' ? 'grid-cols-2' : kind === 'audio' ? 'grid-cols-3' : 'grid-cols-3 xl:grid-cols-4')}>
-            <AnimatePresence initial={false} mode="popLayout">
-              {feed.map((j) => (
-                <JobCard key={j.id} job={j} onOpen={setLightbox} onReuse={reuse} onAnimate={(id) => navigate('/generate/video', { state: { firstFrame: id } })} />
-              ))}
+            {music && <StyleTags value={prompt} onChange={(v) => form.set((s) => ({ prompt: { ...s.prompt, [kind]: v } }))} />}
+          </Field>
+        )}
+        {(kind === 'image' || hasRefs) && (
+          <Field label="Cast" help={form.cast.length ? 'Locked references keep these characters on-model.' : undefined}>
+            <CastPicker value={form.cast} onChange={(cast) => form.set(() => ({ cast }))} />
+          </Field>
+        )}
+        {mainParams.map((spec) => (
+          <ParamControl key={`${recipe!.id}-${spec.key}`} spec={spec} value={params[spec.key]} onChange={(v) => setParam(spec.key, v)} baseModelMatch={recipe!.baseModelMatch} onInsertWords={insertWords} />
+        ))}
+        {advParams.length > 0 && (
+          <div className="rounded-xl border border-line">
+            <button onClick={() => setAdvanced((a) => !a)} className="flex h-10 w-full items-center justify-between px-3.5 text-[12px] font-semibold text-fg-2 hover:text-fg">
+              Advanced
+              <ChevronDown className={cn('size-3.5 transition-transform duration-300', advanced && 'rotate-180')} />
+            </button>
+            <AnimatePresence initial={false}>
+              {advanced && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease }} className="overflow-hidden">
+                  <div className="space-y-4 border-t border-line p-3.5">
+                    {advParams.map((spec) => (
+                      <ParamControl key={`${recipe!.id}-${spec.key}`} spec={spec} value={params[spec.key]} onChange={(v) => setParam(spec.key, v)} baseModelMatch={recipe!.baseModelMatch} onInsertWords={insertWords} />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         )}
       </div>
+      <div className="flex items-center gap-2 border-t border-line p-4 max-md:px-3 max-md:py-3">
+        {kind === 'image' && (
+          <div className="flex h-11 items-center rounded-xl border border-line max-md:h-12 max-md:bg-white/[0.03]">
+            <button onClick={() => form.set((s) => ({ count: Math.max(1, s.count - 1) }))} aria-label="Fewer images" className="grid h-full w-8 place-items-center text-fg-3 hover:text-fg max-md:w-10 max-md:active:text-fg">
+              <Minus className="size-3.5" />
+            </button>
+            <span className="w-5 text-center text-[13px] font-semibold tabular-nums">{form.count}</span>
+            <button onClick={() => form.set((s) => ({ count: Math.min(4, s.count + 1) }))} aria-label="More images" className="grid h-full w-8 place-items-center text-fg-3 hover:text-fg max-md:w-10 max-md:active:text-fg">
+              <Plus className="size-3.5" />
+            </button>
+          </div>
+        )}
+        <Button variant="primary" size="lg" className="flex-1 max-md:h-12" loading={busy} disabled={!recipe || !recipe.available} icon={<Sparkles className="size-4" />} onClick={() => void generate()}>
+          Generate
+          {recipe?.estSeconds ? <span className="ml-1 text-[12px] font-medium opacity-75">{formatEta(recipe.estSeconds)}</span> : null}
+        </Button>
+      </div>
+    </div>
+  )
+
+  const results = (
+    <div ref={resultsScroll} className="min-w-0 flex-1 overflow-y-auto max-md:h-full">
+      <div className={cn('sticky top-0 z-10 flex h-12 items-center justify-between border-b border-line bg-[color-mix(in_oklab,var(--panel-solid)_80%,transparent)] px-5 backdrop-blur-xl max-md:h-11 max-md:px-4', !feed.length && 'max-md:hidden')}>
+        <div className="text-[12.5px] font-medium text-fg-2">
+          {feed.length ? `${feed.length} generation${feed.length === 1 ? '' : 's'}` : 'Your generations'}
+          {running > 0 && <span className="ml-2 text-accent">· {running} running</span>}
+        </div>
+        {feed.some((j) => !isActive(j)) && (
+          <Button size="sm" variant="ghost" icon={<Copy className="size-3.5" />} onClick={() => navigate('/assets')}>
+            Open library
+          </Button>
+        )}
+      </div>
+      {feed.length === 0 ? (
+        <EmptyState
+          className="h-[calc(100%-48px)] max-md:h-[calc(100%-44px)] max-md:px-6"
+          icon={TAB_META[kind].icon}
+          title={kind === 'video' ? 'Direct your first shot' : kind === 'audio' ? 'Make some noise' : 'Paint your first image'}
+          body={kind === 'video' ? 'MiniMax H3 renders video with synced dialogue, effects and music on your GPU.' : 'Results appear here as they render, with live previews.'}
+        />
+      ) : (
+        <div className={cn('grid gap-3 p-5 max-md:grid-cols-2 max-md:gap-2.5 max-md:p-3', kind === 'video' ? 'grid-cols-2' : kind === 'audio' ? 'grid-cols-3' : 'grid-cols-3 xl:grid-cols-4')}>
+          <AnimatePresence initial={false} mode="popLayout">
+            {feed.map((j) => (
+              <JobCard key={j.id} job={j} onOpen={setLightbox} onReuse={reuse} onAnimate={(id) => navigate('/generate/video', { state: { firstFrame: id } })} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+    </div>
+  )
+
+  if (compact) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <PaneTabs
+          value={view}
+          onChange={setView}
+          items={[
+            { value: 'create', label: 'Create', icon: <SlidersHorizontal /> },
+            {
+              value: 'results',
+              label: (
+                <span className="flex items-center gap-1.5">
+                  Results
+                  {running > 0 ? <LiveDot /> : feed.length > 0 && <span className="text-[11px] text-fg-3 tabular-nums">{feed.length}</span>}
+                </span>
+              ),
+              icon: <LayoutGrid />
+            }
+          ]}
+        />
+        <div className="relative min-h-0 flex-1">
+          <Pane active={view === 'create'} side="left">
+            {controls}
+          </Pane>
+          <Pane active={view === 'results'} side="right">
+            {results}
+          </Pane>
+        </div>
+        <AssetLightbox assetId={lightbox} onClose={() => setLightbox(null)} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full min-h-0">
+      {controls}
+      {results}
       <AssetLightbox assetId={lightbox} onClose={() => setLightbox(null)} />
     </div>
   )
@@ -440,9 +550,14 @@ export function GeneratePage(): React.JSX.Element {
 
   return (
     <Page scroll={false} className="flex flex-col">
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-5">
-        <Segmented value={tab} onChange={(t) => navigate(`/generate/${t}`)} items={(Object.keys(TAB_META) as Tab[]).map((t) => ({ value: t, label: TAB_META[t].label, icon: TAB_META[t].icon }))} />
-        <div className="text-[12px] text-fg-3">Ctrl+Enter to generate</div>
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-5 max-md:h-auto max-md:border-b-0 max-md:px-3 max-md:pt-3 max-md:pb-1">
+        <Segmented
+          value={tab}
+          onChange={(t) => navigate(`/generate/${t}`)}
+          items={(Object.keys(TAB_META) as Tab[]).map((t) => ({ value: t, label: TAB_META[t].label, icon: TAB_META[t].icon }))}
+          className="max-md:flex max-md:w-full max-md:[&>button]:h-9 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center max-md:[&>button]:px-1"
+        />
+        <div className="text-[12px] text-fg-3 max-md:hidden">Ctrl+Enter to generate</div>
       </div>
       <div className="relative min-h-0 flex-1">
         <AnimatePresence mode="wait" initial={false}>

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeTheme, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, nativeTheme, session, shell, Tray } from 'electron'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { handle } from './ipc'
@@ -17,6 +17,7 @@ import { registerSystem } from './services/system'
 import { registerUpdater } from './services/updater'
 import { registerVoice, shutdownVoice } from './services/voice'
 import { registerWallpaper, restoreWallpaperRoot } from './services/wallpaper'
+import { registerRemote, shutdownRemote } from './remote'
 
 registerSchemePrivileges()
 app.setAppUserModelId('com.stitch.studio')
@@ -30,6 +31,45 @@ if (!process.env.STITCH_CAPTURE && !app.requestSingleInstanceLock()) {
 }
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let quitting = false
+
+/** Phones need the PC app running: with the remote on, closing the window hides to the tray. */
+function stayInTray(): boolean {
+  const r = getSettings().remote
+  return !!r.enabled && r.background !== false
+}
+
+function showWindow(): void {
+  if (!mainWindow) return createWindow()
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function ensureTray(): void {
+  if (tray) return
+  const icon = iconPath()
+  if (!icon) return
+  tray = new Tray(icon)
+  tray.setToolTip('Stitch — ready for your phone')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open Stitch', click: showWindow },
+      { type: 'separator' },
+      {
+        label: 'Quit Stitch',
+        click: () => {
+          quitting = true
+          app.quit()
+        }
+      }
+    ])
+  )
+  tray.on('double-click', showWindow)
+  tray.on('click', showWindow)
+  tray.displayBalloon?.({ title: 'Stitch is still running', content: 'Your phone can keep using it. Quit from the tray icon.', iconType: 'info' })
+}
 
 function iconPath(): string | undefined {
   const candidates = [
@@ -65,8 +105,17 @@ function createWindow(): void {
     }
   })
 
+  mainWindow.on('close', (e) => {
+    if (!quitting && stayInTray() && !process.env.STITCH_CAPTURE) {
+      e.preventDefault()
+      mainWindow?.hide()
+      ensureTray()
+    }
+  })
+
   mainWindow.once('ready-to-show', () => {
-    mainWindow?.show()
+    // Dev: STITCH_HIDDEN=1 runs headless (e.g. as the PC for the phone app's web build).
+    if (app.isPackaged || !process.env.STITCH_HIDDEN) mainWindow?.show()
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -111,12 +160,7 @@ function createWindow(): void {
   }
 }
 
-app.on('second-instance', () => {
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
-  }
-})
+app.on('second-instance', () => showWindow())
 
 void app.whenReady().then(() => {
   registerProtocolHandler()
@@ -150,6 +194,7 @@ void app.whenReady().then(() => {
   registerEditor()
   registerModels()
   registerUpdater()
+  registerRemote()
 
   createWindow()
   autoLaunchComfy()
@@ -160,9 +205,13 @@ void app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  quitting = true
+  tray?.destroy()
+  tray = null
   flushAll()
   shutdownComfy()
   shutdownVoice()
+  void shutdownRemote()
 })
 
 app.on('window-all-closed', () => {

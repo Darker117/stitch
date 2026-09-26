@@ -8,6 +8,7 @@ import { SUNSET } from '@shared/theme'
 import { invoke } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ease, rise, spring, stagger } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 import { LogoLockup } from '@/components/shell/logo'
 import { Button } from '@/components/ui/button'
 import { Orb } from '@/components/ui/orb'
@@ -23,9 +24,9 @@ function Row({ ok, busy, title, body }: { ok: boolean; busy?: boolean; title: st
   return (
     <motion.div variants={rise} className="flex items-start gap-3 rounded-xl border border-line bg-white/[0.03] p-3.5">
       <div className="mt-0.5">{busy ? <Spinner className="size-4 text-fg-3" /> : <StatusDot state={ok ? 'online' : 'offline'} />}</div>
-      <div>
+      <div className="max-md:min-w-0">
         <div className="text-[13px] font-semibold">{title}</div>
-        <div className="mt-0.5 text-[12px] text-fg-3">{body}</div>
+        <div className="mt-0.5 text-[12px] text-fg-3 max-md:[overflow-wrap:anywhere]">{body}</div>
       </div>
     </motion.div>
   )
@@ -39,6 +40,7 @@ export function Onboarding(): React.JSX.Element | null {
   const [step, setStep] = useState<Step>('welcome')
   const [detect, setDetect] = useState<DetectResult | null>(null)
   const [layout, setLayout] = useState<'managed-all' | 'managed-one' | 'external'>('managed-all')
+  const compact = useCompact()
 
   useEffect(() => {
     void invoke('sys:detect').then((d) => {
@@ -72,35 +74,48 @@ export function Onboarding(): React.JSX.Element | null {
   }
 
   return (
-    <motion.div className="fixed inset-0 z-[80] grid place-items-center bg-black/60 backdrop-blur-xl" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5, ease }}>
-      <div className="drag absolute inset-x-0 top-0 h-10" />
-      <motion.div initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ ...spring, delay: 0.1 }} className="glass-strong relative w-[620px] overflow-hidden rounded-[26px] shadow-[var(--shadow-pop)]">
+    <motion.div
+      className="fixed inset-0 z-[80] grid place-items-center bg-black/60 backdrop-blur-xl max-md:place-items-stretch max-md:px-2 max-md:pt-[calc(var(--sat,0px)+8px)] max-md:pb-[calc(var(--sab,0px)+8px)]"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5, ease }}
+    >
+      <div className="drag absolute inset-x-0 top-0 h-10 max-md:hidden" />
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ ...spring, delay: 0.1 }}
+        className="glass-strong relative w-[620px] overflow-hidden rounded-[26px] shadow-[var(--shadow-pop)] max-md:flex max-md:min-h-0 max-md:w-full max-md:flex-col max-md:rounded-[24px]"
+      >
         <div className="pointer-events-none absolute -top-32 left-1/2 size-80 -translate-x-1/2 rounded-full bg-grad opacity-20 blur-3xl" />
-        <div className="relative flex gap-1.5 px-7 pt-6">
+        <div className="relative flex gap-1.5 px-7 pt-6 max-md:shrink-0 max-md:px-5 max-md:pt-5">
           {STEPS.map((s, i) => (
             <div key={s} className="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
               <motion.div className="h-full bg-grad" initial={false} animate={{ width: STEPS.indexOf(step) >= i ? '100%' : '0%' }} transition={{ duration: 0.5, ease }} />
             </div>
           ))}
         </div>
-        <div className="relative min-h-[420px] px-7 pt-6 pb-7">
+        <div className="relative min-h-[420px] px-7 pt-6 pb-7 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-y-auto max-md:px-5 max-md:pt-5 max-md:pb-5">
           <AnimatePresence mode="wait">
             {step === 'welcome' && (
-              <motion.div key="w" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.35, ease }} className="flex flex-col items-center pt-4 text-center">
-                <Orb size={120} />
-                <div className="label-caps mt-3">Welcome to</div>
-                <LogoLockup height={46} className="mt-3 text-fg" />
-                <p className="mt-3 max-w-md text-[13.5px] leading-relaxed text-fg-2">
-                  Lock characters, direct scenes with native sound, voice every line and play stories that illustrate themselves — all on your own GPUs.
-                </p>
-                <Button variant="primary" size="lg" className="mt-8" iconRight={<ArrowRight className="size-4" />} onClick={next}>
+              <motion.div key="w" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.35, ease }} className="flex flex-col items-center pt-4 text-center max-md:flex-1 max-md:pt-0">
+                <div className="flex w-full flex-col items-center max-md:flex-1 max-md:justify-center">
+                  <Orb size={compact ? 108 : 120} />
+                  <div className="label-caps mt-3">Welcome to</div>
+                  <LogoLockup height={compact ? 40 : 46} className="mt-3 text-fg" />
+                  <p className="mt-3 max-w-md text-[13.5px] leading-relaxed text-fg-2 max-md:px-1">
+                    Lock characters, direct scenes with native sound, voice every line and play stories that illustrate themselves — all on your own GPUs.
+                  </p>
+                </div>
+                <Button variant="primary" size="lg" className="mt-8 max-md:h-12 max-md:w-full" iconRight={<ArrowRight className="size-4" />} onClick={next}>
                   Get started
                 </Button>
               </motion.div>
             )}
             {step === 'engines' && (
-              <motion.div key="e" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.35, ease }}>
-                <h2 className="display flex items-center gap-2 text-[22px]">
+              <motion.div key="e" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.35, ease }} className="max-md:flex max-md:flex-1 max-md:flex-col">
+                <h2 className="display flex items-center gap-2 text-[22px] max-md:text-[20px]">
                   <Cpu className="size-5 text-accent" /> Your generation engine
                 </h2>
                 <p className="mt-1.5 text-[12.5px] text-fg-3">Stitch drives ComfyUI for images, H3 video and audio.</p>
@@ -120,8 +135,8 @@ export function Onboarding(): React.JSX.Element | null {
                   )
                     .filter((o) => o.show)
                     .map((o) => (
-                      <button key={o.v} onClick={() => setLayout(o.v)} className={cn('flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-colors', layout === o.v ? 'border-[color-mix(in_oklab,var(--accent)_50%,transparent)] bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]' : 'border-line hover:bg-white/[0.04]')}>
-                        <span className={cn('grid size-5 place-items-center rounded-full border', layout === o.v ? 'border-transparent bg-grad' : 'border-line-strong')}>{layout === o.v && <Check className="size-3 text-white" strokeWidth={3} />}</span>
+                      <button key={o.v} onClick={() => setLayout(o.v)} className={cn('flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-colors max-md:active:scale-[0.99]', layout === o.v ? 'border-[color-mix(in_oklab,var(--accent)_50%,transparent)] bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]' : 'border-line hover:bg-white/[0.04]')}>
+                        <span className={cn('grid size-5 shrink-0 place-items-center rounded-full border', layout === o.v ? 'border-transparent bg-grad' : 'border-line-strong')}>{layout === o.v && <Check className="size-3 text-white" strokeWidth={3} />}</span>
                         <div>
                           <div className="text-[13px] font-semibold">{o.t}</div>
                           <div className="text-[12px] text-fg-3">{o.d}</div>
@@ -129,16 +144,16 @@ export function Onboarding(): React.JSX.Element | null {
                       </button>
                     ))}
                 </div>
-                <div className="mt-6 flex justify-end">
-                  <Button variant="primary" iconRight={<ArrowRight className="size-4" />} onClick={next}>
+                <div className="mt-6 flex justify-end max-md:mt-auto max-md:pt-6">
+                  <Button variant="primary" iconRight={<ArrowRight className="size-4" />} onClick={next} className="max-md:h-12 max-md:w-full max-md:rounded-xl max-md:text-[14px]">
                     Continue
                   </Button>
                 </div>
               </motion.div>
             )}
             {step === 'models' && (
-              <motion.div key="m" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.35, ease }}>
-                <h2 className="display flex items-center gap-2 text-[22px]">
+              <motion.div key="m" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.35, ease }} className="max-md:flex max-md:flex-1 max-md:flex-col">
+                <h2 className="display flex items-center gap-2 text-[22px] max-md:text-[20px]">
                   <MessageSquareText className="size-5 text-accent" /> Story & chat models
                 </h2>
                 <p className="mt-1.5 text-[12.5px] text-fg-3">Local servers are connected automatically. Add cloud keys any time under Connectors.</p>
@@ -150,24 +165,26 @@ export function Onboarding(): React.JSX.Element | null {
                     ))}
                 </motion.div>
                 {!llms.length && <p className="mt-4 text-[12px] text-warning">No text model is running. Start LM Studio or Ollama, or add an OpenAI / Anthropic / OpenRouter key under Connectors.</p>}
-                <div className="mt-6 flex justify-end">
-                  <Button variant="primary" iconRight={<ArrowRight className="size-4" />} onClick={next}>
+                <div className="mt-6 flex justify-end max-md:mt-auto max-md:pt-6">
+                  <Button variant="primary" iconRight={<ArrowRight className="size-4" />} onClick={next} className="max-md:h-12 max-md:w-full max-md:rounded-xl max-md:text-[14px]">
                     Continue
                   </Button>
                 </div>
               </motion.div>
             )}
             {step === 'done' && (
-              <motion.div key="d" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.35, ease }} className="flex flex-col items-center pt-6 text-center">
-                <motion.div initial={{ scale: 0.6, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={spring} className="grid size-16 place-items-center rounded-2xl bg-grad text-white shadow-lg">
-                  <Sparkles className="size-7" />
-                </motion.div>
-                <h2 className="display mt-5 text-[26px]">You're all set</h2>
-                <p className="mt-2 max-w-sm text-[13px] text-fg-2">
-                  {layout === 'external' ? 'Start ComfyUI from Stability Matrix whenever you want to generate.' : 'Stitch will start ComfyUI on your GPUs now and every time it opens.'} Make it yours with a Wallpaper Engine background in Settings → Appearance.
-                </p>
-                <div className="mt-8 flex gap-2">
-                  <Button variant="primary" size="lg" icon={<Film className="size-4" />} onClick={() => void finish()}>
+              <motion.div key="d" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.35, ease }} className="flex flex-col items-center pt-6 text-center max-md:flex-1 max-md:pt-0">
+                <div className="flex w-full flex-col items-center max-md:flex-1 max-md:justify-center">
+                  <motion.div initial={{ scale: 0.6, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={spring} className="grid size-16 place-items-center rounded-2xl bg-grad text-white shadow-lg">
+                    <Sparkles className="size-7" />
+                  </motion.div>
+                  <h2 className="display mt-5 text-[26px] max-md:text-[24px]">You're all set</h2>
+                  <p className="mt-2 max-w-sm text-[13px] text-fg-2 max-md:px-1">
+                    {layout === 'external' ? 'Start ComfyUI from Stability Matrix whenever you want to generate.' : 'Stitch will start ComfyUI on your GPUs now and every time it opens.'} Make it yours with a Wallpaper Engine background in Settings → Appearance.
+                  </p>
+                </div>
+                <div className="mt-8 flex gap-2 max-md:w-full">
+                  <Button variant="primary" size="lg" icon={<Film className="size-4" />} onClick={() => void finish()} className="max-md:h-12 max-md:w-full">
                     Start creating
                   </Button>
                 </div>

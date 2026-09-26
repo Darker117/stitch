@@ -15,12 +15,29 @@ import { Input } from '@/components/ui/input'
 import { Badge, Field, ProgressBar, ProgressRing } from '@/components/ui/misc'
 import { Dialog, Popover } from '@/components/ui/overlay'
 import { useHideNsfw } from '@/components/model-tags'
+import { isPhone, useCompact } from '@/lib/platform'
 import { toast } from '@/stores/toast'
 import { activeDownloads, useCivitai } from './store'
 
 // ─── Drawer ──────────────────────────────────────────────────────────────────
 
 export function Drawer({ open, onOpenChange, title, width = 560, children }: { open: boolean; onOpenChange: (o: boolean) => void; title: string; width?: number; children: ReactNode }): React.JSX.Element {
+  // Phone width: a full-width sheet that rises from the bottom instead of a side panel.
+  const compact = useCompact()
+  const motionProps = compact
+    ? {
+        initial: { y: '100%' },
+        animate: { y: 0 },
+        exit: { y: '100%', transition: { duration: 0.28, ease } },
+        transition: { type: 'spring' as const, stiffness: 380, damping: 38, mass: 0.9 }
+      }
+    : {
+        style: { width },
+        initial: { x: 64, opacity: 0 },
+        animate: { x: 0, opacity: 1 },
+        exit: { x: 48, opacity: 0, transition: { duration: 0.2, ease } },
+        transition: springSoft
+      }
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <AnimatePresence>
@@ -39,15 +56,17 @@ export function Drawer({ open, onOpenChange, title, width = 560, children }: { o
               }}
             >
               <motion.div
-                className="glass-strong fixed top-[calc(var(--titlebar)+2px)] right-2 bottom-2 z-50 flex max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-[20px] shadow-[var(--shadow-pop)] outline-none"
-                style={{ width }}
-                initial={{ x: 64, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: 48, opacity: 0, transition: { duration: 0.2, ease } }}
-                transition={springSoft}
+                className={cn(
+                  'glass-strong fixed z-50 flex flex-col overflow-hidden shadow-[var(--shadow-pop)] outline-none',
+                  compact
+                    ? 'inset-x-0 top-[calc(var(--sat,0px)+12px)] bottom-0 rounded-t-[24px] border-b-0 pb-[var(--sab,0px)] shadow-[0_-30px_80px_-20px_rgb(0_0_0/0.8)]'
+                    : 'top-[calc(var(--titlebar)+2px)] right-2 bottom-2 max-w-[calc(100vw-24px)] rounded-[20px]'
+                )}
+                {...motionProps}
               >
                 <D.Title className="sr-only">{title}</D.Title>
-                <D.Close className="absolute top-3 right-3 z-20 grid size-8 place-items-center rounded-full border border-white/10 bg-black/40 text-white/80 backdrop-blur-md transition hover:bg-black/60 hover:text-white">
+                {compact && <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center pt-2"><span className="h-1 w-10 rounded-full bg-white/35 shadow-[0_1px_4px_rgb(0_0_0/0.5)]" /></div>}
+                <D.Close className="absolute top-3 right-3 z-20 grid size-8 place-items-center rounded-full border border-white/10 bg-black/40 text-white/80 backdrop-blur-md transition hover:bg-black/60 hover:text-white max-md:size-9">
                   <X className="size-4" />
                 </D.Close>
                 {children}
@@ -134,7 +153,7 @@ export function CivitaiConnectorSection(): React.JSX.Element {
         </span>
         Model sources
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3 max-md:grid-cols-1">
         <motion.button whileHover={{ y: -3 }} transition={spring} onClick={() => setKeyDialog(true)} className="glass hairline group flex flex-col gap-3 rounded-2xl p-4 text-left">
           <div className="flex items-center gap-3">
             <CivitaiMark size={38} />
@@ -306,7 +325,7 @@ function DownloadRow({ d }: { d: DownloadState }): React.JSX.Element {
             <X className="size-3.5" />
           </IconButton>
         )}
-        {d.status === 'done' && d.path && (
+        {d.status === 'done' && d.path && !isPhone && (
           <IconButton label="Show in folder" size="xs" onClick={() => void invoke('sys:showInFolder', d.path!)}>
             <FolderOpen className="size-3.5" />
           </IconButton>
@@ -336,7 +355,7 @@ export function DownloadsButton(): React.JSX.Element {
       align="end"
       className="w-[380px] p-0"
       trigger={
-        <Button variant="secondary" icon={active.length ? <ProgressRing value={total ? received / total : undefined} size={16} stroke={2} /> : <Download className="size-3.5" />}>
+        <Button variant="secondary" className="max-md:h-10" icon={active.length ? <ProgressRing value={total ? received / total : undefined} size={16} stroke={2} /> : <Download className="size-3.5" />}>
           Downloads
           {list.length > 0 && <span className="rounded-md bg-white/10 px-1.5 text-[10.5px] tabular-nums text-fg-2">{active.length || list.length}</span>}
         </Button>
@@ -346,7 +365,7 @@ export function DownloadsButton(): React.JSX.Element {
         <span className="text-[13px] font-semibold">Downloads</span>
         <span className="text-[11px] text-fg-3">{active.length ? `${active.length} active` : 'This session'}</span>
       </div>
-      <div className="max-h-[56vh] overflow-y-auto p-1.5">
+      <div className="max-h-[56vh] overflow-y-auto p-1.5 max-md:max-h-[50vh]">
         <AnimatePresence initial={false}>
           {list.map((d) => (
             <DownloadRow key={d.id} d={d} />

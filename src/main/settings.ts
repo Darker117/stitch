@@ -22,7 +22,8 @@ function defaults(): AppSettings {
     userName: 'Storyteller',
     onboardingDone: false,
     civitai: { hideNsfw: true },
-    updates: { autoDownload: true }
+    updates: { autoDownload: true },
+    remote: { enabled: false, port: 47847 }
   }
 }
 

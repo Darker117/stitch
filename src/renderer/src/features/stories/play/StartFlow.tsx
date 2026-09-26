@@ -102,8 +102,8 @@ export function StartFlow({ root, defaultName, onDone }: { root: Scenario; defau
   const menuChoices = menu ? menu.choices.map((id) => db.get('scenarios', id)).filter((s): s is Scenario => !!s) : []
 
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.5, ease }} className="mx-auto flex min-h-screen w-full max-w-[640px] flex-col justify-center py-24">
-      <div className="mb-6 flex items-center gap-3">
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.5, ease }} className="mx-auto flex min-h-screen w-full max-w-[640px] flex-col justify-center py-24 max-md:justify-start max-md:pt-[calc(var(--sat,0px)+76px)] max-md:pb-0">
+      <div className="mb-6 flex items-center gap-3 max-md:mb-5">
         <LogoMark size={30} />
         <div className="min-w-0">
           <div className="label-caps">{menu ? 'Choose your path' : 'Before you begin'}</div>
@@ -124,7 +124,7 @@ export function StartFlow({ root, defaultName, onDone }: { root: Scenario; defau
         <AnimatePresence mode="wait" custom={dir} initial={false}>
           {menu ? (
             <motion.div key={`menu-${menu.id}`} custom={dir} variants={slide} initial="initial" animate="animate" exit="exit">
-              <h2 className="font-serif text-[26px] leading-snug font-semibold tracking-tight" style={{ color: 'var(--st-text)' }}>
+              <h2 className="font-serif text-[26px] leading-snug font-semibold tracking-tight max-md:text-[23px]" style={{ color: 'var(--st-text)' }}>
                 {menu.opening.trim() || 'Choose your scenario:'}
               </h2>
               <div className="mt-6 flex flex-col gap-2.5">
@@ -136,14 +136,14 @@ export function StartFlow({ root, defaultName, onDone }: { root: Scenario; defau
                     whileHover={{ x: 4 }}
                     whileTap={{ scale: 0.99 }}
                     onClick={() => choose(c)}
-                    className="group flex items-center gap-4 rounded-2xl border border-line bg-[var(--panel)] px-4 py-3.5 text-left backdrop-blur-xl transition-colors hover:border-[color-mix(in_oklab,var(--accent)_45%,transparent)]"
+                    className="group flex items-center gap-4 rounded-2xl border border-line bg-[var(--panel)] px-4 py-3.5 text-left backdrop-blur-xl transition-colors hover:border-[color-mix(in_oklab,var(--accent)_45%,transparent)] max-md:gap-3 max-md:px-3.5 max-md:py-3"
                   >
                     <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-grad font-serif text-[15px] font-semibold text-white">{i + 1}</span>
                     <div className="min-w-0 flex-1">
-                      <div className="font-serif text-[16.5px] font-semibold">{c.title || `Choice ${i + 1}`}</div>
+                      <div className="font-serif text-[16.5px] font-semibold max-md:leading-snug">{c.title || `Choice ${i + 1}`}</div>
                       {c.description && <div className="mt-0.5 line-clamp-2 text-[12.5px] text-fg-2">{c.description}</div>}
                     </div>
-                    <ArrowRight className="size-4 text-fg-3 transition group-hover:translate-x-0.5 group-hover:text-accent" />
+                    <ArrowRight className="size-4 shrink-0 text-fg-3 transition group-hover:translate-x-0.5 group-hover:text-accent" />
                   </motion.button>
                 ))}
                 {!menuChoices.length && <div className="text-[13px] text-fg-3">This menu has no choices yet.</div>}
@@ -153,7 +153,7 @@ export function StartFlow({ root, defaultName, onDone }: { root: Scenario; defau
             <motion.div key={`step-${step}`} custom={dir} variants={slide} initial="initial" animate="animate" exit="exit">
               {cur.kind === 'name' && (
                 <>
-                  <h2 className="font-serif text-[26px] font-semibold tracking-tight" style={{ color: 'var(--st-text)' }}>
+                  <h2 className="font-serif text-[26px] font-semibold tracking-tight max-md:text-[23px] max-md:leading-snug" style={{ color: 'var(--st-text)' }}>
                     What is your name?
                   </h2>
                   {resolved?.opening && preview(resolved.opening) && <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-fg-2">{preview(resolved.opening)}</p>}
@@ -162,10 +162,10 @@ export function StartFlow({ root, defaultName, onDone }: { root: Scenario; defau
               )}
               {cur.kind === 'field' && (
                 <>
-                  <h2 className="font-serif text-[26px] font-semibold tracking-tight" style={{ color: 'var(--st-text)' }}>
+                  <h2 className="font-serif text-[26px] font-semibold tracking-tight max-md:text-[23px] max-md:leading-snug" style={{ color: 'var(--st-text)' }}>
                     Choose your {cur.field.label.toLowerCase()}
                   </h2>
-                  <div className="mt-6 grid grid-cols-2 gap-2.5">
+                  <div className="mt-6 grid grid-cols-2 gap-2.5 max-md:mt-5 max-md:gap-2">
                     {cur.options.map((o) => {
                       const k = characterKey(cur.field.label)
                       const active = values[k] === o.name
@@ -179,13 +179,13 @@ export function StartFlow({ root, defaultName, onDone }: { root: Scenario; defau
                             next()
                           }}
                           className={cn(
-                            'relative flex flex-col gap-1 rounded-2xl border p-4 text-left backdrop-blur-xl transition-colors',
+                            'relative flex flex-col gap-1 rounded-2xl border p-4 text-left backdrop-blur-xl transition-colors max-md:p-3.5',
                             active ? 'border-[color-mix(in_oklab,var(--accent)_60%,transparent)] bg-[color-mix(in_oklab,var(--accent)_12%,var(--panel))]' : 'border-line bg-[var(--panel)] hover:border-line-strong'
                           )}
                         >
                           <div className="flex items-center gap-2">
                             <span className="text-fg-3 [&>svg]:size-3.5">{CARD_ICON[o.type]}</span>
-                            <span className="font-serif text-[16px] font-semibold">{o.name}</span>
+                            <span className="min-w-0 font-serif text-[16px] font-semibold max-md:text-[15px] max-md:leading-snug">{o.name}</span>
                           </div>
                           <p className="line-clamp-3 text-[12px] leading-relaxed text-fg-2">{o.notes || o.entry}</p>
                           {active && <motion.span layoutId="creator-pick" className="absolute inset-0 rounded-2xl ring-2 ring-[color-mix(in_oklab,var(--accent)_55%,transparent)]" transition={spring} />}
@@ -195,7 +195,7 @@ export function StartFlow({ root, defaultName, onDone }: { root: Scenario; defau
                   </div>
                   <button
                     onClick={() => set(characterKey(cur.field.label), cur.options[Math.floor(Math.random() * cur.options.length)].name)}
-                    className="mt-3 flex items-center gap-1.5 text-[12px] font-medium text-fg-3 transition hover:text-fg-2"
+                    className="mt-3 flex items-center gap-1.5 text-[12px] font-medium text-fg-3 transition hover:text-fg-2 max-md:-ml-1 max-md:mt-2 max-md:h-10 max-md:px-1"
                   >
                     <Dices className="size-3.5" /> Surprise me
                   </button>
@@ -203,7 +203,7 @@ export function StartFlow({ root, defaultName, onDone }: { root: Scenario; defau
               )}
               {cur.kind === 'prompt' && (
                 <>
-                  <h2 className="font-serif text-[26px] font-semibold tracking-tight" style={{ color: 'var(--st-text)' }}>
+                  <h2 className="font-serif text-[26px] font-semibold tracking-tight max-md:text-[23px] max-md:leading-snug" style={{ color: 'var(--st-text)' }}>
                     {promptLabel(cur.key)}
                   </h2>
                   <Input autoFocus value={valueOf(cur)} onChange={(e) => set(cur.key, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ready && next()} placeholder="Type your answer" className="mt-6 h-12 font-serif text-[17px]" />
@@ -214,22 +214,24 @@ export function StartFlow({ root, defaultName, onDone }: { root: Scenario; defau
         </AnimatePresence>
       </div>
 
-      <div className="mt-8 flex items-center gap-2">
+      {resolved?.openingType === 'characterCreator' && cur?.kind === 'field' && (
+        <div className="order-last mt-3 text-right text-[11px] text-fg-3 max-md:order-none max-md:mt-4 max-md:text-left">
+          {CARD_TYPES.find((t) => t.value === cur.field.cardType)?.label} options come from this story&apos;s cards
+        </div>
+      )}
+      <div className={cn('mt-8 flex items-center gap-2 max-md:sticky max-md:bottom-0 max-md:z-10 max-md:mt-auto max-md:-mx-5 max-md:bg-[linear-gradient(to_top,var(--st-bg)_55%,transparent)] max-md:px-5 max-md:pt-8 max-md:pb-[calc(var(--sab,0px)+14px)]', !canBack && !cur && 'max-md:hidden')}>
         {canBack && (
-          <IconButton label="Back" variant="secondary" onClick={back}>
+          <IconButton label="Back" variant="secondary" onClick={back} className="max-md:size-12 max-md:rounded-2xl">
             <ArrowLeft className="size-4" />
           </IconButton>
         )}
-        <div className="flex-1" />
+        <div className="flex-1 max-md:hidden" />
         {cur && (
-          <Button variant="primary" size="lg" disabled={!ready} onClick={next} iconRight={step >= steps.length - 1 ? <Play className="size-3.5 fill-current" /> : <ArrowRight className="size-4" />}>
+          <Button variant="primary" size="lg" disabled={!ready} onClick={next} className="max-md:h-12 max-md:flex-1 max-md:rounded-2xl" iconRight={step >= steps.length - 1 ? <Play className="size-3.5 fill-current" /> : <ArrowRight className="size-4" />}>
             {step >= steps.length - 1 ? 'Begin' : 'Next'}
           </Button>
         )}
       </div>
-      {resolved?.openingType === 'characterCreator' && cur?.kind === 'field' && (
-        <div className="mt-3 text-right text-[11px] text-fg-3">{CARD_TYPES.find((t) => t.value === cur.field.cardType)?.label} options come from this story&apos;s cards</div>
-      )}
     </motion.div>
   )
 }

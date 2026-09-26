@@ -120,10 +120,10 @@ export function ImportScripts({ open, mode: initialMode, onClose, onImported }: 
         </>
       }
     >
-      <div className="flex flex-col gap-4 p-5">
+      <div className="flex flex-col gap-4 p-5 max-md:p-4">
         <Segmented
           caps
-          className="self-start"
+          className="self-start max-md:flex max-md:w-full max-md:self-stretch max-md:[&>button]:h-9 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center"
           value={mode}
           onChange={(m) => {
             setMode(m)
@@ -149,10 +149,11 @@ export function ImportScripts({ open, mode: initialMode, onClose, onImported }: 
             )}
             {mode === 'paste' && (
               <>
-                <div className="flex gap-2">
-                  <Input value={pasteName} onChange={(e) => setPasteName(e.target.value)} placeholder="Script name" className="flex-1" />
+                <div className="flex gap-2 max-md:flex-col">
+                  <Input value={pasteName} onChange={(e) => setPasteName(e.target.value)} placeholder="Script name" className="flex-1 max-md:flex-none" />
                   <Segmented
                     size="sm"
+                    className="max-md:flex max-md:w-full max-md:[&>button]:h-8 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center"
                     value={pasteTab}
                     onChange={setPasteTab}
                     items={(['library', 'input', 'context', 'output'] as Tab[]).map((t) => ({ value: t, label: HOOK_LABEL[t] }))}
@@ -171,7 +172,7 @@ export function ImportScripts({ open, mode: initialMode, onClose, onImported }: 
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {EXAMPLES.map((u) => (
-                    <Chip key={u} icon={<FolderGit2 />} onClick={() => setUrl(u)}>
+                    <Chip key={u} icon={<FolderGit2 />} onClick={() => setUrl(u)} className="max-md:h-8">
                       {u.replace('https://github.com/', '')}
                     </Chip>
                   ))}

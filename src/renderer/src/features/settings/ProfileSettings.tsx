@@ -68,12 +68,12 @@ function GeneratePopover({ name, personality }: { name: string; personality: str
       open={open}
       onOpenChange={setOpen}
       trigger={
-        <Button size="sm" variant="secondary" icon={<WandSparkles className="size-3.5" />}>
+        <Button size="sm" variant="secondary" className="max-md:h-9 max-md:px-3.5" icon={<WandSparkles className="size-3.5" />}>
           Generate
         </Button>
       }
     >
-      <div className="w-[300px] space-y-3 p-1">
+      <div className="w-[300px] max-w-full space-y-3 p-1">
         <Field label="How should your avatar look?" help={personality ? 'Leave empty to imagine it from your personality.' : undefined}>
           <Textarea value={look} onChange={(e) => setLook(e.target.value)} minRows={3} maxRows={6} placeholder="e.g. silver-haired ranger, green cloak, warm smile" autoFocus />
         </Field>
@@ -117,10 +117,10 @@ export function ProfileSettings(): React.JSX.Element {
   return (
     <div className="space-y-4">
       <SectionTitle>Your profile</SectionTitle>
-      <Surface className="relative overflow-hidden p-5">
+      <Surface className="relative overflow-hidden p-5 max-md:p-4">
         <div className="pointer-events-none absolute -top-24 -left-16 size-64 rounded-full bg-grad opacity-[0.12] blur-3xl" />
-        <div className="relative flex gap-6">
-          <div className="flex w-[132px] shrink-0 flex-col items-center gap-3">
+        <div className="relative flex gap-6 max-md:flex-col max-md:gap-5">
+          <div className="flex w-[132px] shrink-0 flex-col items-center gap-3 max-md:w-full">
             <div className="relative">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div key={avatar?.id ?? 'none'} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={spring}>
@@ -136,13 +136,13 @@ export function ProfileSettings(): React.JSX.Element {
               </AnimatePresence>
             </div>
             <div className="flex flex-wrap justify-center gap-1.5">
-              <Button size="sm" variant="secondary" icon={<ImagePlus className="size-3.5" />} onClick={() => void upload()}>
+              <Button size="sm" variant="secondary" className="max-md:h-9 max-md:px-3.5" icon={<ImagePlus className="size-3.5" />} onClick={() => void upload()}>
                 Upload
               </Button>
               <GeneratePopover name={name} personality={personality} />
             </div>
             {avatar && !running && (
-              <button onClick={() => void update({ persona: { avatarAssetId: '' } })} className="flex items-center gap-1 text-[11.5px] text-fg-3 transition hover:text-danger">
+              <button onClick={() => void update({ persona: { avatarAssetId: '' } })} className="flex items-center gap-1 text-[11.5px] text-fg-3 transition hover:text-danger max-md:h-8">
                 <Trash2 className="size-3" /> Remove photo
               </button>
             )}

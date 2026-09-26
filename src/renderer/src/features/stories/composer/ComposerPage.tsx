@@ -4,17 +4,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { AlertTriangle, ArrowLeft, Check, CheckCheck, Code2, Layers, RotateCcw, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, CheckCheck, Code2, Ellipsis, Eye, Layers, MessagesSquare, RotateCcw, Sparkles } from 'lucide-react'
 import { Page } from '@/components/shell/page'
 import { LogoMark } from '@/components/shell/logo'
 import { ModelPicker } from '@/components/model-picker'
 import { Button, IconButton } from '@/components/ui/button'
 import { Dialog, Menu, MenuItem } from '@/components/ui/overlay'
-import { SwitchRow } from '@/components/ui/controls'
+import { Segmented, SwitchRow } from '@/components/ui/controls'
 import { errorText } from '@/lib/api'
 import { useDefaultLlm } from '@/lib/llm'
 import { cn, pluralize } from '@/lib/utils'
 import { ease, spring } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 import { toast } from '@/stores/toast'
 import { StoryStyles } from '../components/StoryStyles'
 import { FrostHeader } from '../components/frost'
@@ -28,16 +29,34 @@ import { SECTIONS, saveDraft } from './draft'
 import { attachDraftScripts } from './scripts'
 import { useComposer } from './store'
 
-function Stepper(): React.JSX.Element {
+function Stepper({ className }: { className?: string }): React.JSX.Element {
   const sections = useComposer((s) => s.draft.sections)
   const focus = useComposer((s) => s.focus)
   const setFocus = useComposer((s) => s.setFocus)
+  const compact = useCompact()
+  const box = useRef<HTMLDivElement>(null)
+  // Phones: the stepper scrolls sideways — keep the focused step in view (chat or preview can move it).
+  useEffect(() => {
+    if (!compact) return
+    const el = box.current?.querySelector<HTMLElement>(`[data-step="${focus}"]`)
+    const sc = box.current?.parentElement
+    if (!el || !sc) return
+    const a = el.getBoundingClientRect()
+    const b = sc.getBoundingClientRect()
+    if (a.left < b.left + 8) sc.scrollBy({ left: a.left - b.left - 8, behavior: 'smooth' })
+    else if (a.right > b.right - 8) sc.scrollBy({ left: a.right - b.right + 8, behavior: 'smooth' })
+  }, [compact, focus])
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-line bg-white/[0.03] p-1">
+    <div ref={box} className={cn('flex items-center gap-1 rounded-xl border border-line bg-white/[0.03] p-1', className)}>
       {SECTIONS.map((s, i) => {
         const active = focus === s.id
         return (
-          <button key={s.id} onClick={() => setFocus(s.id)} className={cn('relative flex h-7.5 items-center gap-2 rounded-lg px-3 text-[12px] font-semibold transition-colors duration-200', active ? 'text-fg' : 'text-fg-3 hover:text-fg-2')}>
+          <button
+            key={s.id}
+            data-step={s.id}
+            onClick={() => setFocus(s.id)}
+            className={cn('relative flex h-7.5 items-center gap-2 rounded-lg px-3 text-[12px] font-semibold transition-colors duration-200 max-md:h-8 max-md:shrink-0', active ? 'text-fg' : 'text-fg-3 hover:text-fg-2')}
+          >
             {active && <motion.span layoutId="composer-step" className="absolute inset-0 rounded-lg border border-line-strong bg-white/[0.1] shadow-[inset_0_1px_0_rgb(255_255_255/0.08)]" transition={spring} />}
             <span className="relative flex items-center gap-2">
               <span className="text-[10.5px] text-fg-3 tabular-nums">{i + 1}</span>
@@ -162,6 +181,10 @@ export function ComposerPage(): React.JSX.Element {
   const ready = SECTIONS.filter((s) => d.sections[s.id] === 'accepted').length
   const anyProposed = SECTIONS.some((s) => d.sections[s.id] === 'proposed')
   const canCreate = !!(d.title.trim() || d.description.trim() || d.opening.trim())
+  // Phones: chat and preview share the screen through a Chat / Preview switch.
+  const compact = useCompact()
+  const [view, setView] = useState<'chat' | 'preview'>('chat')
+  const [reveal, setReveal] = useState(0)
 
   useEffect(() => {
     if (!llm && defLlm) setLlm(defLlm)
@@ -180,7 +203,69 @@ export function ComposerPage(): React.JSX.Element {
     <Page scroll={false}>
       <StoryStyles />
       <div className="relative h-full">
-        <FrostHeader overlay stuck={stuck} onHeight={setHeaderH} width={1280}>
+        <FrostHeader overlay stuck={compact ? stuck && view === 'preview' : stuck} onHeight={setHeaderH} width={1280}>
+          {compact ? (
+            <>
+              <div className="flex items-center gap-2.5">
+                <IconButton label="Back to new story" variant="secondary" onClick={() => navigate('/stories/new')} className="size-10 rounded-xl">
+                  <ArrowLeft className="size-4" />
+                </IconButton>
+                <div className="min-w-0 flex-1">
+                  <h1 className="truncate font-serif text-[17px] leading-tight font-semibold tracking-tight">Composer</h1>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.div key={d.title || '-'} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.2, ease }} className="truncate text-[11.5px] text-fg-3">
+                      {d.title || 'Build it with your model'}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+                <Menu
+                  align="end"
+                  trigger={
+                    <IconButton label="Composer options" variant="secondary" disabled={busy} className="size-10 rounded-xl">
+                      <Ellipsis className="size-4" />
+                    </IconButton>
+                  }
+                >
+                  <MenuItem icon={<RotateCcw />} danger onSelect={reset}>
+                    Start over — discard this draft
+                  </MenuItem>
+                </Menu>
+                <Button variant="primary" icon={<Check className="size-4" />} disabled={!canCreate || busy} onClick={() => setCreating(true)} className="h-10 rounded-xl px-3.5 tracking-wide">
+                  Create
+                </Button>
+              </div>
+              <Segmented
+                value={view}
+                onChange={setView}
+                className="mt-2.5 flex w-full [&>button]:h-9 [&>button]:flex-1 [&>button]:justify-center"
+                items={[
+                  { value: 'chat', label: 'Chat', icon: <MessagesSquare /> },
+                  { value: 'preview', label: 'Preview', icon: <Eye />, count: ready }
+                ]}
+              />
+              <AnimatePresence initial={false}>
+                {view === 'preview' && (
+                  <motion.div key="steps" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.28, ease }} className="overflow-hidden">
+                    <div className="flex items-center gap-2 pt-2">
+                      <div className="min-w-0 flex-1 overflow-x-auto rounded-xl [scrollbar-width:none]">
+                        <Stepper className="w-max" />
+                      </div>
+                      <AnimatePresence>
+                        {anyProposed && (
+                          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={spring}>
+                            <Button size="sm" variant="secondary" icon={<CheckCheck className="size-3.5" />} onClick={acceptAll} disabled={busy} className="h-10 rounded-xl">
+                              All
+                            </Button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          ) : (
+          <>
           <div className="flex items-center gap-3">
             <IconButton label="Back to new story" variant="secondary" onClick={() => navigate('/stories/new')}>
               <ArrowLeft className="size-4" />
@@ -228,17 +313,50 @@ export function ComposerPage(): React.JSX.Element {
               )}
             </AnimatePresence>
           </div>
+          </>
+          )}
         </FrostHeader>
 
+        {compact ? (
+          // Phones: both panes stay mounted (chat scroll, preview edits) and cross-fade.
+          <div className="relative h-full">
+            <motion.div
+              initial={false}
+              animate={view === 'chat' ? { opacity: 1, scale: 1, visibility: 'visible' } : { opacity: 0, scale: 0.985, transitionEnd: { visibility: 'hidden' } }}
+              transition={{ duration: 0.3, ease }}
+              className="pointer-events-none absolute inset-0 z-30 flex flex-col px-3 pb-3"
+              style={{ paddingTop: headerH }}
+            >
+              <div className={cn('flex min-h-0 flex-1 flex-col', view === 'chat' && 'pointer-events-auto')}>
+                <ChatPanel
+                  onOpenSection={() => {
+                    setView('preview')
+                    setReveal((n) => n + 1)
+                  }}
+                />
+              </div>
+            </motion.div>
+            <motion.div
+              initial={false}
+              animate={view === 'preview' ? { opacity: 1, scale: 1, visibility: 'visible' } : { opacity: 0, scale: 0.985, transitionEnd: { visibility: 'hidden' } }}
+              transition={{ duration: 0.3, ease }}
+              className="absolute inset-0 px-3"
+            >
+              <Preview topPad={headerH} onScrolled={setStuck} revealKey={reveal} />
+            </motion.div>
+          </div>
+        ) : (
         <div className="mx-auto flex h-full max-w-[1280px] gap-4 px-6">
-          {/* Above the header's diffusion band, so the chat never blurs. */}
-          <div className="relative z-30 flex w-[400px] shrink-0 flex-col pb-4" style={{ paddingTop: headerH }}>
+          {/* Above the header's diffusion band, so the chat never blurs. Its top padding sits under the
+              header, so it lets clicks through to the header (back button, stepper); the panel takes them. */}
+          <div className="pointer-events-none relative z-30 flex w-[400px] shrink-0 flex-col pb-4" style={{ paddingTop: headerH }}>
             <ChatPanel />
           </div>
           <div className="min-w-0 flex-1">
             <Preview topPad={headerH} onScrolled={setStuck} />
           </div>
         </div>
+        )}
       </div>
       <CreateDialog open={creating} onClose={() => setCreating(false)} />
     </Page>

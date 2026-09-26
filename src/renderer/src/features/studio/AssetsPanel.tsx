@@ -66,7 +66,7 @@ export function AssetsPanel(): React.JSX.Element {
         <span className="rounded-md bg-white/[0.06] px-1.5 text-[10.5px] font-semibold text-fg-3 tabular-nums">{counts.all}</span>
         <div className="flex-1" />
         <Tooltip content="Import media">
-          <IconButton label="Import media" size="sm" onClick={() => void importAny()}>
+          <IconButton label="Import media" size="sm" className="max-md:size-8.5" onClick={() => void importAny()}>
             <Upload className="size-3.5" />
           </IconButton>
         </Tooltip>
@@ -135,16 +135,17 @@ const AssetTile = memo(function AssetTile({ asset, index, active, used }: { asse
       onDragEnd={endAssetDrag}
       onClick={() => editor.setSource(asset.id)}
       onDoubleClick={() => appendAsset(asset)}
-      onMouseEnter={() => {
+      onPointerEnter={(e) => {
+        if (e.pointerType !== 'mouse') return
         setHover(true)
         if (asset.kind === 'video') void getFrames(asset, true)
       }}
-      onMouseLeave={() => {
+      onPointerLeave={() => {
         setHover(false)
         setScrub(null)
       }}
-      onMouseMove={(e) => {
-        if (asset.kind !== 'video') return
+      onPointerMove={(e) => {
+        if (asset.kind !== 'video' || e.pointerType !== 'mouse') return
         const r = ref.current!.getBoundingClientRect()
         setScrub(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)))
       }}
@@ -178,10 +179,11 @@ const AssetTile = memo(function AssetTile({ asset, index, active, used }: { asse
           e.stopPropagation()
           appendAsset(asset)
         }}
-        className="absolute top-1 right-1 grid size-5.5 place-items-center rounded-md bg-black/55 text-white opacity-0 backdrop-blur transition hover:bg-black/80 group-hover:opacity-100"
+        className="absolute top-1 right-1 grid size-5.5 place-items-center rounded-md bg-black/55 text-white opacity-0 backdrop-blur transition hover:bg-black/80 group-hover:opacity-100 max-md:size-7 max-md:rounded-lg max-md:opacity-100 max-md:active:scale-90"
         title="Append to timeline"
+        aria-label="Append to timeline"
       >
-        <Plus className="size-3" />
+        <Plus className="size-3 max-md:size-3.5" />
       </button>
     </div>
     </motion.div>
@@ -226,8 +228,9 @@ function JobTile({ job, highlight }: { job: GenJob; highlight: boolean }): React
       </div>
       <button
         onClick={() => void cancel(job.id)}
-        className="absolute top-1 right-1 grid size-5 place-items-center rounded-md bg-black/55 text-white opacity-0 transition group-hover:opacity-100"
+        className="absolute top-1 right-1 grid size-5 place-items-center rounded-md bg-black/55 text-white opacity-0 transition group-hover:opacity-100 max-md:size-7 max-md:rounded-lg max-md:opacity-100"
         title="Cancel"
+        aria-label="Cancel"
       >
         <X className="size-3" />
       </button>
@@ -237,26 +240,26 @@ function JobTile({ job, highlight }: { job: GenJob; highlight: boolean }): React
 
 // ─── Timelines list ──────────────────────────────────────────────────────────
 
-export function TimelinesList(): React.JSX.Element {
+export function TimelinesList({ defaultOpen = true }: { defaultOpen?: boolean } = {}): React.JSX.Element {
   const timelines = useCollection('timelines')
   const current = useEditor((s) => s.tl)
   const assets = useAssetMap()
   const navigate = useNavigate()
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(defaultOpen)
   const [creating, setCreating] = useState(false)
   // show the live working copy for the open timeline
   const rows = useMemo(() => timelines.map((t) => (current && t.id === current.id ? current : t)), [timelines, current])
   return (
     <div className="flex shrink-0 flex-col border-t border-line">
-      <div className="flex h-9 items-center gap-1 px-3">
-        <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1.5 text-[12px] font-semibold text-fg-2 transition hover:text-fg">
+      <div className="flex h-9 items-center gap-1 px-3 max-md:h-11">
+        <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1.5 text-[12px] font-semibold text-fg-2 transition hover:text-fg max-md:h-full max-md:flex-1">
           <ChevronDown className={cn('size-3.5 transition-transform duration-300', !open && '-rotate-90')} />
           Timelines
           <span className="text-[10.5px] font-medium text-fg-3 tabular-nums">{timelines.length}</span>
         </button>
         <div className="flex-1" />
         <Tooltip content="New timeline">
-          <IconButton label="New timeline" size="xs" onClick={() => setCreating(true)}>
+          <IconButton label="New timeline" size="xs" className="max-md:size-8" onClick={() => setCreating(true)}>
             <Plus className="size-3.5" />
           </IconButton>
         </Tooltip>

@@ -34,14 +34,14 @@ function Still({ id, onOpen, onAnimate, animating }: { id: ID; onOpen: (id: ID) 
   return (
     <Reveal className="group/m relative overflow-hidden rounded-2xl ring-1 ring-line">
       <img src={fileUrl(asset.path)} draggable={false} onClick={() => onOpen(id)} className="aspect-video w-full cursor-zoom-in object-cover transition-transform duration-700 ease-out group-hover/m:scale-[1.015]" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.45),transparent_40%)] opacity-0 transition-opacity duration-300 group-hover/m:opacity-100" />
-      <div className="absolute right-2.5 bottom-2.5 flex gap-1.5 opacity-0 transition-opacity duration-300 group-hover/m:opacity-100">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.45),transparent_40%)] opacity-0 transition-opacity duration-300 group-hover/m:opacity-100 max-md:opacity-60" />
+      <div className="absolute right-2.5 bottom-2.5 flex gap-1.5 opacity-0 transition-opacity duration-300 group-hover/m:opacity-100 max-md:right-2 max-md:bottom-2 max-md:opacity-100">
         {onAnimate && (
-          <button onClick={onAnimate} disabled={animating} className="flex h-8 items-center gap-1.5 rounded-full bg-black/55 px-3 text-[12px] font-medium text-white backdrop-blur-md transition hover:bg-black/75 disabled:opacity-50">
+          <button onClick={onAnimate} disabled={animating} className="flex h-8 items-center gap-1.5 rounded-full bg-black/55 px-3 text-[12px] font-medium text-white backdrop-blur-md transition hover:bg-black/75 disabled:opacity-50 max-md:h-9 max-md:active:scale-95">
             <Clapperboard className="size-3.5" /> Animate
           </button>
         )}
-        <button onClick={() => onOpen(id)} className="grid size-8 place-items-center rounded-full bg-black/55 text-white backdrop-blur-md transition hover:bg-black/75" title="Open">
+        <button onClick={() => onOpen(id)} className="grid size-8 place-items-center rounded-full bg-black/55 text-white backdrop-blur-md transition hover:bg-black/75 max-md:size-9 max-md:active:scale-95" title="Open" aria-label="Open">
           <Maximize2 className="size-3.5" />
         </button>
       </div>
@@ -57,11 +57,11 @@ function Clip({ id, onOpen }: { id: ID; onOpen: (id: ID) => void }): React.JSX.E
   return (
     <Reveal className="group/m relative overflow-hidden rounded-2xl ring-1 ring-line">
       <video ref={ref} src={fileUrl(asset.path)} poster={asset.thumbPath ? fileUrl(asset.thumbPath) : undefined} autoPlay loop muted={muted} playsInline className="aspect-video w-full object-cover" onClick={() => onOpen(id)} />
-      <div className="absolute right-2.5 bottom-2.5 flex gap-1.5 opacity-0 transition-opacity duration-300 group-hover/m:opacity-100">
-        <button onClick={() => setMuted((m) => !m)} className="flex h-8 items-center gap-1.5 rounded-full bg-black/55 px-3 text-[12px] font-medium text-white backdrop-blur-md hover:bg-black/75">
+      <div className="absolute right-2.5 bottom-2.5 flex gap-1.5 opacity-0 transition-opacity duration-300 group-hover/m:opacity-100 max-md:right-2 max-md:bottom-2 max-md:opacity-100">
+        <button onClick={() => setMuted((m) => !m)} className="flex h-8 items-center gap-1.5 rounded-full bg-black/55 px-3 text-[12px] font-medium text-white backdrop-blur-md hover:bg-black/75 max-md:h-9 max-md:active:scale-95">
           <Volume2 className="size-3.5" /> {muted ? 'Sound on' : 'Mute'}
         </button>
-        <button onClick={() => onOpen(id)} className="grid size-8 place-items-center rounded-full bg-black/55 text-white backdrop-blur-md hover:bg-black/75" title="Open">
+        <button onClick={() => onOpen(id)} className="grid size-8 place-items-center rounded-full bg-black/55 text-white backdrop-blur-md hover:bg-black/75 max-md:size-9 max-md:active:scale-95" title="Open" aria-label="Open">
           <Maximize2 className="size-3.5" />
         </button>
       </div>
@@ -132,10 +132,11 @@ export function TurnMedia({
   const hasAnything = visuals.length || audio.length || active.length || writing || pending?.narrate
   if (!hasAnything) return null
   const animating = !!pending?.animate || active.some((j) => j.kind === 'video')
+  const tiles = visuals.length + active.length + (writing ? 1 : 0)
 
   return (
     <motion.div layout className="mt-3 flex flex-col gap-2.5">
-      <div className={cn('grid gap-2.5', visuals.length + active.length + (writing ? 1 : 0) > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+      <div className={cn('grid gap-2.5', tiles > 1 ? 'grid-cols-2' : 'grid-cols-1', tiles === 2 && 'max-md:grid-cols-1', 'max-md:gap-2')}>
         <AnimatePresence initial={false}>
           {visuals.map((m) =>
             m.kind === 'video' ? <Clip key={m.assetId} id={m.assetId} onOpen={onOpen} /> : <Still key={m.assetId} id={m.assetId} onOpen={onOpen} onAnimate={onAnimate} animating={animating} />

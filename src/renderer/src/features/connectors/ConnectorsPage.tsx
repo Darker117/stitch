@@ -1,9 +1,11 @@
-import { lazy, Suspense, useMemo, useState, type ComponentType } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
+import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { Blocks, Check, CircleDashed, Cloud, Cpu, ExternalLink, KeyRound, LayoutGrid, Link2, Plus, RefreshCw, Rocket, Trash2 } from 'lucide-react'
 import type { ComfyConnector, Connector, GenKind, LlmConnector, VoiceConnector } from '@shared/types'
 import { errorText, invoke } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { useCompact } from '@/lib/platform'
 import { ease, rise, spring, stagger } from '@/lib/motion'
 import { Page } from '@/components/shell/page'
 import { LogoMark } from '@/components/shell/logo'
@@ -196,7 +198,7 @@ function ConfigureDialog({ entry, existing, onClose }: { entry: CatalogEntry | n
                   <button
                     key={r}
                     onClick={() => setRoles((x) => (x.includes(r) ? x.filter((y) => y !== r) : [...x, r]))}
-                    className={cn('h-7.5 rounded-lg border px-2.5 text-[12px] font-medium transition', roles.includes(r) ? 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]' : 'border-line text-fg-3 hover:text-fg-2')}
+                    className={cn('h-7.5 rounded-lg border px-2.5 text-[12px] font-medium transition max-md:h-9 max-md:rounded-full max-md:px-3.5', roles.includes(r) ? 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]' : 'border-line text-fg-3 hover:text-fg-2')}
                   >
                     {ROLE_LABEL[r]}
                   </button>
@@ -221,15 +223,18 @@ function ConfigureDialog({ entry, existing, onClose }: { entry: CatalogEntry | n
 
 function ConnectorRow({ c, onEdit }: { c: Connector; onEdit: () => void }): React.JSX.Element {
   const entry = catalogFor(c) ?? CATALOG[CATALOG.length - 1]
+  const navigate = useNavigate()
+  // "This phone" (phone app only): models are managed on the phone's own page, and it can't be removed.
+  const onPhone = 'kind' in c && c.kind === 'device'
   const comfy = useGen((s) => s.comfy.find((x) => x.connectorId === c.id))
   const [testing, setTesting] = useState(false)
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const online = c.category === 'comfy' ? comfy?.online : status?.ok
   return (
-    <motion.div layout variants={rise} className="glass hairline flex items-center gap-4 rounded-2xl p-3.5">
+    <motion.div layout variants={rise} className="glass hairline flex items-center gap-4 rounded-2xl p-3.5 max-md:flex-wrap max-md:gap-3">
       <Mono entry={entry} size={40} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-md:flex-wrap max-md:gap-y-1">
           <span className="text-[13.5px] font-semibold">{c.name}</span>
           {c.category === 'comfy' && (c as ComfyConnector).managed && <Badge tone="accent">Managed</Badge>}
           {'hasKey' in c && c.hasKey && (
@@ -247,32 +252,37 @@ function ConnectorRow({ c, onEdit }: { c: Connector; onEdit: () => void }): Reac
         </div>
       </div>
       <StatusDot state={online ? 'online' : status && !status.ok ? 'warn' : 'offline'} />
-      <Button
-        size="sm"
-        variant="ghost"
-        icon={testing ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
-        onClick={async () => {
-          setTesting(true)
-          setStatus(await invoke('connectors:test', c.id))
-          setTesting(false)
-        }}
-      >
-        Test
-      </Button>
-      <Button size="sm" onClick={onEdit}>
-        Configure
-      </Button>
-      <Switch checked={c.enabled} onChange={(v) => void invoke('connectors:save', { ...c, enabled: v } as Connector)} />
-      <IconButton
-        label="Remove"
-        size="sm"
-        onClick={async () => {
-          await invoke('connectors:delete', c.id)
-          toast.info(`${c.name} removed`)
-        }}
-      >
-        <Trash2 className="size-3.5" />
-      </IconButton>
+      <div className="contents max-md:flex max-md:basis-full max-md:items-center max-md:gap-2 max-md:border-t max-md:border-line max-md:pt-3">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="max-md:h-9"
+          icon={testing ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
+          onClick={async () => {
+            setTesting(true)
+            setStatus(await invoke('connectors:test', c.id))
+            setTesting(false)
+          }}
+        >
+          Test
+        </Button>
+        <Button size="sm" className="max-md:h-9" onClick={onPhone ? () => navigate(`/phone?task=${c.category === 'llm' ? 'text' : 'voice'}`) : onEdit}>
+          {onPhone ? 'Models' : 'Configure'}
+        </Button>
+        <span className="hidden max-md:block max-md:flex-1" />
+        <Switch checked={c.enabled} onChange={(v) => void invoke('connectors:save', { ...c, enabled: v } as Connector)} />
+        <IconButton
+          label="Remove"
+          size="sm"
+          className={cn('max-md:size-9', onPhone && 'hidden')}
+          onClick={async () => {
+            await invoke('connectors:delete', c.id)
+            toast.info(`${c.name} removed`)
+          }}
+        >
+          <Trash2 className="size-3.5" />
+        </IconButton>
+      </div>
     </motion.div>
   )
 }
@@ -286,18 +296,33 @@ export function ConnectorsPage(): React.JSX.Element {
   const [q, setQ] = useState('')
   const [cats, setCats] = useState<Cat[]>(['llm', 'comfy', 'voice'])
   const [editing, setEditing] = useState<{ entry: CatalogEntry; existing?: Connector } | null>(null)
+  // Phones: a plain header instead of the constellation hero, and your connectors first.
+  const compact = useCompact()
+  const picked = useRef(false)
+  useEffect(() => {
+    if (compact && connectors.length && !picked.current) setTab('mine')
+  }, [compact, connectors.length])
+  const addCustom = (): void => setEditing({ entry: CATALOG.find((c) => c.key === 'custom')! })
 
   const catalog = useMemo(() => CATALOG.filter((e) => cats.includes(e.category as Cat) && (!q || `${e.name} ${e.blurb}`.toLowerCase().includes(q.toLowerCase()))), [cats, q])
   const mine = useMemo(() => connectors.filter((c) => cats.includes(c.category as Cat) && (!q || c.name.toLowerCase().includes(q.toLowerCase()))), [connectors, cats, q])
 
   return (
     <Page>
-      <div className="relative h-[360px] overflow-hidden border-b border-line">
-        <div className="absolute inset-y-0 right-0 w-[62%]">
+      {compact ? (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }} className="flex items-center gap-2 px-4 pt-5 pb-1">
+          <h1 className="display min-w-0 flex-1 truncate text-[23px]">Connectors</h1>
+          <Button className="h-10 rounded-xl px-3.5" icon={<Plus className="size-4" />} onClick={addCustom}>
+            Custom
+          </Button>
+        </motion.div>
+      ) : (
+      <div className="relative h-[360px] overflow-hidden border-b border-line max-md:h-auto">
+        <div className="absolute inset-y-0 right-0 w-[62%] max-md:relative max-md:inset-auto max-md:h-[220px] max-md:w-full">
           <Constellation />
         </div>
-        <div className="relative z-10 flex h-full max-w-[520px] flex-col justify-center gap-5 px-10">
-          <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease }} className="display text-[34px] uppercase">
+        <div className="relative z-10 flex h-full max-w-[520px] flex-col justify-center gap-5 px-10 max-md:h-auto max-md:gap-4 max-md:px-5 max-md:pt-1 max-md:pb-7">
+          <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease }} className="display text-[34px] uppercase max-md:text-[28px]">
             Connect Stitch
             <br />
             to your models
@@ -309,7 +334,7 @@ export function ConnectorsPage(): React.JSX.Element {
               { icon: <KeyRound />, b: 'Keys stay local', r: 'encrypted with your Windows account' }
             ].map((b) => (
               <motion.li key={b.b} variants={rise} className="flex items-center gap-2.5">
-                <span className="text-fg-2 [&>svg]:size-3.5">{b.icon}</span>
+                <span className="shrink-0 text-fg-2 [&>svg]:size-3.5">{b.icon}</span>
                 <span>
                   <b className="font-semibold text-fg">{b.b}</b> {b.r}
                 </span>
@@ -317,28 +342,33 @@ export function ConnectorsPage(): React.JSX.Element {
             ))}
           </motion.ul>
           <div>
-            <Button variant="glass" icon={<Plus className="size-4" />} onClick={() => setEditing({ entry: CATALOG.find((c) => c.key === 'custom')! })}>
+            <Button variant="glass" className="max-md:h-10" icon={<Plus className="size-4" />} onClick={addCustom}>
               Add custom endpoint
             </Button>
           </div>
         </div>
       </div>
+      )}
 
-      <div className="px-10 pt-6 pb-16">
+      <div className="px-10 pt-6 pb-16 max-md:px-4 max-md:pt-4 max-md:pb-10">
         <Tabs
           value={tab}
-          onChange={setTab}
+          onChange={(t) => {
+            picked.current = true
+            setTab(t)
+          }}
+          className="max-md:[&>button]:h-10"
           items={[
             { value: 'explore', label: 'Explore', icon: <LayoutGrid /> },
             { value: 'mine', label: 'My connectors', icon: <Check />, count: connectors.length }
           ]}
         />
-        <div className="mt-5 flex items-center justify-between gap-3">
-          <SearchField value={q} onChange={setQ} className="w-[280px]" />
+        <div className="mt-5 flex items-center justify-between gap-3 max-md:mt-4 max-md:gap-2">
+          <SearchField value={q} onChange={setQ} className="w-[280px] max-md:w-auto max-md:min-w-0 max-md:flex-1" />
           <Menu
             align="end"
             trigger={
-              <Button variant="outline" size="sm" icon={<LayoutGrid className="size-3.5" />}>
+              <Button variant="outline" size="sm" className="max-md:h-9" icon={<LayoutGrid className="size-3.5" />}>
                 Category
               </Button>
             }
@@ -353,7 +383,7 @@ export function ConnectorsPage(): React.JSX.Element {
 
         <AnimatePresence mode="wait">
           {tab === 'explore' ? (
-            <motion.div key="explore" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease }} className="mt-6 space-y-9">
+            <motion.div key="explore" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease }} className="mt-6 space-y-9 max-md:mt-5 max-md:space-y-7">
               {(Object.keys(CAT_LABEL) as Cat[])
                 .filter((cat) => cats.includes(cat))
                 .map((cat) => {
@@ -367,7 +397,7 @@ export function ConnectorsPage(): React.JSX.Element {
                         </span>
                         {CAT_LABEL[cat]}
                       </div>
-                      <motion.div variants={stagger(0.04)} initial="initial" animate="animate" className="grid grid-cols-3 gap-3">
+                      <motion.div variants={stagger(0.04)} initial="initial" animate="animate" className="grid grid-cols-3 gap-3 max-md:grid-cols-1 max-md:gap-2.5">
                         {list.map((e) => {
                           const existing = connectors.filter((c) => catalogFor(c)?.key === e.key)
                           return (
@@ -377,7 +407,7 @@ export function ConnectorsPage(): React.JSX.Element {
                               whileHover={{ y: -3 }}
                               transition={spring}
                               onClick={() => setEditing({ entry: e, existing: existing[0] })}
-                              className="glass hairline group flex flex-col gap-3 rounded-2xl p-4 text-left"
+                              className="glass hairline group flex flex-col gap-3 rounded-2xl p-4 text-left max-md:gap-2 max-md:p-3.5"
                             >
                               <div className="flex items-center gap-3">
                                 <Mono entry={e} size={38} />

@@ -62,8 +62,8 @@ export function ModelStorageSettings(): React.JSX.Element {
         label="Default models path"
         help="New downloads (Download model, Civitai) go here: the models folder above if you chose one, else Stability Matrix’s shared Models folder, else Stitch’s own folder in ComfyUI layout."
       >
-        <div className="glass hairline flex items-center gap-3 rounded-xl px-3.5 py-3">
-          <div className="min-w-0 flex-1">
+        <div className="glass hairline flex items-center gap-3 rounded-xl px-3.5 py-3 max-md:flex-wrap max-md:gap-2">
+          <div className="min-w-0 flex-1 max-md:basis-full">
             <div className="truncate font-mono text-[12px] text-fg" title={home?.path}>
               {home?.path ?? '…'}
             </div>
@@ -74,11 +74,11 @@ export function ModelStorageSettings(): React.JSX.Element {
             )}
           </div>
           {home && (
-            <IconButton label="Open folder" size="sm" onClick={() => void invoke('sys:openPath', home.path).catch(() => toast.info('Not created yet', 'It appears with the first download.'))}>
+            <IconButton label="Open folder" size="sm" className="max-md:size-9" onClick={() => void invoke('sys:openPath', home.path).catch(() => toast.info('Not created yet', 'It appears with the first download.'))}>
               <FolderOpen className="size-3.5" />
             </IconButton>
           )}
-          <Button size="sm" variant="ghost" iconRight={<ArrowRight className="size-3.5" />} onClick={() => navigate('/models?tab=manage')}>
+          <Button size="sm" variant="ghost" className="max-md:ml-auto max-md:h-9" iconRight={<ArrowRight className="size-3.5" />} onClick={() => navigate('/models?tab=manage')}>
             Model manager
           </Button>
         </div>
@@ -120,7 +120,7 @@ export function ModelStorageSettings(): React.JSX.Element {
                   {external ? ' The ComfyUI you run yourself doesn’t read' : ' A ComfyUI you run yourself wouldn’t read'} some of them yet: copy the paths, add them to <span className="font-mono text-[11.5px]">ComfyUI/extra_model_paths.yaml</span> and restart it.
                 </span>
               </div>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Button size="sm" icon={<Copy className="size-3.5" />} onClick={() => void copy()}>
                   Copy ComfyUI paths
                 </Button>

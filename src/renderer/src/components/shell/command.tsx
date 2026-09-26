@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { BookOpen, Blocks, Clapperboard, FolderOpen, Image, Layers, MessageSquare, Music, Plus, ScanFace, Search, Settings, Sparkles, Video, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ease, springSoft } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 import { useCollection } from '@/stores/db'
 import { Kbd } from '../ui/misc'
 
@@ -25,6 +26,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const adventures = useCollection('adventures')
   const scenarios = useCollection('scenarios')
   const chats = useCollection('chats')
+  // Phone: a full-width search sheet that drops from the top, sized to the space above the keyboard.
+  const compact = useCompact()
 
   const go = (to: string) => () => {
     navigate(to)
@@ -76,19 +79,27 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-[60] flex justify-center bg-black/40 pt-[14vh] backdrop-blur-[3px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} onClick={onClose}>
+        <motion.div
+          className="fixed inset-0 z-[60] flex justify-center bg-black/40 pt-[14vh] backdrop-blur-[3px] max-md:items-start max-md:bg-black/55 max-md:px-1.5 max-md:pt-[calc(var(--sat,0px)+6px)] max-md:pb-1.5"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease }}
+          onClick={onClose}
+        >
           <motion.div
-            initial={{ opacity: 0, y: -12, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            transition={springSoft}
-            className="glass-strong h-fit w-[560px] overflow-hidden rounded-2xl shadow-[var(--shadow-pop)]"
+            initial={compact ? { opacity: 0, y: -28 } : { opacity: 0, y: -12, scale: 0.97 }}
+            animate={compact ? { opacity: 1, y: 0 } : { opacity: 1, y: 0, scale: 1 }}
+            exit={compact ? { opacity: 0, y: -20 } : { opacity: 0, y: -8, scale: 0.98 }}
+            transition={compact ? { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } : springSoft}
+            className="glass-strong h-fit w-[560px] overflow-hidden rounded-2xl shadow-[var(--shadow-pop)] max-md:flex max-md:max-h-full max-md:w-full max-md:flex-col max-md:rounded-[22px]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2.5 border-b border-line px-4">
-              <Search className="size-4 text-fg-3" />
+            <div className="flex items-center gap-2.5 border-b border-line px-4 max-md:shrink-0 max-md:gap-2 max-md:pr-1.5 max-md:pl-4">
+              <Search className="size-4 text-fg-3 max-md:shrink-0" />
               <input
                 autoFocus
+                enterKeyHint="go"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => {
@@ -101,27 +112,36 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                   } else if (e.key === 'Enter') results[idx]?.run()
                   else if (e.key === 'Escape') onClose()
                 }}
-                placeholder="Search characters, stories, chats… or jump to a page"
-                className="h-12 flex-1 bg-transparent text-[14px] outline-none placeholder:text-fg-3"
+                placeholder={compact ? 'Search or jump to a page' : 'Search characters, stories, chats… or jump to a page'}
+                className="h-12 flex-1 bg-transparent text-[14px] outline-none placeholder:text-fg-3 max-md:h-13 max-md:min-w-0 max-md:text-[15px]"
               />
-              <Kbd>Esc</Kbd>
+              {compact ? (
+                <button onClick={onClose} className="h-10 shrink-0 rounded-xl px-3 text-[13px] font-medium text-fg-2 transition active:scale-95 active:bg-white/[0.06]">
+                  Cancel
+                </button>
+              ) : (
+                <Kbd>Esc</Kbd>
+              )}
             </div>
-            <div className="max-h-[52vh] overflow-y-auto p-1.5">
+            <div className="max-h-[52vh] overflow-y-auto p-1.5 max-md:max-h-none max-md:min-h-0 max-md:flex-1 max-md:overscroll-contain max-md:px-1.5 max-md:pb-2">
               {results.map((c, i) => {
                 const header = c.group !== lastGroup ? c.group : null
                 lastGroup = c.group
                 return (
                   <div key={c.id}>
-                    {header && <div className="label-caps px-2.5 pt-2.5 pb-1">{header}</div>}
+                    {header && <div className="label-caps px-2.5 pt-2.5 pb-1 max-md:px-3 max-md:pt-3">{header}</div>}
                     <button
                       onMouseEnter={() => setIdx(i)}
                       onClick={c.run}
-                      className={cn('relative flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px]', i === idx ? 'text-fg' : 'text-fg-2')}
+                      className={cn(
+                        'relative flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] max-md:h-11 max-md:gap-3 max-md:rounded-xl max-md:px-2 max-md:text-[13.5px] max-md:active:scale-[0.985] max-md:transition-transform',
+                        i === idx ? 'text-fg' : 'text-fg-2'
+                      )}
                     >
-                      {i === idx && <motion.span layoutId="cmd-hl" className="absolute inset-0 rounded-lg bg-white/[0.08]" transition={springSoft} />}
-                      <span className="relative text-fg-3 [&>svg]:size-3.5">{c.icon}</span>
+                      {i === idx && <motion.span layoutId="cmd-hl" className="absolute inset-0 rounded-lg bg-white/[0.08] max-md:rounded-xl" transition={springSoft} />}
+                      <span className="relative text-fg-3 [&>svg]:size-3.5 max-md:grid max-md:size-7.5 max-md:shrink-0 max-md:place-items-center max-md:rounded-lg max-md:border max-md:border-line max-md:bg-white/[0.04] max-md:text-fg-2">{c.icon}</span>
                       <span className="relative flex-1 truncate">{c.label}</span>
-                      {c.hint && <span className="relative text-[11px] text-fg-3">{c.hint}</span>}
+                      {c.hint && <span className="relative text-[11px] text-fg-3 max-md:shrink-0">{c.hint}</span>}
                     </button>
                   </div>
                 )

@@ -34,9 +34,12 @@ export function ActionIcon({ type, className }: { type: ActionType; className?: 
 export const ThemeCtx = createContext<ThemeDef>(THEMES[0])
 export const useTheme = (): ThemeDef => useContext(ThemeCtx)
 
-/** Command button that takes on the active play theme (bevels, angles, glows). */
-export const CmdButton = forwardRef<HTMLButtonElement, ButtonProps & { tone?: 'primary' | 'secondary'; compact?: boolean; label: string }>(function CmdButton(
-  { tone = 'secondary', compact, label, icon, className, style, ...rest },
+/**
+ * Command button that takes on the active play theme (bevels, angles, glows).
+ * `stacked` (phones): a thumb-sized tile — icon over a small caps label — that shares the row equally.
+ */
+export const CmdButton = forwardRef<HTMLButtonElement, ButtonProps & { tone?: 'primary' | 'secondary'; compact?: boolean; stacked?: boolean; label: string }>(function CmdButton(
+  { tone = 'secondary', compact, stacked, label, icon, className, style, ...rest },
   ref
 ) {
   const t = useTheme()
@@ -44,7 +47,7 @@ export const CmdButton = forwardRef<HTMLButtonElement, ButtonProps & { tone?: 'p
   const look = tone === 'primary' ? t.button.primary : t.button.secondary
   const glow = tone === 'primary' && !themed
   return (
-    <span className="relative isolate inline-flex">
+    <span className={cn('relative isolate inline-flex', stacked && !compact && (tone === 'primary' ? 'min-w-0 flex-[1.3]' : 'min-w-0 flex-1'))}>
       {glow && <span aria-hidden className="st-glow pointer-events-none absolute -inset-1 -z-10 rounded-2xl bg-grad blur-lg" />}
     <Button
       ref={ref}
@@ -56,6 +59,7 @@ export const CmdButton = forwardRef<HTMLButtonElement, ButtonProps & { tone?: 'p
       className={cn(
         'h-11 font-semibold tracking-[0.06em] uppercase transition-[filter,transform,box-shadow,background] duration-300 hover:brightness-110',
         compact ? 'w-11 px-0' : 'px-4.5 text-[12.5px]',
+        stacked && (compact ? 'size-12' : 'h-[54px] w-full min-w-0 flex-col gap-1 px-1 text-[11px] tracking-[0.05em]'),
         themed && 'hover:bg-transparent',
         className
       )}

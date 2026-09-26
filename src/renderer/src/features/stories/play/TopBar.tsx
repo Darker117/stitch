@@ -108,14 +108,14 @@ export function TopBar({
 
   return (
     <>
-      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease, delay: 0.1 }} className="no-drag absolute top-[7px] left-3 z-[60]">
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease, delay: 0.1 }} className="no-drag absolute top-[7px] left-3 z-[60] max-md:top-[calc(var(--sat,0px)+8px)] max-md:max-w-[calc(100%-188px)]">
         <Popover
           side="bottom"
           align="start"
           className="w-[320px] p-3"
           trigger={
-            <button className="group flex h-9 max-w-[360px] items-center gap-2.5 rounded-xl border border-line bg-[var(--panel)] pr-3.5 pl-1 backdrop-blur-xl transition hover:border-line-strong">
-              <span className="grid size-7 place-items-center rounded-lg bg-[color-mix(in_oklab,var(--fg)_7%,transparent)] transition-transform duration-300 group-hover:scale-105">
+            <button className="group flex h-9 max-w-[360px] items-center gap-2.5 rounded-xl border border-line bg-[var(--panel)] pr-3.5 pl-1 backdrop-blur-xl transition hover:border-line-strong max-md:h-10 max-md:max-w-full max-md:gap-2 max-md:rounded-[14px] max-md:pr-3 max-md:active:scale-[0.97]">
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[color-mix(in_oklab,var(--fg)_7%,transparent)] transition-transform duration-300 group-hover:scale-105 max-md:size-8 max-md:rounded-[10px]">
                 <LogoMark size={19} />
               </span>
               <span className="truncate font-serif text-[14px] font-semibold" style={{ color: 'var(--st-text)' }}>
@@ -150,30 +150,30 @@ export function TopBar({
         </Popover>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease, delay: 0.15 }} className="no-drag absolute top-[7px] right-[150px] z-[60] flex items-center gap-1 rounded-xl border border-line bg-[var(--panel)] p-0.5 backdrop-blur-xl">
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease, delay: 0.15 }} className="no-drag absolute top-[7px] right-[150px] z-[60] flex items-center gap-1 rounded-xl border border-line bg-[var(--panel)] p-0.5 backdrop-blur-xl max-md:top-[calc(var(--sat,0px)+8px)] max-md:right-3 max-md:gap-0.5 max-md:rounded-[14px]">
         <Popover open={modelsOpen} onOpenChange={setModelsOpen} side="bottom" align="end" className="w-[400px] p-3" trigger={
-          <button className="flex h-8 items-center gap-1.5 rounded-[10px] px-2.5 text-[12px] font-medium text-fg-2 transition hover:bg-white/[0.07] hover:text-fg">
-            <Feather className="size-3.5" />
-            <span className="max-w-[140px] truncate">{modelLabel(model)}</span>
+          <button aria-label={`Story model: ${modelLabel(model)}`} className="flex h-8 items-center gap-1.5 rounded-[10px] px-2.5 text-[12px] font-medium text-fg-2 transition hover:bg-white/[0.07] hover:text-fg max-md:size-9 max-md:justify-center max-md:px-0">
+            <Feather className="size-3.5 max-md:size-4" />
+            <span className="max-w-[140px] truncate max-md:hidden">{modelLabel(model)}</span>
           </button>
         }>
           <div className="label-caps px-1 pb-3">Story models</div>
-          <div className="max-h-[62vh] overflow-y-auto px-0.5 pb-0.5">
+          <div className="max-h-[62vh] overflow-y-auto px-0.5 pb-0.5 max-md:max-h-[58vh]">
             <ModelChooser current={model} onUse={onModel} onDone={() => setModelsOpen(false)} />
           </div>
         </Popover>
         <Tooltip content="Undo">
-          <IconButton label="Undo" size="md" onClick={onUndo} disabled={!canUndo} className="size-8">
+          <IconButton label="Undo" size="md" onClick={onUndo} disabled={!canUndo} className="size-8 max-md:size-9">
             <Undo2 className="size-4" />
           </IconButton>
         </Tooltip>
         <Tooltip content="Redo">
-          <IconButton label="Redo" size="md" onClick={onRedo} disabled={!canRedo} className="size-8">
+          <IconButton label="Redo" size="md" onClick={onRedo} disabled={!canRedo} className="size-8 max-md:size-9">
             <Redo2 className="size-4" />
           </IconButton>
         </Tooltip>
         <Tooltip content={panelOpen ? 'Close settings' : 'Settings'}>
-          <IconButton label="Settings" size="md" onClick={onTogglePanel} className={cn('size-8', panelOpen && 'bg-[color-mix(in_oklab,var(--accent)_16%,transparent)] text-accent')}>
+          <IconButton label="Settings" size="md" onClick={onTogglePanel} className={cn('size-8 max-md:size-9', panelOpen && 'bg-[color-mix(in_oklab,var(--accent)_16%,transparent)] text-accent')}>
             <Settings2 className="size-4" />
           </IconButton>
         </Tooltip>

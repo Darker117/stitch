@@ -2,12 +2,12 @@
 import { memo } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { BackgroundSettings } from '@shared/types'
-import { fileUrl } from '@/lib/api'
+import { fileUrl, resolveUrl } from '@/lib/api'
 
 function webUrl(bg: BackgroundSettings): string {
   if (!bg.wallpaperId || !bg.path) return ''
   const file = bg.path.replace(/\\/g, '/').split('/').pop() ?? 'index.html'
-  return `stitch://wp-${bg.wallpaperId}/${encodeURIComponent(file)}`
+  return resolveUrl(`stitch://wp-${bg.wallpaperId}/${encodeURIComponent(file)}`)
 }
 
 function SunsetGradient(): React.JSX.Element {

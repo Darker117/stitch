@@ -10,6 +10,7 @@ import { Popover, PopoverClose, Select } from '@/components/ui/overlay'
 import { Segmented } from '@/components/ui/controls'
 import { cn } from '@/lib/utils'
 import { ease, rise, springSoft, stagger } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 import { ThinkingBlock } from '@/features/create/Messages'
 import { CARD_ICON } from '../components/cards'
 import { CARD_TYPES, cardTypeLabel, LIMITS } from '../engine/defaults'
@@ -37,7 +38,7 @@ function Steer({ onGo, disabled }: { onGo: (steer: string) => void; disabled?: b
       align="end"
       className="w-[300px] p-3"
       trigger={
-        <IconButton label="Regenerate with a direction" size="sm" disabled={disabled}>
+        <IconButton label="Regenerate with a direction" size="sm" disabled={disabled} className="max-md:size-9">
           <WandSparkles className="size-3.5" />
         </IconButton>
       }
@@ -93,7 +94,7 @@ function SectionCard({
       transition={springSoft}
       onMouseDown={() => !focus && setFocus(id)}
       className={cn(
-        'relative scroll-mt-4 rounded-[20px] border bg-white/[0.03] p-5 transition-[border-color,background-color] duration-300 hairline',
+        'relative scroll-mt-4 rounded-[20px] border bg-white/[0.03] p-5 transition-[border-color,background-color] duration-300 hairline max-md:rounded-[18px] max-md:p-3.5',
         focus ? 'border-[color-mix(in_oklab,var(--accent)_40%,transparent)] bg-white/[0.045]' : 'border-line'
       )}
     >
@@ -106,14 +107,14 @@ function SectionCard({
             initial={{ opacity: 0.9 }}
             animate={{ opacity: 0 }}
             transition={{ duration: 1.6, ease }}
-            className="pointer-events-none absolute inset-0 rounded-[20px] shadow-[0_0_0_1px_var(--accent),0_0_40px_-6px_var(--accent)]"
+            className="pointer-events-none absolute inset-0 rounded-[20px] shadow-[0_0_0_1px_var(--accent),0_0_40px_-6px_var(--accent)] max-md:rounded-[18px]"
           />
         )}
       </AnimatePresence>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 max-md:gap-2.5">
         <span className={cn('grid size-7 shrink-0 place-items-center rounded-full text-[11.5px] font-semibold tabular-nums transition-colors', focus ? 'bg-grad text-white' : 'bg-white/[0.07] text-fg-2')}>{index + 1}</span>
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-md:flex-wrap max-md:gap-y-1">
             <h2 className="text-[14px] font-semibold tracking-tight">{meta.label}</h2>
             <StatusBadge state={state} />
           </div>
@@ -123,20 +124,20 @@ function SectionCard({
         {editable && (
           <div className="flex items-center gap-0.5">
             {state === 'proposed' && !busy && (
-              <Button size="sm" variant="secondary" icon={<Check className="size-3.5" />} onClick={() => accept(id)} className="mr-1">
+              <Button size="sm" variant="secondary" icon={<Check className="size-3.5" />} onClick={() => accept(id)} className="mr-1 max-md:hidden">
                 Accept
               </Button>
             )}
             {!empty && (
               <>
-                <IconButton label="Regenerate" size="sm" disabled={anyBusy} onClick={() => void regenerate(id as Editable)}>
+                <IconButton label="Regenerate" size="sm" disabled={anyBusy} onClick={() => void regenerate(id as Editable)} className="max-md:size-9">
                   <RefreshCw className={cn('size-3.5', busy && 'animate-spin')} />
                 </IconButton>
                 <Steer disabled={anyBusy} onGo={(steer) => void regenerate(id as Editable, steer)} />
               </>
             )}
             {editor && (
-              <IconButton label={editing ? 'Done editing' : 'Edit'} size="sm" active={editing} disabled={busy} onClick={() => setEditing((e) => !e)}>
+              <IconButton label={editing ? 'Done editing' : 'Edit'} size="sm" active={editing} disabled={busy} onClick={() => setEditing((e) => !e)} className="max-md:size-9">
                 {editing ? <Check className="size-3.5" /> : <Pencil className="size-3.5" />}
               </IconButton>
             )}
@@ -144,7 +145,18 @@ function SectionCard({
         )}
       </div>
 
-      <div className="mt-4">
+      {/* Phones: Accept gets its own full-width row instead of crowding the header. */}
+      <AnimatePresence initial={false}>
+        {editable && state === 'proposed' && !busy && (
+          <motion.div key="accept" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease }} className="overflow-hidden md:hidden">
+            <Button variant="secondary" icon={<Check className="size-4" />} onClick={() => accept(id)} className="mt-3 h-10 w-full rounded-xl">
+              Accept {meta.label.toLowerCase()}
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="mt-4 max-md:mt-3">
         <AnimatePresence mode="wait" initial={false}>
           {busy ? (
             <motion.div key="busy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="flex flex-col gap-3">
@@ -156,14 +168,14 @@ function SectionCard({
               {editor(() => setEditing(false))}
             </motion.div>
           ) : empty && editable ? (
-            <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="flex items-center gap-3 rounded-2xl border border-dashed border-line-strong px-4 py-3.5">
-              <p className="flex-1 text-[12px] leading-relaxed text-fg-3">Nothing here yet — talk it through in the chat, write it yourself, or let the AI draft it from what exists.</p>
+            <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="flex items-center gap-3 rounded-2xl border border-dashed border-line-strong px-4 py-3.5 max-md:flex-wrap max-md:gap-2 max-md:px-3.5 max-md:py-3">
+              <p className="flex-1 text-[12px] leading-relaxed text-fg-3 max-md:basis-full">Nothing here yet — talk it through in the chat, write it yourself, or let the AI draft it from what exists.</p>
               {editor && (
-                <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setEditing(true)}>
+                <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setEditing(true)} className="max-md:h-9 max-md:flex-1">
                   Write
                 </Button>
               )}
-              <Button size="sm" variant="secondary" icon={<WandSparkles className="size-3.5" />} disabled={anyBusy} onClick={() => void regenerate(id as Editable)}>
+              <Button size="sm" variant="secondary" icon={<WandSparkles className="size-3.5" />} disabled={anyBusy} onClick={() => void regenerate(id as Editable)} className="max-md:h-9 max-md:flex-1">
                 Draft it
               </Button>
             </motion.div>
@@ -265,7 +277,7 @@ function CardTile({ c, onRemove }: { c: CardDraft; onRemove?: () => void }): Rea
         <div className="min-w-0 flex-1 truncate font-serif text-[14.5px] font-semibold">{c.name}</div>
         <span className="text-[10.5px] font-semibold tracking-wide text-fg-3 uppercase">{cardTypeLabel(c)}</span>
         {onRemove && (
-          <button onClick={onRemove} className="grid size-5 place-items-center rounded-md text-fg-3 opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-fg" title="Remove card">
+          <button onClick={onRemove} className="grid size-5 place-items-center rounded-md text-fg-3 opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-fg max-md:-my-1 max-md:size-7 max-md:opacity-100" title="Remove card">
             <X className="size-3" />
           </button>
         )}
@@ -307,9 +319,9 @@ function CardsEditor({ d, done }: { d: ScenarioDraft; done: () => void }): React
         {cards.map((c) => (
           <motion.div key={c.id} layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease }} className="overflow-hidden">
             <div className="flex flex-col gap-2 rounded-2xl border border-line bg-white/[0.03] p-3">
-              <div className="flex gap-2">
-                <Input value={c.name} onChange={(e) => set(c.id, { name: e.target.value })} placeholder="Name" className="font-serif" />
-                <Select size="sm" value={c.type} onChange={(v) => set(c.id, { type: v as StoryCardType })} options={TYPE_OPTIONS} className="w-[150px]" />
+              <div className="flex gap-2 max-md:flex-wrap">
+                <Input value={c.name} onChange={(e) => set(c.id, { name: e.target.value })} placeholder="Name" className="font-serif max-md:basis-full" />
+                <Select size="sm" value={c.type} onChange={(v) => set(c.id, { type: v as StoryCardType })} options={TYPE_OPTIONS} className="w-[150px] max-md:w-auto max-md:flex-1" />
                 <IconButton label="Remove card" size="md" onClick={() => setCards((cs) => cs.filter((x) => x.id !== c.id))}>
                   <Trash2 className="size-3.5" />
                 </IconButton>
@@ -354,7 +366,7 @@ function OpeningEditor({ d, done }: { d: ScenarioDraft; done: () => void }): Rea
     <div className="flex flex-col gap-3">
       <Segmented
         size="sm"
-        className="self-start"
+        className="self-start max-md:flex max-md:w-full max-md:[&>button]:h-8 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center"
         value={type}
         onChange={setType}
         items={[
@@ -428,10 +440,10 @@ function RulesEditor({ d, done }: { d: ScenarioDraft; done: () => void }): React
 function SaveRow({ onSave, onCancel }: { onSave: () => void; onCancel: () => void }): React.JSX.Element {
   return (
     <div className="flex justify-end gap-2 pt-1">
-      <Button size="sm" variant="ghost" onClick={onCancel}>
+      <Button size="sm" variant="ghost" onClick={onCancel} className="max-md:h-9">
         Cancel
       </Button>
-      <Button size="sm" variant="primary" icon={<Check className="size-3.5" />} onClick={onSave}>
+      <Button size="sm" variant="primary" icon={<Check className="size-3.5" />} onClick={onSave} className="max-md:h-9 max-md:px-4">
         Save
       </Button>
     </div>
@@ -440,12 +452,14 @@ function SaveRow({ onSave, onCancel }: { onSave: () => void; onCancel: () => voi
 
 // ─── Preview column ─────────────────────────────────────────────────────────
 
-export function Preview({ topPad, onScrolled }: { topPad: number; onScrolled: (scrolled: boolean) => void }): React.JSX.Element {
+export function Preview({ topPad, onScrolled, revealKey }: { topPad: number; onScrolled: (scrolled: boolean) => void; revealKey?: number }): React.JSX.Element {
   const d = useComposer((s) => s.draft)
   const focus = useComposer((s) => s.focus)
   const refs = useRef<Partial<Record<SectionId, HTMLElement | null>>>({})
   const scroller = useRef<HTMLDivElement>(null)
   const lastFocus = useRef(focus)
+  // Phones: land sections a little lower, clear of the header's blur band.
+  const gap = useCompact() ? 30 : 12
 
   // Bring the focused section into view when focus changes (stepper, chat).
   useEffect(() => {
@@ -457,8 +471,17 @@ export function Preview({ topPad, onScrolled }: { topPad: number; onScrolled: (s
     }
     const el = refs.current[focus]
     const sc = scroller.current
-    if (el && sc) sc.scrollTo({ top: Math.max(0, el.offsetTop - topPad - 12), behavior: 'smooth' })
-  }, [focus, topPad])
+    if (el && sc) sc.scrollTo({ top: Math.max(0, el.offsetTop - topPad - gap), behavior: 'smooth' })
+  }, [focus, topPad, gap])
+
+  // Phones: opening the preview from a chat chip reveals the focused section even if focus didn't change.
+  useEffect(() => {
+    if (!revealKey) return
+    const el = refs.current[useComposer.getState().focus]
+    const sc = scroller.current
+    if (el && sc) sc.scrollTo({ top: Math.max(0, el.offsetTop - topPad - gap), behavior: 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealKey])
 
   const register = (id: SectionId, el: HTMLElement | null): void => {
     refs.current[id] = el
@@ -474,7 +497,7 @@ export function Preview({ topPad, onScrolled }: { topPad: number; onScrolled: (s
 
   return (
     <div ref={scroller} onScroll={(e) => onScrolled(e.currentTarget.scrollTop > 6)} className="h-full overflow-y-auto" style={{ paddingTop: topPad }}>
-      <motion.div variants={stagger(0.05, 0.1)} initial="initial" animate="animate" className="flex flex-col gap-4 pt-2 pb-24">
+      <motion.div variants={stagger(0.05, 0.1)} initial="initial" animate="animate" className="flex flex-col gap-4 pt-2 pb-24 max-md:gap-3 max-md:pb-10">
         <SectionCard id="premise" index={0} empty={!filled.premise} registerRef={register} editor={(done) => <PremiseEditor d={d} done={done} />}>
           <PremiseView d={d} />
         </SectionCard>

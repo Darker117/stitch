@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { Cpu, FolderCog, Info, Palette, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { Cpu, FolderCog, Info, Palette, SlidersHorizontal, Smartphone, Sparkles } from 'lucide-react'
 import type { DetectResult } from '@shared/ipc'
 import { invoke } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ease, spring } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 import { Page } from '@/components/shell/page'
 import { LogoLockup } from '@/components/shell/logo'
 import { ModelPicker } from '@/components/model-picker'
@@ -19,16 +20,18 @@ import { useUpdate } from '@/stores/update'
 import { ModelStorageSettings } from '../models/StorageSettings'
 import { AppearanceSettings } from './AppearanceSettings'
 import { GpuSettings } from './GpuSettings'
+import { PhoneSettings } from './PhoneSettings'
 import { ProfileSettings } from './ProfileSettings'
 import { UpdateSettings } from './UpdateSettings'
 
-type Tab = 'general' | 'appearance' | 'gpus' | 'storage' | 'updates' | 'about'
+type Tab = 'general' | 'appearance' | 'gpus' | 'storage' | 'phone' | 'updates' | 'about'
 
 const TABS: { value: Tab; label: string; icon: React.ReactNode }[] = [
   { value: 'general', label: 'General', icon: <SlidersHorizontal /> },
   { value: 'appearance', label: 'Appearance', icon: <Palette /> },
   { value: 'gpus', label: 'GPUs', icon: <Cpu /> },
   { value: 'storage', label: 'Models & storage', icon: <FolderCog /> },
+  { value: 'phone', label: 'Phone', icon: <Smartphone /> },
   { value: 'updates', label: 'Updates', icon: <Sparkles /> },
   { value: 'about', label: 'About', icon: <Info /> }
 ]
@@ -84,7 +87,7 @@ function Storage(): React.JSX.Element {
   }, [])
   const pickFolder = async (title: string, defaultPath?: string): Promise<string | null> => invoke('sys:pickFolder', { title, defaultPath })
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-md:[overflow-wrap:anywhere]">
       <SectionTitle>Models & storage</SectionTitle>
       {detect?.stabilityMatrix && (
         <div className="rounded-xl border border-success/20 bg-success/[0.06] p-3.5 text-[12.5px] text-fg-2">
@@ -170,30 +173,46 @@ export function SettingsPage(): React.JSX.Element {
   const [params, setParams] = useSearchParams()
   const updateReady = useUpdate((s) => s.state?.status === 'downloaded' || s.state?.status === 'available')
   const tab = (TABS.find((t) => t.value === params.get('tab'))?.value ?? 'general') as Tab
+  const compact = useCompact()
+  const rail = useRef<HTMLDivElement>(null)
+  // Phone: the tab row scrolls sideways — keep the active pill in view.
+  useEffect(() => {
+    if (!compact) return
+    const el = rail.current?.querySelector<HTMLElement>(`[data-tab="${tab}"]`)
+    el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [tab, compact])
   return (
-    <Page scroll={false} className="flex">
-      <nav className="w-[220px] shrink-0 border-r border-line p-4">
-        <div className="display px-2 pb-4 text-[20px]">Settings</div>
-        {TABS.map((t) => (
-          <button
-            key={t.value}
-            onClick={() => setParams({ tab: t.value })}
-            className={cn('relative flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors', tab === t.value ? 'text-fg' : 'text-fg-2 hover:text-fg')}
-          >
-            {tab === t.value && <motion.span layoutId="settings-tab" className="absolute inset-0 rounded-lg border border-line bg-white/[0.07]" transition={spring} />}
-            <span className="relative [&>svg]:size-4">{t.icon}</span>
-            <span className="relative">{t.label}</span>
-            {t.value === 'updates' && updateReady && <span className="relative ml-auto size-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent)]" />}
-          </button>
-        ))}
+    <Page scroll={false} className="flex max-md:flex-col">
+      <nav className="w-[220px] shrink-0 border-r border-line p-4 max-md:w-full max-md:border-r-0 max-md:border-b max-md:px-0 max-md:pt-5 max-md:pb-3">
+        <div className="display px-2 pb-4 text-[20px] max-md:px-4 max-md:pb-3 max-md:text-[23px]">Settings</div>
+        <div ref={rail} className="max-md:flex max-md:gap-1.5 max-md:overflow-x-auto max-md:px-4 max-md:[scrollbar-width:none]">
+          {TABS.map((t) => (
+            <button
+              key={t.value}
+              data-tab={t.value}
+              onClick={() => setParams({ tab: t.value }, { replace: compact })}
+              className={cn(
+                'relative flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors',
+                'max-md:h-10 max-md:w-auto max-md:shrink-0 max-md:gap-2 max-md:rounded-full max-md:border max-md:px-3.5 max-md:whitespace-nowrap',
+                tab === t.value ? 'text-fg max-md:border-transparent' : 'text-fg-2 hover:text-fg max-md:border-line max-md:bg-white/[0.03]'
+              )}
+            >
+              {tab === t.value && <motion.span layoutId="settings-tab" className="absolute inset-0 rounded-lg border border-line bg-white/[0.07] max-md:rounded-full max-md:border-[color-mix(in_oklab,var(--accent)_45%,transparent)] max-md:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]" transition={spring} />}
+              <span className="relative [&>svg]:size-4">{t.icon}</span>
+              <span className="relative">{t.label}</span>
+              {t.value === 'updates' && updateReady && <span className="relative ml-auto size-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent)]" />}
+            </button>
+          ))}
+        </div>
       </nav>
-      <div className="min-w-0 flex-1 overflow-y-auto">
+      <div className="min-w-0 flex-1 overflow-y-auto max-md:min-h-0">
         <AnimatePresence mode="wait">
-          <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.28, ease }} className="mx-auto max-w-[860px] px-10 py-8">
+          <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.28, ease }} className="mx-auto max-w-[860px] px-10 py-8 max-md:px-4 max-md:pt-5 max-md:pb-10">
             {tab === 'general' && <General />}
             {tab === 'appearance' && <AppearanceSettings />}
             {tab === 'gpus' && <GpuSettings />}
             {tab === 'storage' && <Storage />}
+            {tab === 'phone' && <PhoneSettings />}
             {tab === 'updates' && <UpdateSettings />}
             {tab === 'about' && <About onUpdates={() => setParams({ tab: 'updates' })} />}
           </motion.div>

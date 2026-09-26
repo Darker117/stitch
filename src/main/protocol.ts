@@ -11,7 +11,7 @@ import { Readable } from 'node:stream'
  */
 export const SCHEME = 'stitch'
 
-const MIME: Record<string, string> = {
+export const MIME: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -52,6 +52,11 @@ export function registerWallpaperDir(id: string, dir: string): void {
   wallpaperDirs.set(id, resolve(dir))
 }
 
+/** Root folder of a registered wallpaper item (served to phones by the remote server too). */
+export function wallpaperRoot(id: string): string | undefined {
+  return wallpaperDirs.get(id)
+}
+
 export function registerSchemePrivileges(): void {
   protocol.registerSchemesAsPrivileged([
     {
@@ -87,7 +92,7 @@ function resolveRequest(url: URL): string | null {
  * properties from project.json and stub the audio/media listeners, so pages
  * that wait for those callbacks actually start drawing.
  */
-function wallpaperShim(root: string): string {
+export function wallpaperShim(root: string): string {
   let props: Record<string, unknown> = {}
   try {
     const pj = JSON.parse(readFileSync(join(root, 'project.json'), 'utf8').replace(/^﻿/, '')) as {

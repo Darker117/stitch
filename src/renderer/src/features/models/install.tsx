@@ -279,7 +279,7 @@ export function InstallDialog({
               </Button>
             )}
             <div className="flex-1" />
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" className="max-md:hidden" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button variant="primary" loading={busy} disabled={!plan || !missing.length} icon={<Download className="size-3.5" />} onClick={() => void start()}>
@@ -400,10 +400,10 @@ export function InstallDialog({
           )}
 
           {plan?.gated && !plan.hasHfToken && (
-            <div className="flex items-center gap-3 rounded-xl border border-warning/25 bg-warning/[0.07] p-3 text-[12px] text-fg-2">
+            <div className="flex items-center gap-3 rounded-xl border border-warning/25 bg-warning/[0.07] p-3 text-[12px] text-fg-2 max-md:flex-wrap">
               <KeyRound className="size-4 shrink-0 text-warning" />
-              <span className="flex-1">This model is gated on Hugging Face: accept its licence on the model page, then add a read token.</span>
-              <Button size="sm" onClick={() => setTokenOpen(true)}>
+              <span className="flex-1 max-md:basis-[calc(100%-2rem)]">This model is gated on Hugging Face: accept its licence on the model page, then add a read token.</span>
+              <Button size="sm" className="max-md:ml-7 max-md:h-9" onClick={() => setTokenOpen(true)}>
                 Add token
               </Button>
             </div>

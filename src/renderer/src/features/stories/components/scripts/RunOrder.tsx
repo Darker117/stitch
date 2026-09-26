@@ -42,10 +42,10 @@ function RowBody({ item, index, count, movable, dimmed, onToggle, onRemove, onMo
   const s = item.script
   return (
     <div className={cn('transition-opacity duration-300', (dimmed || !item.enabled) && 'opacity-60')}>
-      <div className="flex items-center gap-2.5 px-2.5 py-2.5">
+      <div className="flex items-center gap-2.5 px-2.5 py-2.5 max-md:gap-2">
         {grip}
         <span className="w-4 shrink-0 text-center font-mono text-[11px] text-fg-3 tabular-nums">{index + 1}</span>
-        {s ? <ScriptGlyph name={s.name} /> : <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-danger/10 text-danger ring-1 ring-danger/25"><TriangleAlert className="size-4" /></span>}
+        {s ? <ScriptGlyph name={s.name} className="max-md:size-8" /> : <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-danger/10 text-danger ring-1 ring-danger/25 max-md:size-8"><TriangleAlert className="size-4" /></span>}
         <button className="min-w-0 flex-1 text-left" onClick={() => setOpen((o) => !o)}>
           <div className="flex items-center gap-1.5">
             <span className="truncate text-[13px] font-semibold">{s?.name ?? 'Missing script'}</span>
@@ -53,14 +53,19 @@ function RowBody({ item, index, count, movable, dimmed, onToggle, onRemove, onMo
           </div>
           <div className="truncate text-[11.5px] text-fg-3">{s ? (s.author ? `by ${s.author}` : 'No author') : 'It was deleted from your library'}</div>
         </button>
-        {s && <KindBadge script={s} />}
+        {/* Phones: the kind badge and Remove move into the expanded details to leave room for the name. */}
+        {s && (
+          <span className="contents max-md:hidden">
+            <KindBadge script={s} />
+          </span>
+        )}
         <Switch size="sm" checked={item.enabled} onChange={onToggle} disabled={!s} />
         {item.removable && onRemove && (
-          <IconButton label="Remove from run order" size="sm" onClick={onRemove} className="hover:text-danger">
+          <IconButton label="Remove from run order" size="sm" onClick={onRemove} className="hover:text-danger max-md:hidden">
             <Trash2 className="size-3.5" />
           </IconButton>
         )}
-        <IconButton label={open ? 'Collapse' : 'Details'} size="sm" onClick={() => setOpen((o) => !o)}>
+        <IconButton label={open ? 'Collapse' : 'Details'} size="sm" onClick={() => setOpen((o) => !o)} className="max-md:size-8">
           <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.3, ease }} className="grid place-items-center">
             <ChevronDown className="size-4" />
           </motion.span>
@@ -89,7 +94,17 @@ function RowBody({ item, index, count, movable, dimmed, onToggle, onRemove, onMo
                     </Button>
                   </>
                 )}
+                {item.removable && onRemove && (
+                  <Button size="sm" variant="ghost" icon={<Trash2 className="size-3.5" />} onClick={onRemove} className="hover:text-danger md:hidden">
+                    Remove
+                  </Button>
+                )}
                 <div className="flex-1" />
+                {s && (
+                  <span className="md:hidden">
+                    <KindBadge script={s} />
+                  </span>
+                )}
                 {s?.license && <Badge tone="outline">{s.license}</Badge>}
                 {s?.sourceUrl && (
                   <Button size="sm" variant="ghost" icon={<ExternalLink className="size-3.5" />} onClick={() => void invoke('sys:openExternal', s.sourceUrl!)}>
@@ -124,7 +139,7 @@ function DraggableRow(props: RowProps): React.JSX.Element {
       <RowBody
         {...props}
         grip={
-          <span onPointerDown={(e) => controls.start(e)} className="-ml-1 grid h-8 w-4 shrink-0 cursor-grab touch-none place-items-center text-fg-3 hover:text-fg active:cursor-grabbing" title="Drag to reorder">
+          <span onPointerDown={(e) => controls.start(e)} className="-ml-1 grid h-8 w-4 shrink-0 cursor-grab touch-none place-items-center text-fg-3 hover:text-fg active:cursor-grabbing max-md:-my-1 max-md:h-10 max-md:w-6" title="Drag to reorder">
             <GripVertical className="size-4" />
           </span>
         }

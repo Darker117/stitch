@@ -1,9 +1,10 @@
 // Media building blocks: thumbnails, lightbox, asset picker, drop zones, slots.
 import { useCallback, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { AudioLines, Check, Film, FolderOpen, ImageIcon, ImagePlus, Music, Play, Plus, Trash2, Upload, X } from 'lucide-react'
+import { AudioLines, Check, Film, FolderOpen, ImageIcon, ImagePlus, Music, Play, Plus, Share2, Trash2, Upload, X } from 'lucide-react'
 import type { Asset, AssetKind, ID } from '@shared/types'
-import { errorText, fileUrl, invoke } from '@/lib/api'
+import { errorText, fileUrl, invoke, thumbUrl } from '@/lib/api'
+import { isPhone, isTouch, useCompact } from '@/lib/platform'
 import { cn, formatDuration } from '@/lib/utils'
 import { ease, spring } from '@/lib/motion'
 import { db, useCollection, useDoc } from '@/stores/db'
@@ -34,6 +35,10 @@ export async function pickAndImport(kind: AssetKind, multi = false, meta?: Parti
   if (!paths.length) return []
   return importFiles(paths, meta)
 }
+
+/** "Show in folder" on the PC; on the phone the same action opens the share sheet. */
+export const REVEAL_LABEL = isPhone ? 'Share' : 'Show in folder'
+export const RevealIcon = isPhone ? Share2 : FolderOpen
 
 export function kindIcon(kind: AssetKind, className = 'size-3.5'): React.JSX.Element {
   if (kind === 'video') return <Film className={className} />
@@ -81,18 +86,18 @@ export function AssetThumb({
       className={cn('group relative overflow-hidden bg-white/[0.03] ring-1 ring-line', rounded, selected && 'ring-2 ring-accent', onClick && 'cursor-pointer', className)}
     >
       {asset.kind === 'image' && (
-        <img src={fileUrl(asset.path)} alt={asset.name} loading="lazy" draggable={false} className={cn('size-full transition-transform duration-700 ease-out group-hover:scale-[1.03]', fit === 'cover' ? 'object-cover' : 'object-contain')} />
+        <img src={thumbUrl(asset.path)} alt={asset.name} loading="lazy" draggable={false} className={cn('size-full transition-transform duration-700 ease-out group-hover:scale-[1.03]', fit === 'cover' ? 'object-cover' : 'object-contain')} />
       )}
       {asset.kind === 'video' && (
         <>
           <video
             ref={video}
             src={fileUrl(asset.path)}
-            poster={asset.thumbPath ? fileUrl(asset.thumbPath) : undefined}
+            poster={asset.thumbPath ? thumbUrl(asset.thumbPath) : undefined}
             muted
             loop
             playsInline
-            preload="metadata"
+            preload={isTouch && asset.thumbPath ? 'none' : 'metadata'}
             className={cn('size-full', fit === 'cover' ? 'object-cover' : 'object-contain')}
           />
           <div className={cn('pointer-events-none absolute bottom-2 left-2 flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[10.5px] font-medium text-white/90 backdrop-blur transition-opacity', hover && 'opacity-0')}>
@@ -135,19 +140,19 @@ export function AssetLightbox({ assetId, onClose, actions }: { assetId: ID | nul
     <AnimatePresence>
       {assetId && asset && (
         <motion.div
-          className="fixed inset-0 z-50 flex bg-black/80 backdrop-blur-md"
+          className="fixed inset-0 z-50 flex bg-black/80 backdrop-blur-md max-md:flex-col"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25, ease }}
           onClick={onClose}
         >
-          <div className="flex min-w-0 flex-1 items-center justify-center p-10 pt-14" onClick={(e) => e.stopPropagation()}>
+          <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-10 pt-14 max-md:p-3 max-md:pt-[calc(var(--sat,0px)+12px)]" onClick={(e) => e.stopPropagation()}>
             <motion.div initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={spring} className="max-h-full max-w-full">
-              {asset.kind === 'image' && <img src={fileUrl(asset.path)} className="max-h-[calc(100vh-120px)] max-w-full rounded-xl object-contain shadow-2xl" />}
-              {asset.kind === 'video' && <video src={fileUrl(asset.path)} controls autoPlay loop className="max-h-[calc(100vh-120px)] max-w-full rounded-xl shadow-2xl" />}
+              {asset.kind === 'image' && <img src={fileUrl(asset.path)} className="max-h-[calc(100vh-120px)] max-w-full rounded-xl object-contain shadow-2xl max-md:max-h-[58vh]" />}
+              {asset.kind === 'video' && <video src={fileUrl(asset.path)} controls autoPlay loop playsInline className="max-h-[calc(100vh-120px)] max-w-full rounded-xl shadow-2xl max-md:max-h-[58vh]" />}
               {asset.kind === 'audio' && (
-                <div className="glass-strong flex w-[520px] flex-col items-center gap-5 rounded-2xl p-8">
+                <div className="glass-strong flex w-[520px] max-w-[calc(100vw-24px)] flex-col items-center gap-5 rounded-2xl p-8 max-md:p-6">
                   <AudioWaveGlyph />
                   <div className="font-medium">{asset.name}</div>
                   <audio src={fileUrl(asset.path)} controls autoPlay className="w-full" />
@@ -159,7 +164,7 @@ export function AssetLightbox({ assetId, onClose, actions }: { assetId: ID | nul
             initial={{ x: 40, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ ...spring, delay: 0.05 }}
-            className="glass-strong flex w-[320px] shrink-0 flex-col gap-4 overflow-y-auto border-y-0 border-r-0 p-5 pt-14"
+            className="glass-strong flex w-[320px] shrink-0 flex-col gap-4 overflow-y-auto border-y-0 border-r-0 p-5 pt-14 max-md:max-h-[40vh] max-md:w-full max-md:rounded-t-[22px] max-md:border-x-0 max-md:border-t max-md:pt-4 max-md:pb-[calc(var(--sab,0px)+16px)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-2">
@@ -182,8 +187,8 @@ export function AssetLightbox({ assetId, onClose, actions }: { assetId: ID | nul
               </div>
             )}
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" icon={<FolderOpen className="size-3.5" />} onClick={() => invoke('sys:showInFolder', asset.path)}>
-                Show in folder
+              <Button size="sm" icon={<RevealIcon className="size-3.5" />} onClick={() => invoke('sys:showInFolder', asset.path)}>
+                {REVEAL_LABEL}
               </Button>
               <Button
                 size="sm"
@@ -292,6 +297,7 @@ export function AssetPicker({
   title?: string
 }): React.JSX.Element {
   const assets = useCollection('assets')
+  const compact = useCompact()
   const [kind, setKind] = useState<AssetKind>(kinds[0])
   const [sel, setSel] = useState<ID[]>([])
   const list = assets.filter((a) => a.kind === kind)
@@ -308,7 +314,7 @@ export function AssetPicker({
       width={880}
       headerAction={
         kinds.length > 1 ? (
-          <Segmented size="sm" value={kind} onChange={setKind} items={kinds.map((k) => ({ value: k, label: k[0].toUpperCase() + k.slice(1), icon: kindIcon(k) }))} />
+          <Segmented size="sm" value={kind} onChange={setKind} items={kinds.map((k) => ({ value: k, label: k[0].toUpperCase() + k.slice(1), icon: compact ? undefined : kindIcon(k) }))} />
         ) : undefined
       }
       footer={
@@ -321,7 +327,7 @@ export function AssetPicker({
               if (imported.length) done(imported)
             }}
           >
-            Import from disk
+            Import<span className="contents max-md:hidden"> from disk</span>
           </Button>
           <div className="flex-1" />
           <Button variant="ghost" onClick={onClose}>
@@ -335,9 +341,9 @@ export function AssetPicker({
         </>
       }
     >
-      <DropZone kinds={kinds} onAssets={done} className="min-h-[360px] p-4">
+      <DropZone kinds={kinds} onAssets={done} className="min-h-[360px] p-4 max-md:min-h-[280px] max-md:p-3">
         {list.length ? (
-          <div className="grid grid-cols-5 gap-2.5">
+          <div className="grid grid-cols-5 gap-2.5 max-md:grid-cols-3 max-md:gap-2">
             {list.map((a) => (
               <AssetThumb
                 key={a.id}
@@ -349,7 +355,7 @@ export function AssetPicker({
             ))}
           </div>
         ) : (
-          <EmptyState icon={kind === 'audio' ? <Music /> : <ImagePlus />} title={`No ${kind}s yet`} body="Import from disk or drop files here." />
+          <EmptyState icon={kind === 'audio' ? <Music /> : <ImagePlus />} title={`No ${kind}s yet`} body={<><span className="max-md:hidden">Import from disk or drop files here.</span><span className="md:hidden">Tap Import to add one.</span></>} />
         )}
       </DropZone>
     </Dialog>
@@ -384,7 +390,7 @@ export function MediaSlot({
                 e.stopPropagation()
                 onChange(undefined)
               }}
-              className="absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-md bg-black/55 text-white opacity-0 backdrop-blur transition group-hover:opacity-100 hover:bg-black/75"
+              className="absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-md bg-black/55 text-white opacity-0 backdrop-blur transition group-hover:opacity-100 hover:bg-black/75 max-md:size-7 max-md:opacity-100"
             >
               <X className="size-3.5" />
             </button>
@@ -434,7 +440,7 @@ export function MediaList({
                 <span className="absolute top-1 left-1 rounded bg-black/60 px-1 font-mono text-[9.5px] text-white/90">{i + 1}</span>
                 <button
                   onClick={() => onChange(value.filter((x) => x !== a.id))}
-                  className="absolute top-1 right-1 grid size-5 place-items-center rounded bg-black/60 text-white opacity-0 transition group-hover:opacity-100"
+                  className="absolute top-1 right-1 grid size-5 place-items-center rounded bg-black/60 text-white opacity-0 transition group-hover:opacity-100 max-md:size-6 max-md:opacity-100"
                 >
                   <X className="size-3" />
                 </button>

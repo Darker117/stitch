@@ -106,10 +106,10 @@ export function OpeningEditor({ scenario, change, info, onConfigure }: { scenari
                 placeholder={PLACEHOLDER[type]}
                 className="font-serif text-[14.5px] leading-[1.75]"
               />
-              <div className="flex items-end gap-2">
+              <div className="flex items-end gap-2 max-md:flex-wrap">
                 <div className="flex flex-wrap gap-1.5">
                   {tokens.map((t) => (
-                    <button key={t} onClick={() => insert(t)} className="flex h-6 items-center gap-1 rounded-md border border-line bg-white/[0.04] px-1.5 font-mono text-[10.5px] text-fg-2 transition hover:border-line-strong hover:text-fg" title="Insert placeholder">
+                    <button key={t} onClick={() => insert(t)} className="flex h-6 items-center gap-1 rounded-md border border-line bg-white/[0.04] px-1.5 font-mono text-[10.5px] text-fg-2 transition hover:border-line-strong hover:text-fg max-md:h-8 max-md:rounded-lg max-md:px-2 max-md:text-[11px]" title="Insert placeholder">
                       <Braces className="size-3 text-fg-3" />
                       {t.replace(/^\$\{|\}$/g, '')}
                     </button>
@@ -147,7 +147,7 @@ function ChoiceRow({ id, index, onConfigure, onNest, onDelete }: { id: string; i
   const label = name || `Choice ${index + 1}`
   const nested = child?.openingType === 'multipleChoice' && child.choices.length > 0
   return (
-    <motion.div layout initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }} transition={springSoft} className="group flex h-13 items-center gap-2 border-b border-line px-4 last:border-b-0">
+    <motion.div layout initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }} transition={springSoft} className="group flex h-13 items-center gap-2 border-b border-line px-4 last:border-b-0 max-md:px-3">
       <input
         value={name}
         onChange={(e) => save(e.target.value)}
@@ -157,7 +157,7 @@ function ChoiceRow({ id, index, onConfigure, onNest, onDelete }: { id: string; i
         className="min-w-0 flex-1 bg-transparent text-[13.5px] font-medium text-fg outline-none placeholder:text-fg-3"
         style={{ maxWidth: `${Math.max(8, label.length + 2)}ch` }}
       />
-      {index === 0 && !focus && <span className="text-[12px] font-medium text-fg-3">(Tap name to edit)</span>}
+      {index === 0 && !focus && <span className="text-[12px] font-medium text-fg-3 max-md:truncate">(Tap name to edit)</span>}
       {nested && (
         <span className="flex items-center gap-1 rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[10.5px] font-semibold text-fg-2">
           <ListTree className="size-3" /> {child!.choices.length} choices
@@ -224,7 +224,7 @@ function ChoicesEditor({ scenario, change, onConfigure }: { scenario: Scenario; 
         {!scenario.choices.length && <div className="px-4 py-5 text-center text-[12px] text-fg-3">No choices yet.</div>}
       </div>
       <div className="mt-3 flex justify-center">
-        <button onClick={() => void add()} className="flex items-center gap-1.5 text-[12.5px] font-semibold tracking-wide text-accent uppercase transition hover:brightness-125">
+        <button onClick={() => void add()} className="flex items-center gap-1.5 text-[12.5px] font-semibold tracking-wide text-accent uppercase transition hover:brightness-125 max-md:h-10 max-md:px-3">
           <Plus className="size-4" /> Add choice
         </button>
       </div>
@@ -272,9 +272,9 @@ function CreatorEditor({ scenario, change, info }: { scenario: Scenario; change:
 
   return (
     <div className="pb-2">
-      <div className="mx-4 flex items-center gap-2 border-t border-line py-3.5">
+      <div className="mx-4 flex items-center gap-2 border-t border-line py-3.5 max-md:mx-3">
         <span className="label-caps">Name</span>
-        <span className="text-[12px] text-fg-3">Players always choose a name first</span>
+        <span className="text-[12px] text-fg-3 max-md:min-w-0 max-md:truncate">Players always choose a name first</span>
         <code className="ml-auto rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10.5px] text-fg-2">{'${character.name}'}</code>
       </div>
       <AnimatePresence initial={false}>
@@ -282,11 +282,11 @@ function CreatorEditor({ scenario, change, info }: { scenario: Scenario; change:
           const opts = fieldCards(scenario.cards, f)
           const singular = f.cardType === 'custom' ? f.label : (CARD_TYPES.find((t) => t.value === f.cardType)?.label ?? f.label)
           return (
-            <motion.div key={f.id} layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.3, ease }} className="group mx-4 border-t border-line py-3.5">
+            <motion.div key={f.id} layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.3, ease }} className="group mx-4 border-t border-line py-3.5 max-md:mx-3">
               <div className="mb-2.5 flex items-center gap-2">
                 <span className="label-caps">{plural(f)}</span>
                 <code className="rounded bg-white/[0.05] px-1.5 font-mono text-[10px] text-fg-3">{`\${${characterKey(f.label)}}`}</code>
-                <button onClick={() => change((cur) => ({ creatorFields: cur.creatorFields.filter((x) => x.id !== f.id) }))} className="ml-auto grid size-6 place-items-center rounded-md text-fg-3 opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-fg" title="Remove field">
+                <button onClick={() => change((cur) => ({ creatorFields: cur.creatorFields.filter((x) => x.id !== f.id) }))} className="ml-auto grid size-6 place-items-center rounded-md text-fg-3 opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-fg max-md:-my-1.5 max-md:size-8 max-md:opacity-100" title="Remove field">
                   <X className="size-3.5" />
                 </button>
               </div>
@@ -332,10 +332,10 @@ function CreatorEditor({ scenario, change, info }: { scenario: Scenario; change:
           )
         })}
       </AnimatePresence>
-      <div className="mx-4 border-t border-line py-3">
+      <div className="mx-4 border-t border-line py-3 max-md:mx-3">
         <AnimatePresence mode="wait" initial={false}>
           {custom === null ? (
-            <motion.button key="btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setCustom('')} className="flex items-center gap-1.5 text-[12px] font-semibold tracking-wide text-fg-2 uppercase transition hover:text-fg">
+            <motion.button key="btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setCustom('')} className="flex items-center gap-1.5 text-[12px] font-semibold tracking-wide text-fg-2 uppercase transition hover:text-fg max-md:h-9">
               <Plus className="size-4" /> Create custom field
             </motion.button>
           ) : (
@@ -352,7 +352,7 @@ function CreatorEditor({ scenario, change, info }: { scenario: Scenario; change:
                 placeholder="Field name, e.g. Background, Weapon, Home planet"
                 className="max-w-[320px]"
               />
-              <span className="text-[11px] text-fg-3">Enter to add</span>
+              <span className="text-[11px] text-fg-3 max-md:shrink-0">Enter to add</span>
             </motion.div>
           )}
         </AnimatePresence>

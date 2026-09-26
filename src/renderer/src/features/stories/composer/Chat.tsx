@@ -1,14 +1,18 @@
 // Composer chat: the conversational side of building a scenario.
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowUp, RotateCcw, Sparkles, Square } from 'lucide-react'
+import { ArrowUp, ChevronDown, RotateCcw, Sparkles, Square } from 'lucide-react'
+import { ModelPicker } from '@/components/model-picker'
 import { Button, Chip, IconButton } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/input'
+import { Menu, MenuItem } from '@/components/ui/overlay'
 import { LogoMark } from '@/components/shell/logo'
+import { useDefaultLlm } from '@/lib/llm'
 import { cn } from '@/lib/utils'
 import { ease, rise, spring, stagger } from '@/lib/motion'
+import { isTouch, useCompact } from '@/lib/platform'
 import { ThinkingBlock } from '@/features/create/Messages'
-import { StageList } from './bits'
+import { StageList, StateDot } from './bits'
 import { SECTIONS, type SectionId } from './draft'
 import { stopScript } from './scripts'
 import { useComposer, type ComposerMsg } from './store'
@@ -53,7 +57,7 @@ function Typing(): React.JSX.Element {
   )
 }
 
-function Msg({ m, onRetry }: { m: ComposerMsg; onRetry: () => void }): React.JSX.Element {
+function Msg({ m, onRetry, onOpenSection }: { m: ComposerMsg; onRetry: () => void; onOpenSection?: (id: SectionId) => void }): React.JSX.Element {
   const setFocus = useComposer((s) => s.setFocus)
   if (m.role === 'user') {
     return (
@@ -80,7 +84,14 @@ function Msg({ m, onRetry }: { m: ComposerMsg; onRetry: () => void }): React.JSX
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
             <span className="text-[11px] text-fg-3">Updated</span>
             {m.changed.map((s) => (
-              <button key={s} onClick={() => setFocus(s)} className="rounded-full border border-[color-mix(in_oklab,var(--accent)_30%,transparent)] bg-[color-mix(in_oklab,var(--accent)_10%,transparent)] px-2 py-0.5 text-[11px] font-medium text-fg-2 transition hover:text-fg">
+              <button
+                key={s}
+                onClick={() => {
+                  setFocus(s)
+                  onOpenSection?.(s)
+                }}
+                className="rounded-full border border-[color-mix(in_oklab,var(--accent)_30%,transparent)] bg-[color-mix(in_oklab,var(--accent)_10%,transparent)] px-2 py-0.5 text-[11px] font-medium text-fg-2 transition hover:text-fg max-md:px-2.5 max-md:py-1"
+              >
                 {SECTIONS.find((x) => x.id === s)?.label}
               </button>
             ))}
@@ -107,7 +118,28 @@ function FillProgress(): React.JSX.Element | null {
   )
 }
 
-export function ChatPanel({ initial }: { initial?: string }): React.JSX.Element {
+/** Phones: the Focus pill picks the section the chat works on (the stepper lives in Preview). */
+function FocusMenu({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const sections = useComposer((s) => s.draft.sections)
+  const focus = useComposer((s) => s.focus)
+  const setFocus = useComposer((s) => s.setFocus)
+  return (
+    <Menu align="end" trigger={<button className="flex h-8 items-center gap-1 rounded-full">{children}</button>}>
+      {SECTIONS.map((s, i) => (
+        <MenuItem key={s.id} onSelect={() => setFocus(s.id)} right={<StateDot state={sections[s.id]} />} hint={focus === s.id ? 'focus' : undefined}>
+          <span className="mr-1.5 text-fg-3 tabular-nums">{i + 1}</span>
+          {s.label}
+        </MenuItem>
+      ))}
+    </Menu>
+  )
+}
+
+export function ChatPanel({ initial, onOpenSection }: { initial?: string; onOpenSection?: (id: SectionId) => void }): React.JSX.Element {
+  const compact = useCompact()
+  const defLlm = useDefaultLlm()
+  const llm = useComposer((s) => s.llm)
+  const setLlm = useComposer((s) => s.setLlm)
   const messages = useComposer((s) => s.messages)
   const busy = useComposer((s) => s.busy)
   const focus = useComposer((s) => s.focus)
@@ -121,7 +153,8 @@ export function ChatPanel({ initial }: { initial?: string }): React.JSX.Element 
   const lastText = messages[messages.length - 1]?.text
   useEffect(() => {
     const el = scroller.current
-    if (el && pinned.current) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    // (Not while the welcome screen shows — on a phone it would scroll its heading away.)
+    if (el && pinned.current && (messages.length || busy)) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [messages.length, lastText, busy])
 
   const last = [...messages].reverse().find((m) => m.role === 'assistant')
@@ -144,16 +177,27 @@ export function ChatPanel({ initial }: { initial?: string }): React.JSX.Element 
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-line bg-[var(--panel)] shadow-[0_24px_60px_-30px_rgb(0_0_0/0.8)] backdrop-blur-xl hairline">
-      <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+    <div className="pointer-events-auto flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-line bg-[var(--panel)] shadow-[0_24px_60px_-30px_rgb(0_0_0/0.8)] backdrop-blur-xl hairline">
+      <div className="flex items-center gap-2 border-b border-line px-4 py-2.5 max-md:py-1.5 max-md:pr-2">
         <span className="label-caps">Co-author</span>
         <span className="ml-auto flex items-center gap-1.5 text-[11px] text-fg-3">
           Focus
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span key={focus} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.18, ease }} className="rounded-full bg-white/[0.07] px-2 py-0.5 font-medium text-fg-2">
-              {focusLabel}
-            </motion.span>
-          </AnimatePresence>
+          {compact ? (
+            <FocusMenu>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span key={focus} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.18, ease }} className="flex items-center gap-1 rounded-full bg-white/[0.07] py-1 pr-2 pl-2.5 text-[11.5px] font-medium text-fg-2">
+                  {focusLabel}
+                  <ChevronDown className="size-3 text-fg-3" />
+                </motion.span>
+              </AnimatePresence>
+            </FocusMenu>
+          ) : (
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span key={focus} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.18, ease }} className="rounded-full bg-white/[0.07] px-2 py-0.5 font-medium text-fg-2">
+                {focusLabel}
+              </motion.span>
+            </AnimatePresence>
+          )}
         </span>
       </div>
 
@@ -163,7 +207,7 @@ export function ChatPanel({ initial }: { initial?: string }): React.JSX.Element 
           const el = e.currentTarget
           pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
         }}
-        className="scroll-fade min-h-0 flex-1 overflow-y-auto px-4 py-4"
+        className="scroll-fade min-h-0 flex-1 overflow-y-auto px-4 py-4 max-md:px-3.5"
       >
         {messages.length === 0 && busy?.kind !== 'fill' ? (
           <motion.div variants={stagger(0.05, 0.05)} initial="initial" animate="animate" className="flex flex-col items-center gap-3 pt-4 text-center">
@@ -198,7 +242,7 @@ export function ChatPanel({ initial }: { initial?: string }): React.JSX.Element 
         ) : (
           <div className="flex flex-col gap-4">
             {messages.map((m) => (
-              <Msg key={m.id} m={m} onRetry={retry} />
+              <Msg key={m.id} m={m} onRetry={retry} onOpenSection={onOpenSection} />
             ))}
             <AnimatePresence>
               <FillProgress key="fill" />
@@ -210,9 +254,10 @@ export function ChatPanel({ initial }: { initial?: string }): React.JSX.Element 
       <AnimatePresence initial={false}>
         {suggestions.length > 0 && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease }} className="overflow-hidden">
-            <div className="flex flex-wrap gap-1.5 px-4 pb-2">
+            {/* Phones: one swipeable row so the input keeps its room. */}
+            <div className="flex flex-wrap gap-1.5 px-4 pb-2 max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 max-md:[scrollbar-width:none]">
               {suggestions.map((s) => (
-                <Chip key={s} onClick={() => submit('chat', s)} className="h-7 text-[11.5px]">
+                <Chip key={s} onClick={() => submit('chat', s)} className="h-7 text-[11.5px] max-md:h-8 max-md:shrink-0 max-md:whitespace-nowrap">
                   {s}
                 </Chip>
               ))}
@@ -221,7 +266,7 @@ export function ChatPanel({ initial }: { initial?: string }): React.JSX.Element 
         )}
       </AnimatePresence>
 
-      <div className="p-3 pt-1">
+      <div className="p-3 pt-1 max-md:p-2 max-md:pt-1">
         <div className={cn('rounded-2xl border bg-white/[0.04] p-2.5 transition-colors', busy ? 'border-line' : 'border-line focus-within:border-line-strong')}>
           <Textarea
             ref={input}
@@ -229,7 +274,8 @@ export function ChatPanel({ initial }: { initial?: string }): React.JSX.Element 
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              // Touch keyboards: Enter is a new line; the send button sends.
+              if (e.key === 'Enter' && !e.shiftKey && !isTouch) {
                 e.preventDefault()
                 submit('chat')
               }
@@ -240,19 +286,24 @@ export function ChatPanel({ initial }: { initial?: string }): React.JSX.Element 
             className="px-1 text-[13px] leading-relaxed"
           />
           <div className="mt-1.5 flex items-center gap-2">
-            <span className="text-[10.5px] text-fg-3">Enter to send · Shift+Enter for a new line</span>
+            {/* Phones: the model picker lives here (no keyboard hint on touch). */}
+            {compact ? (
+              <ModelPicker value={llm ?? defLlm} onChange={setLlm} className="h-8 min-w-0 max-w-[170px] shrink rounded-full" />
+            ) : (
+              <span className="text-[10.5px] text-fg-3">Enter to send · Shift+Enter for a new line</span>
+            )}
             <div className="flex-1" />
             {pristine && !busy && (
-              <Button size="sm" variant="secondary" icon={<Sparkles className="size-3.5" />} disabled={!text.trim()} onClick={() => submit('draft')} title="Draft every section from this pitch">
+              <Button size="sm" variant="secondary" icon={<Sparkles className="size-3.5" />} disabled={!text.trim()} onClick={() => submit('draft')} title="Draft every section from this pitch" className="max-md:h-9 max-md:rounded-full">
                 Draft it all
               </Button>
             )}
             {busy ? (
-              <IconButton label="Stop" variant="secondary" size="sm" onClick={() => (busy.kind === 'script' ? stopScript() : stop())} className="rounded-full">
+              <IconButton label="Stop" variant="secondary" size="sm" onClick={() => (busy.kind === 'script' ? stopScript() : stop())} className="rounded-full max-md:size-9">
                 <Square className="size-3 fill-current" />
               </IconButton>
             ) : (
-              <IconButton label="Send" variant="primary" size="sm" disabled={!text.trim()} onClick={() => submit('chat')} className="rounded-full">
+              <IconButton label="Send" variant="primary" size="sm" disabled={!text.trim()} onClick={() => submit('chat')} className="rounded-full max-md:size-9">
                 <ArrowUp className="size-4" />
               </IconButton>
             )}

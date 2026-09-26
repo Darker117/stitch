@@ -1,7 +1,7 @@
 // Right side panel: ADVENTURE (plot / cards / scripts / details) and
 // GAMEPLAY (AI models / appearance).
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useDragControls } from 'motion/react'
 import {
   Accessibility,
   Brain,
@@ -27,6 +27,7 @@ import { Select } from '@/components/ui/overlay'
 import { VoicePicker } from '@/components/voice-picker'
 import { cn } from '@/lib/utils'
 import { ease, spring } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 import { contextWindow, LLM_KIND_LABEL, modelLabel, type LlmChoice } from '@/lib/llm'
 import { db } from '@/stores/db'
 import { useGen } from '@/stores/gen'
@@ -59,8 +60,8 @@ function Memories({ adv, change }: { adv: Adventure; change: Change }): React.JS
             <motion.div key={m.id} layout initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} className="group/m flex items-start gap-2 rounded-lg bg-white/[0.03] px-2.5 py-2 text-[12px] leading-snug text-fg-2">
               <span className="mt-1.5 size-1 shrink-0 rounded-full bg-accent" />
               <span className="flex-1">{m.text}</span>
-              <button onClick={() => change((cur) => ({ memories: cur.memories.filter((x) => x.id !== m.id) }))} className="text-fg-3 opacity-0 transition group-hover/m:opacity-100 hover:text-danger">
-                <Trash2 className="size-3" />
+              <button onClick={() => change((cur) => ({ memories: cur.memories.filter((x) => x.id !== m.id) }))} aria-label="Forget" className="text-fg-3 opacity-0 transition group-hover/m:opacity-100 hover:text-danger max-md:-m-2 max-md:grid max-md:size-8 max-md:shrink-0 max-md:place-items-center max-md:opacity-100">
+                <Trash2 className="size-3 max-md:size-3.5" />
               </button>
             </motion.div>
           ))}
@@ -446,6 +447,9 @@ export function SidePanel({
 }): React.JSX.Element {
   const [tab, setTab] = useState<'adventure' | 'gameplay'>('adventure')
   const [sub, setSub] = useState<'models' | 'appearance'>('models')
+  // Phones: a bottom sheet under the top bar — drag the grabber down (or tap the scrim) to close.
+  const phone = useCompact()
+  const drag = useDragControls()
   const set = (p: Partial<AdventureSettings>): void => change((cur) => ({ settings: { ...cur.settings, ...p } }))
   const info: StoryInfo = useMemo(
     () => ({ title: adv.title, description: adv.description, opening: adv.actions[0]?.text ?? '', plot: adv.plot, cards: adv.cards }),
@@ -453,15 +457,48 @@ export function SidePanel({
   )
   return (
     <AnimatePresence>
+      {open && phone && (
+        <motion.div
+          key="scrim"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25, ease }}
+          onClick={onClose}
+          className="absolute inset-0 z-40 bg-black/50 backdrop-blur-[3px]"
+        />
+      )}
       {open && (
         <motion.aside
-          initial={{ x: 440, opacity: 0.4 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: 440, opacity: 0.4 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-          className="absolute top-[52px] right-2.5 bottom-2.5 z-40 flex w-[400px] flex-col overflow-hidden rounded-[20px] border border-line-strong bg-[var(--panel)] shadow-[0_30px_80px_-24px_rgb(0_0_0/0.75)] backdrop-blur-2xl"
+          key="panel"
+          initial={phone ? { y: '100%' } : { x: 440, opacity: 0.4 }}
+          animate={phone ? { y: 0 } : { x: 0, opacity: 1 }}
+          exit={phone ? { y: '100%' } : { x: 440, opacity: 0.4 }}
+          transition={phone ? { type: 'spring', stiffness: 380, damping: 38, mass: 0.9 } : { type: 'spring', stiffness: 320, damping: 34 }}
+          {...(phone
+            ? {
+                drag: 'y' as const,
+                dragControls: drag,
+                dragListener: false,
+                dragConstraints: { top: 0, bottom: 0 },
+                dragElastic: { top: 0, bottom: 0.7 },
+                onDragEnd: (_: unknown, i: { offset: { y: number }; velocity: { y: number } }) => {
+                  if (i.offset.y > 110 || i.velocity.y > 600) onClose()
+                },
+                // The Android back button closes open layers via Escape.
+                role: 'dialog',
+                'aria-label': 'Adventure settings',
+                'data-state': 'open'
+              }
+            : {})}
+          className="absolute top-[52px] right-2.5 bottom-2.5 z-40 flex w-[400px] flex-col overflow-hidden rounded-[20px] border border-line-strong bg-[var(--panel)] shadow-[0_30px_80px_-24px_rgb(0_0_0/0.75)] backdrop-blur-2xl max-md:top-[calc(var(--sat,0px)+58px)] max-md:right-0 max-md:bottom-0 max-md:left-0 max-md:w-auto max-md:rounded-t-[24px] max-md:rounded-b-none max-md:border-b-0 max-md:shadow-[0_-30px_80px_-20px_rgb(0_0_0/0.8)]"
         >
-          <div className="flex items-center gap-2 px-4 pt-2">
+          {phone && (
+            <div onPointerDown={(e) => drag.start(e)} className="flex h-5 shrink-0 cursor-grab touch-none items-end justify-center">
+              <span className="h-1 w-10 rounded-full bg-white/20" />
+            </div>
+          )}
+          <div onPointerDown={phone ? (e) => (e.target as HTMLElement).closest('button') || drag.start(e) : undefined} className="flex items-center gap-2 px-4 pt-2 max-md:touch-none max-md:pt-0">
             <Tabs
               className="flex-1 border-b-0"
               value={tab}
@@ -476,7 +513,7 @@ export function SidePanel({
             </IconButton>
           </div>
           <div className="h-px bg-line" />
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-6 max-md:pb-[calc(var(--sab,0px)+24px)]">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div key={tab} initial={{ opacity: 0, x: tab === 'adventure' ? -12 : 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: tab === 'adventure' ? -12 : 12 }} transition={{ duration: 0.22, ease }}>
                 {tab === 'adventure' ? (

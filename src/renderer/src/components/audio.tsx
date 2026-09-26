@@ -307,19 +307,65 @@ export function WavePlayer({ src, seed, duration, bars = 64, height = 34, size =
     } else a.pause()
   }
 
-  const seek = (e: React.MouseEvent<HTMLDivElement>): void => {
+  // Touch: drag sideways along the wave to scrub (vertical drags still scroll the page).
+  const scrub = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null)
+
+  const fraction = (clientX: number, el: HTMLElement): number => {
+    const r = el.getBoundingClientRect()
+    return Math.min(1, Math.max(0, (clientX - r.left) / r.width))
+  }
+
+  const seekTo = (x: number, play: boolean): void => {
     const a = audio.current
     if (!a) return
-    const r = e.currentTarget.getBoundingClientRect()
-    const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width))
     const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : dur
     if (d) a.currentTime = x * d
-    claimPlayback(a)
-    void a.play().catch(() => {})
+    if (play) {
+      claimPlayback(a)
+      void a.play().catch(() => {})
+    }
     paint()
   }
 
-  const btn = size === 'md' ? 'size-9' : 'size-7.5'
+  const seek = (e: React.MouseEvent<HTMLDivElement>): void => {
+    if (scrub.current?.moved) {
+      scrub.current = null
+      return
+    }
+    seekTo(fraction(e.clientX, e.currentTarget), true)
+  }
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
+    if (e.pointerType === 'mouse') return
+    scrub.current = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false }
+  }
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>): void => {
+    if (e.pointerType === 'mouse') {
+      hover.current?.setAttribute('width', String(fraction(e.clientX, e.currentTarget) * 1000))
+      return
+    }
+    const s = scrub.current
+    if (!s || s.id !== e.pointerId) return
+    if (!s.moved) {
+      if (Math.abs(e.clientX - s.x) < 6 || Math.abs(e.clientX - s.x) < Math.abs(e.clientY - s.y)) return
+      s.moved = true
+      e.currentTarget.setPointerCapture(e.pointerId)
+    }
+    seekTo(fraction(e.clientX, e.currentTarget), false)
+  }
+  const onPointerEnd = (e: React.PointerEvent<HTMLDivElement>): void => {
+    const s = scrub.current
+    if (!s || s.id !== e.pointerId) return
+    if (s.moved && e.type === 'pointerup') {
+      seekTo(fraction(e.clientX, e.currentTarget), true)
+      // The click that may follow the drag shouldn't seek again.
+      window.setTimeout(() => {
+        if (scrub.current === s) scrub.current = null
+      }, 400)
+    } else scrub.current = null
+  }
+
+  const btn = size === 'md' ? 'size-9 max-md:size-10' : 'size-7.5 max-md:size-9'
   return (
     <div ref={ref as React.Ref<HTMLDivElement>} className={cn('flex min-w-0 items-center gap-3', className)}>
       <audio
@@ -363,13 +409,13 @@ export function WavePlayer({ src, seed, duration, bars = 64, height = 34, size =
         </AnimatePresence>
       </motion.button>
       <div
-        className="group/wave relative min-w-0 flex-1 cursor-pointer py-1"
+        className="group/wave relative min-w-0 flex-1 cursor-pointer touch-pan-y py-1 max-md:py-2"
         onClick={seek}
-        onMouseMove={(e) => {
-          const r = e.currentTarget.getBoundingClientRect()
-          hover.current?.setAttribute('width', String(((e.clientX - r.left) / r.width) * 1000))
-        }}
-        onMouseLeave={() => hover.current?.setAttribute('width', '0')}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        onPointerLeave={(e) => e.pointerType === 'mouse' && hover.current?.setAttribute('width', '0')}
       >
         <WaveBars peaks={shape} height={height} progressRef={progress} hoverRef={hover} className={cn('transition-opacity duration-500', !peaks && 'opacity-60')} />
       </div>

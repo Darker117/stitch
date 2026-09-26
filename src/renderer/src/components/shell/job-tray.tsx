@@ -10,7 +10,7 @@ import { isActive, useGen } from '@/stores/gen'
 import { AssetLightbox, AssetThumb } from '../media'
 import { ProgressBar, ProgressRing } from '../ui/misc'
 
-function JobRow({ job, onOpen }: { job: GenJob; onOpen: (id: string) => void }): React.JSX.Element {
+export function JobRow({ job, onOpen }: { job: GenJob; onOpen: (id: string) => void }): React.JSX.Element {
   const recipes = useGen((s) => s.recipes)
   const cancel = useGen((s) => s.cancel)
   const assets = useCollection('assets')

@@ -74,7 +74,7 @@ function SlotTile({ c, def, onOpen }: { c: Character; def: SlotDef; onOpen: (id:
       {!busy && c.referenceAssetId && (
         <button
           onClick={() => void generateSheet(c, [def.slot]).catch((e) => toast.error('Could not regenerate', errorText(e)))}
-          className="absolute top-2 right-2 grid size-7 place-items-center rounded-lg bg-black/55 text-white opacity-0 backdrop-blur transition group-hover:opacity-100 hover:bg-black/75"
+          className="absolute top-2 right-2 grid size-7 place-items-center rounded-lg bg-black/55 text-white opacity-0 backdrop-blur transition group-hover:opacity-100 hover:bg-black/75 max-md:top-1.5 max-md:right-1.5 max-md:size-8 max-md:opacity-100"
           title="Regenerate this panel"
         >
           <RefreshCw className="size-3.5" />
@@ -157,8 +157,8 @@ export function CharacterDetail(): React.JSX.Element {
 
   return (
     <Page>
-      <div className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-[color-mix(in_oklab,var(--panel-solid)_75%,transparent)] px-4 backdrop-blur-xl">
-        <IconButton label="Back" onClick={() => navigate('/characters')}>
+      <div className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-[color-mix(in_oklab,var(--panel-solid)_75%,transparent)] px-4 backdrop-blur-xl max-md:gap-1.5 max-md:px-2">
+        <IconButton label="Back" className="max-md:size-10" onClick={() => navigate('/characters')}>
           <ArrowLeft className="size-4" />
         </IconButton>
         <input
@@ -171,11 +171,12 @@ export function CharacterDetail(): React.JSX.Element {
         />
         {running > 0 && (
           <Badge tone="accent">
-            <Spinner className="size-3" /> Rendering {running}
+            <Spinner className="size-3" /> <span className="contents max-md:hidden">Rendering </span>{running}
           </Badge>
         )}
         <Button
           size="sm"
+          className="max-md:h-9 max-md:px-3"
           variant={c.locked ? 'primary' : 'secondary'}
           icon={c.locked ? <Lock className="size-3.5" /> : <LockOpen className="size-3.5" />}
           onClick={() => {
@@ -183,12 +184,18 @@ export function CharacterDetail(): React.JSX.Element {
             patch({ locked: !c.locked })
           }}
         >
-          {c.locked ? 'Locked' : 'Lock character'}
+          {c.locked ? (
+            'Locked'
+          ) : (
+            <>
+              Lock<span className="contents max-md:hidden"> character</span>
+            </>
+          )}
         </Button>
         <Menu
           align="end"
           trigger={
-            <IconButton label="More">
+            <IconButton label="More" className="max-md:size-10">
               <MoreHorizontal className="size-4" />
             </IconButton>
           }
@@ -221,16 +228,16 @@ export function CharacterDetail(): React.JSX.Element {
         </Menu>
       </div>
 
-      <div className="grid grid-cols-[320px_1fr] gap-8 px-8 py-7">
-        {/* Identity column */}
-        <div className="space-y-5">
+      <div className="grid grid-cols-[320px_1fr] gap-8 px-8 py-7 max-md:grid-cols-1 max-md:gap-5 max-md:px-4 max-md:pt-4 max-md:pb-8">
+        {/* Identity column — on phones its children join the grid so the sheet can sit right under the reference. */}
+        <div className="space-y-5 max-md:contents max-md:space-y-0">
           <DropZone kinds={['image']} onAssets={(a) => a[0] && patch({ referenceAssetId: a[0].id })} className="rounded-2xl">
             <button
               onClick={async () => {
                 const [a] = await pickAndImport('image')
                 if (a) patch({ referenceAssetId: a.id })
               }}
-              className="group relative block aspect-[4/5] w-full overflow-hidden rounded-2xl border border-line bg-white/[0.02]"
+              className="group relative block aspect-[4/5] w-full overflow-hidden rounded-2xl border border-line bg-white/[0.02] max-md:aspect-square"
             >
               {ref ? (
                 <img src={fileUrl(ref.path)} className="size-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
@@ -240,7 +247,7 @@ export function CharacterDetail(): React.JSX.Element {
                   <span className="text-[12.5px] font-medium">Upload reference</span>
                 </div>
               )}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-3 pt-10 text-left opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-3 pt-10 text-left opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">
                 <span className="text-[12px] font-medium text-white">Replace reference</span>
               </div>
               <span className="absolute top-2.5 left-2.5 rounded-md bg-black/55 px-1.5 py-0.5 font-mono text-[9px] tracking-[0.18em] text-white/80 backdrop-blur">REFERENCE</span>
@@ -248,11 +255,12 @@ export function CharacterDetail(): React.JSX.Element {
           </DropZone>
 
           <Field
+            className="max-md:order-2"
             label="Appearance"
             help="Used in every prompt with this character."
             action={
               ref && (
-                <button onClick={() => void describe()} disabled={describing} className="flex items-center gap-1 text-[11.5px] font-semibold text-accent hover:brightness-125 disabled:opacity-50">
+                <button onClick={() => void describe()} disabled={describing} className="flex items-center gap-1 text-[11.5px] font-semibold text-accent hover:brightness-125 disabled:opacity-50 max-md:-my-2 max-md:py-2">
                   {describing ? <Spinner className="size-3" /> : <ScanEye className="size-3" />} Describe from image
                 </button>
               )
@@ -263,13 +271,13 @@ export function CharacterDetail(): React.JSX.Element {
                 patchDebounced({ appearance: e.target.value })
               }} minRows={4} placeholder="e.g. mid-20s woman, sharp green eyes, copper braid, scar across left brow, worn leather ranger coat…" />
           </Field>
-          <Field label="Personality & backstory">
+          <Field className="max-md:order-2" label="Personality & backstory">
             <Textarea value={description} onChange={(e) => {
                 setDescription(e.target.value)
                 patchDebounced({ description: e.target.value })
               }} minRows={3} placeholder="Who are they? What do they want?" />
           </Field>
-          <Field label="Voice" help="Used for narration, dialogue and as the H3 video voice reference.">
+          <Field className="max-md:order-2" label="Voice" help="Used for narration, dialogue and as the H3 video voice reference.">
             {VoicePicker ? (
               <Suspense fallback={<Spinner />}>
                 <VoicePicker value={c.voice} onChange={(voice) => patch({ voice })} characterName={c.name} />
@@ -281,8 +289,8 @@ export function CharacterDetail(): React.JSX.Element {
         </div>
 
         {/* Sheet */}
-        <div className="min-w-0">
-          <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 max-md:order-1">
+          <div className="flex items-center justify-between gap-4 max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-3">
             <div>
               <div className="font-mono text-[10px] tracking-[0.22em] text-fg-3">
                 CHARACTER SHEET · <span className={c.locked ? 'text-accent' : ''}>{c.locked ? 'LOCKED' : 'DRAFT'}</span>
@@ -291,9 +299,10 @@ export function CharacterDetail(): React.JSX.Element {
                 {filled}/{slots.length} panels
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 max-md:contents">
               <Segmented
                 size="sm"
+                className="max-md:[&>button]:h-8"
                 value={c.sheetDetail}
                 onChange={(v) => patch({ sheetDetail: v })}
                 items={[
@@ -304,6 +313,7 @@ export function CharacterDetail(): React.JSX.Element {
               <Button
                 size="sm"
                 variant="primary"
+                className="max-md:h-10 max-md:w-full max-md:text-[13px]"
                 disabled={!c.referenceAssetId || running > 0}
                 icon={<Sparkles className="size-3.5" />}
                 onClick={async () => {
@@ -320,15 +330,15 @@ export function CharacterDetail(): React.JSX.Element {
               </Button>
             </div>
           </div>
-          {!c.referenceAssetId && <div className="mt-4 rounded-xl border border-line bg-white/[0.03] p-3 text-[12.5px] text-fg-2">Upload a reference image on the left to generate this character's sheet.</div>}
-          <div className="mt-5 space-y-7 rounded-2xl border border-line bg-[color-mix(in_oklab,var(--panel-solid)_45%,transparent)] p-5">
+          {!c.referenceAssetId && <div className="mt-4 rounded-xl border border-line bg-white/[0.03] p-3 text-[12.5px] text-fg-2">Upload a reference image <span className="max-md:hidden">on the left</span><span className="md:hidden">above</span> to generate this character's sheet.</div>}
+          <div className="mt-5 space-y-7 rounded-2xl border border-line bg-[color-mix(in_oklab,var(--panel-solid)_45%,transparent)] p-5 max-md:mt-4 max-md:space-y-6 max-md:p-3.5">
             {groups.map((g) => {
               const list = slots.filter((s) => s.group === g.key)
               if (!list.length) return null
               return (
                 <div key={g.key}>
                   <div className="label-caps mb-3">{g.title}</div>
-                  <motion.div variants={stagger(0.03)} initial="initial" animate="animate" className={cn('grid gap-3', g.key === 'angles' ? 'grid-cols-5' : 'grid-cols-5')}>
+                  <motion.div variants={stagger(0.03)} initial="initial" animate="animate" className={cn('grid gap-3 max-md:gap-2.5', g.key === 'angles' ? 'grid-cols-5' : 'grid-cols-5', 'max-md:grid-cols-3')}>
                     {list.map((def) => (
                       <SlotTile key={def.slot} c={c} def={def} onOpen={setLightbox} />
                     ))}

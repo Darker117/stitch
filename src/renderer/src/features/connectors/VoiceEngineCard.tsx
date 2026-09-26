@@ -53,8 +53,8 @@ function EngineLog({ lines, open, onToggle }: { lines: string[]; open: boolean; 
   }, [lines, open])
   return (
     <div className="border-t border-line">
-      <div className="flex items-center gap-2 px-5 py-2.5">
-        <button onClick={onToggle} className="flex flex-1 items-center gap-2 text-left text-[12px] font-medium text-fg-2 hover:text-fg">
+      <div className="flex items-center gap-2 px-5 py-2.5 max-md:px-4 max-md:py-1.5">
+        <button onClick={onToggle} className="flex flex-1 items-center gap-2 text-left text-[12px] font-medium text-fg-2 hover:text-fg max-md:h-9">
           <motion.span animate={{ rotate: open ? 0 : -90 }} transition={spring} className="grid place-items-center">
             <ChevronDown className="size-3.5" />
           </motion.span>
@@ -83,7 +83,7 @@ function EngineLog({ lines, open, onToggle }: { lines: string[]; open: boolean; 
                 const el = e.currentTarget
                 stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
               }}
-              className="selectable mx-5 mb-4 max-h-60 overflow-y-auto rounded-xl border border-line bg-black/45 px-3.5 py-3 font-mono text-[11px] leading-[1.65]"
+              className="selectable mx-5 mb-4 max-h-60 overflow-y-auto rounded-xl border border-line bg-black/45 px-3.5 py-3 font-mono text-[11px] leading-[1.65] max-md:mx-4"
             >
               {lines.length ? (
                 lines.map((l, i) => (
@@ -128,10 +128,10 @@ function Stepper({ step, label, names }: { step: number; label: string; names?: 
                   {done ? <Check className="size-3.5" strokeWidth={3} /> : active ? <ProgressRing size={26} stroke={2} className="absolute" /> : n}
                   {active && <span className="relative">{n}</span>}
                 </motion.div>
-                <span className={cn('text-[10.5px] whitespace-nowrap', active ? 'text-fg' : done ? 'text-fg-2' : 'text-fg-3')}>{s}</span>
+                <span className={cn('text-[10.5px] whitespace-nowrap max-md:hidden', active ? 'text-fg' : done ? 'text-fg-2' : 'text-fg-3')}>{s}</span>
               </div>
               {i < steps.length - 1 && (
-                <div className="relative mx-2 mb-5 h-px flex-1 overflow-hidden bg-line-strong">
+                <div className="relative mx-2 mb-5 h-px flex-1 overflow-hidden bg-line-strong max-md:mx-1.5 max-md:mb-0">
                   <motion.div className="absolute inset-0 origin-left bg-grad" initial={false} animate={{ scaleX: done ? 1 : 0 }} transition={{ duration: 0.5, ease }} />
                 </div>
               )}
@@ -179,7 +179,7 @@ function ModelTile({ m, status, installed, onDownload }: { m: VoiceEngineStatus[
           <ProgressRing value={status.activity?.progress} size={22} />
         </div>
       ) : (
-        <Button size="xs" variant="ghost" icon={<Download className="size-3" />} disabled={!installed || !!status.activity?.model} onClick={onDownload}>
+        <Button size="xs" variant="ghost" className="max-md:h-8 max-md:px-2.5" icon={<Download className="size-3" />} disabled={!installed || !!status.activity?.model} onClick={onDownload}>
           Get
         </Button>
       )}
@@ -231,7 +231,7 @@ function EngineTile({ engine, status }: { engine: VoiceEngineInfo; status: Voice
           <Menu
             align="end"
             trigger={
-              <IconButton label={`${engine.name} options`} size="xs" disabled={status?.busy === 'installing'}>
+              <IconButton label={`${engine.name} options`} size="xs" className="max-md:size-8" disabled={status?.busy === 'installing'}>
                 <ChevronDown className="size-3" />
               </IconButton>
             }
@@ -246,7 +246,7 @@ function EngineTile({ engine, status }: { engine: VoiceEngineInfo; status: Voice
         ) : progress ? (
           <ProgressRing value={progress.value} size={22} />
         ) : (
-          <Button size="xs" variant="secondary" icon={<Download className="size-3" />} loading={pending} onClick={() => void install()}>
+          <Button size="xs" variant="secondary" className="max-md:h-8 max-md:px-2.5" icon={<Download className="size-3" />} loading={pending} onClick={() => void install()}>
             Install
           </Button>
         )}
@@ -300,7 +300,7 @@ export function VoiceEngineCard({ className }: { className?: string }): React.JS
       {/* soft accent wash behind the orb */}
       <div className="pointer-events-none absolute -top-24 -left-16 size-64 rounded-full bg-grad opacity-[0.09] blur-3xl" />
 
-      <div className="relative flex items-start gap-4 px-5 pt-5 pb-4">
+      <div className="relative flex items-start gap-4 px-5 pt-5 pb-4 max-md:flex-wrap max-md:gap-3 max-md:px-4">
         <div className="-m-2 shrink-0">
           <Orb size={44} state={orbState(status)} density={0.55} />
         </div>
@@ -319,18 +319,18 @@ export function VoiceEngineCard({ className }: { className?: string }): React.JS
             <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line bg-white/[0.035] px-2.5 font-mono text-[10.5px] text-fg-3">127.0.0.1:{status?.port ?? 7862}</span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2 max-md:basis-full max-md:justify-between">
           <span className="flex items-center gap-1.5 rounded-full border border-line bg-white/[0.035] px-2.5 py-1 text-[11.5px] font-medium text-fg-2">
             <StatusDot state={state.tone} />
             {state.label}
           </span>
           {phase === 'ready' &&
             (status!.running ? (
-              <Button size="sm" variant="secondary" icon={<Power className="size-3.5" />} loading={pending === 'stop'} onClick={() => void act('stop')}>
+              <Button size="sm" variant="secondary" className="max-md:h-9 max-md:px-4" icon={<Power className="size-3.5" />} loading={pending === 'stop'} onClick={() => void act('stop')}>
                 Stop
               </Button>
             ) : (
-              <Button size="sm" variant="primary" icon={<Play className="size-3.5 fill-current" />} loading={pending === 'start' || status!.busy === 'starting'} onClick={() => void act('start')}>
+              <Button size="sm" variant="primary" className="max-md:h-9 max-md:px-4" icon={<Play className="size-3.5 fill-current" />} loading={pending === 'start' || status!.busy === 'starting'} onClick={() => void act('start')}>
                 Start
               </Button>
             ))}
@@ -340,7 +340,7 @@ export function VoiceEngineCard({ className }: { className?: string }): React.JS
 
       <AnimatePresence initial={false}>
         {status?.error && !installing && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.3, ease }} className="overflow-hidden px-5">
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.3, ease }} className="overflow-hidden px-5 max-md:px-4">
             <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-danger/25 bg-danger/[0.08] px-3.5 py-2.5 text-[12px] text-fg-2">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-danger" />
               <span className="selectable flex-1 break-words">{status.error}</span>
@@ -352,19 +352,19 @@ export function VoiceEngineCard({ className }: { className?: string }): React.JS
         )}
       </AnimatePresence>
 
-      <div className="relative px-5 pb-5">
+      <div className="relative px-5 pb-5 max-md:px-4 max-md:pb-4">
         <AnimatePresence mode="wait" initial={false}>
           {phase === 'fresh' && (
             <motion.div key="fresh" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3, ease }} className="flex flex-col gap-4">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2 max-md:grid-cols-1">
                 {local.map((e, i) => (
                   <motion.div key={e.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 + i * 0.06, duration: 0.4, ease }}>
                     <EngineTile engine={e} status={status} />
                   </motion.div>
                 ))}
               </div>
-              <span className="flex items-center gap-1.5 text-[11.5px] text-fg-3">
-                <HardDrive className="size-3.5" /> The first engine also sets up Stitch's Python + PyTorch runtime (≈3 GB with CUDA). Weights download on first use — all inside Stitch's folder.
+              <span className="flex items-center gap-1.5 text-[11.5px] text-fg-3 max-md:items-start">
+                <HardDrive className="size-3.5 shrink-0 max-md:mt-0.5" /> The first engine also sets up Stitch's Python + PyTorch runtime (≈3 GB with CUDA). Weights download on first use — all inside Stitch's folder.
               </span>
             </motion.div>
           )}
@@ -389,20 +389,20 @@ export function VoiceEngineCard({ className }: { className?: string }): React.JS
 
           {phase === 'ready' && status && (
             <motion.div key="ready" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3, ease }} className="flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-0.5">
                 <span className="label-caps">Engines</span>
                 <span className="text-[11px] text-fg-3">{!status.device ? '' : status.device === 'CPU' ? 'Everything runs on the CPU' : `GPU engines run on ${status.device}`}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2 max-md:grid-cols-1">
                 {local.map((e) => (
                   <EngineTile key={e.id} engine={e} status={status} />
                 ))}
               </div>
-              <div className="mt-1.5 flex items-center justify-between">
+              <div className="mt-1.5 flex items-center justify-between max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-0.5">
                 <span className="label-caps">Models</span>
                 <span className="text-[11px] text-fg-3">Downloaded on first use · unloaded after 10 min idle</span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 max-md:grid-cols-1">
                 {status.models
                   .filter((m) => !m.engine || installedIds.has(m.engine))
                   .map((m) => (

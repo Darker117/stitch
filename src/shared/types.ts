@@ -74,6 +74,15 @@ export interface AppSettings {
   civitai: { hideNsfw: boolean }
   /** App updates from GitHub Releases. */
   updates: { autoDownload: boolean }
+  /** Phone remote: the Stitch Android app connects over the LAN (or Tailscale) on this port. */
+  remote: {
+    enabled: boolean
+    port: number
+    /** While phones are allowed, closing the window keeps Stitch running in the tray. */
+    background?: boolean
+    /** Access from anywhere: a public HTTPS address for the phone remote. */
+    anywhere?: { mode: 'off' | 'cloudflare' | 'tailscale' | 'custom'; customUrl?: string }
+  }
 }
 
 // ─── App updates ─────────────────────────────────────────────────────────────
@@ -107,8 +116,11 @@ export type LlmKind =
   | 'lmstudio'
   | 'gemini'
   | 'openai-compatible'
+  /** On-device model in the Stitch phone app (answered on the phone, never by the PC). */
+  | 'device'
 
-export type VoiceKind = 'local-qwen' | 'local-kokoro' | 'local-pocket' | 'elevenlabs' | 'openai-tts' | 'azure'
+/** 'device' = on-device speech in the Stitch phone app (answered on the phone, never by the PC). */
+export type VoiceKind = 'local-qwen' | 'local-kokoro' | 'local-pocket' | 'elevenlabs' | 'openai-tts' | 'azure' | 'device'
 
 export type ConnectorCategory = 'llm' | 'comfy' | 'voice'
 

@@ -24,12 +24,14 @@ function liveEdit(fn: (tl: Timeline) => Timeline, finalize?: (tl: Timeline) => T
     editor.begin()
     const end = (): void => {
       window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
       window.removeEventListener('keyup', end)
       const f = liveFinalize
       liveFinalize = undefined
       editor.end(f)
     }
     window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
     window.addEventListener('keyup', end)
   }
   liveFinalize = finalize
@@ -55,9 +57,9 @@ function retime(id: ID, patch: (c: TimelineClip) => Partial<TimelineClip>, live 
 
 // ─── Small controls ──────────────────────────────────────────────────────────
 
-function Section({ title, icon, children, action }: { title: string; icon?: ReactNode; children: ReactNode; action?: ReactNode }): React.JSX.Element {
+function Section({ title, icon, children, action, className }: { title: string; icon?: ReactNode; children: ReactNode; action?: ReactNode; className?: string }): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-2.5 border-t border-line px-4 py-3.5 first:border-t-0">
+    <div className={cn('flex flex-col gap-2.5 border-t border-line px-4 py-3.5 first:border-t-0', className)}>
       <div className="flex items-center gap-1.5">
         {icon && <span className="text-fg-3 [&>svg]:size-3">{icon}</span>}
         <span className="label-caps">{title}</span>
@@ -107,26 +109,31 @@ function ScrubField({
     e.preventDefault()
     const x0 = e.clientX
     const v0 = value
+    const pid = e.pointerId
     let last = v0
     const move = (ev: PointerEvent): void => {
+      if (ev.pointerId !== pid) return
       const v = clamp(Math.round((v0 + ((ev.clientX - x0) / 4) * step) / step) * step)
       if (v !== last) {
         last = v
         onChange(v, true)
       }
     }
-    const up = (): void => {
+    const up = (ev: PointerEvent): void => {
+      if (ev.pointerId !== pid) return
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
       document.body.style.cursor = ''
     }
     document.body.style.cursor = 'ew-resize'
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
   }
   return (
-    <label className="flex h-8 items-center overflow-hidden rounded-lg border border-line bg-white/[0.03] transition-colors focus-within:border-[color-mix(in_oklab,var(--accent)_50%,transparent)] hover:border-line-strong">
-      <span onPointerDown={onLabelDown} className="flex h-full w-[38px] shrink-0 cursor-ew-resize items-center justify-center border-r border-line text-[9.5px] font-semibold tracking-wide text-fg-3 uppercase select-none hover:bg-white/[0.04] hover:text-fg-2">
+    <label className="flex h-8 items-center overflow-hidden rounded-lg border border-line bg-white/[0.03] transition-colors focus-within:border-[color-mix(in_oklab,var(--accent)_50%,transparent)] hover:border-line-strong max-md:h-10">
+      <span onPointerDown={onLabelDown} className="flex h-full w-[38px] shrink-0 cursor-ew-resize touch-none items-center justify-center border-r border-line text-[9.5px] font-semibold tracking-wide text-fg-3 uppercase select-none hover:bg-white/[0.04] hover:text-fg-2">
         {label}
       </span>
       <input
@@ -173,7 +180,7 @@ export function Inspector(): React.JSX.Element {
   const key = clips.length === 1 ? clips[0].id : clips.length > 1 ? 'multi' : 'timeline'
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line px-4">
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line px-4 max-md:hidden">
         <SlidersHorizontal className="size-3.5 text-fg-3" />
         <span className="label-caps text-fg-2">Inspector</span>
       </div>
@@ -267,14 +274,14 @@ function ClipInspector({ clip, tl }: { clip: TimelineClip; tl: Timeline }): Reac
       </Section>
 
       <div className="flex gap-1.5 px-4 pt-2">
-        <Button size="sm" variant="secondary" className="flex-1" icon={<Scissors className="size-3.5" />} onClick={splitAtPlayhead}>
+        <Button size="sm" variant="secondary" className="flex-1 max-md:h-10" icon={<Scissors className="size-3.5" />} onClick={splitAtPlayhead}>
           Split
         </Button>
-        <Button size="sm" variant="secondary" className="flex-1" icon={<Copy className="size-3.5" />} onClick={duplicateSelection}>
+        <Button size="sm" variant="secondary" className="flex-1 max-md:h-10" icon={<Copy className="size-3.5" />} onClick={duplicateSelection}>
           Duplicate
         </Button>
         <Tooltip content="Delete (Shift+Del ripples)">
-          <Button size="sm" variant="danger" icon={<Trash2 className="size-3.5" />} onClick={(e) => deleteSelection(e.shiftKey)} aria-label="Delete" />
+          <Button size="sm" variant="danger" className="max-md:size-10" icon={<Trash2 className="size-3.5" />} onClick={(e) => deleteSelection(e.shiftKey)} aria-label="Delete" />
         </Tooltip>
       </div>
     </div>
@@ -307,13 +314,19 @@ function TitleSection({ clip, tl }: { clip: TimelineClip; tl: Timeline }): React
       setText({ x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 })
     }
     apply(e.clientX, e.clientY)
-    const move = (ev: PointerEvent): void => apply(ev.clientX, ev.clientY)
-    const up = (): void => {
+    const pid = e.pointerId
+    const move = (ev: PointerEvent): void => {
+      if (ev.pointerId === pid) apply(ev.clientX, ev.clientY)
+    }
+    const up = (ev: PointerEvent): void => {
+      if (ev.pointerId !== pid) return
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
   }
   return (
     <Section title="Title" icon={<Type />}>
@@ -335,12 +348,12 @@ function TitleSection({ clip, tl }: { clip: TimelineClip; tl: Timeline }): React
             key={c}
             whileTap={{ scale: 0.85 }}
             onClick={() => setText({ color: c }, false)}
-            className={cn('size-5.5 rounded-full ring-1 ring-white/20 transition-shadow duration-200', text.color.toLowerCase() === c.toLowerCase() && 'ring-2 ring-white shadow-[0_0_0_3px_rgb(0_0_0/0.4)]')}
+            className={cn('size-5.5 rounded-full ring-1 ring-white/20 transition-shadow duration-200 max-md:size-8', text.color.toLowerCase() === c.toLowerCase() && 'ring-2 ring-white shadow-[0_0_0_3px_rgb(0_0_0/0.4)]')}
             style={{ background: c }}
             aria-label={c}
           />
         ))}
-        <label className="relative ml-auto grid size-5.5 cursor-pointer place-items-center overflow-hidden rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)] ring-1 ring-white/20" title="Custom colour">
+        <label className="relative ml-auto grid size-5.5 cursor-pointer place-items-center overflow-hidden rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)] ring-1 ring-white/20 max-md:size-8" title="Custom colour">
           <input type="color" value={text.color} onChange={(e) => setText({ color: e.target.value })} className="absolute inset-0 cursor-pointer opacity-0" />
         </label>
       </div>
@@ -348,7 +361,7 @@ function TitleSection({ clip, tl }: { clip: TimelineClip; tl: Timeline }): React
         <div
           ref={padRef}
           onPointerDown={dragPad}
-          className="relative shrink-0 cursor-crosshair overflow-hidden rounded-lg border border-line bg-black/50"
+          className="relative shrink-0 cursor-crosshair touch-none overflow-hidden rounded-lg border border-line bg-black/50"
           style={{ width: aspect >= 1 ? 112 : 112 * aspect * (112 / 112), height: aspect >= 1 ? 112 / aspect : 112 }}
         >
           <div className="absolute inset-[10%] rounded-sm border border-dashed border-white/10" />
@@ -364,7 +377,7 @@ function TitleSection({ clip, tl }: { clip: TimelineClip; tl: Timeline }): React
               key={p.id}
               onClick={() => setText({ x: 0.5, y: p.y }, false)}
               className={cn(
-                'h-6.5 rounded-md border px-2 text-left text-[11px] font-medium transition-colors',
+                'h-6.5 rounded-md border px-2 text-left text-[11px] font-medium transition-colors max-md:h-8 max-md:text-[12px]',
                 Math.abs(text.y - p.y) < 0.02 && Math.abs(text.x - 0.5) < 0.02 ? 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--accent)_12%,transparent)] text-fg' : 'border-line text-fg-2 hover:bg-white/[0.05]'
               )}
             >
@@ -404,15 +417,15 @@ function MultiInspector({ clips }: { clips: TimelineClip[] }): React.JSX.Element
         </Section>
       )}
       <div className="flex gap-1.5 px-4 pt-2">
-        <Button size="sm" variant="secondary" className="flex-1" icon={<Copy className="size-3.5" />} onClick={duplicateSelection}>
+        <Button size="sm" variant="secondary" className="flex-1 max-md:h-10" icon={<Copy className="size-3.5" />} onClick={duplicateSelection}>
           Duplicate
         </Button>
-        <Button size="sm" variant="danger" className="flex-1" icon={<Trash2 className="size-3.5" />} onClick={() => deleteSelection(false)}>
+        <Button size="sm" variant="danger" className="flex-1 max-md:h-10" icon={<Trash2 className="size-3.5" />} onClick={() => deleteSelection(false)}>
           Delete
         </Button>
       </div>
       <div className="px-4 pt-2">
-        <Button size="sm" variant="ghost" className="w-full" onClick={() => deleteSelection(true)}>
+        <Button size="sm" variant="ghost" className="w-full max-md:h-10" onClick={() => deleteSelection(true)}>
           Ripple delete
         </Button>
       </div>
@@ -481,7 +494,7 @@ function TimelineInspector({ tl }: { tl: Timeline }): React.JSX.Element {
           ]}
         />
       </Section>
-      <Section title="Shortcuts">
+      <Section title="Shortcuts" className="max-md:hidden">
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
           {[
             ['Space', 'Play / pause'],

@@ -40,6 +40,12 @@ export async function loadCollection(name: CollectionName, force = false): Promi
   useDbStore.setState((st) => ({ data: { ...st.data, [name]: rec }, loading: { ...st.loading, [name]: false } }))
 }
 
+/** Re-read every collection already in the cache (the phone app calls this after reconnecting). */
+export async function reloadLoaded(): Promise<void> {
+  const names = Object.keys(useDbStore.getState().data) as CollectionName[]
+  await Promise.all(names.map((n) => loadCollection(n, true).catch(() => {})))
+}
+
 const EMPTY: Record<ID, unknown> = {}
 
 function sortKey(d: unknown): number {

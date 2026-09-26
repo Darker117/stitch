@@ -2,10 +2,11 @@
 // timeline as origin; finished media lands in the Assets panel.
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { AlertTriangle, AudioLines, Check, Film, ImageIcon, RotateCcw, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, AudioLines, Check, Film, ImageIcon, Plus, RotateCcw, Sparkles, X } from 'lucide-react'
 import type { Asset, GenJob, ParamSpec, RecipeInfo } from '@shared/types'
 import { errorText, fileUrl } from '@/lib/api'
 import { cn, formatEta } from '@/lib/utils'
+import { isTouch, useCompact } from '@/lib/platform'
 import { ease, spring } from '@/lib/motion'
 import { useDoc } from '@/stores/db'
 import { isActive, useGen } from '@/stores/gen'
@@ -182,7 +183,7 @@ export function GenSpace(): React.JSX.Element {
               <button
                 key={n}
                 onClick={() => setBatch(n)}
-                className={cn('relative h-6.5 w-7 rounded-md text-[11px] font-semibold transition-colors', batch === n ? 'text-fg' : 'text-fg-3 hover:text-fg-2')}
+                className={cn('relative h-6.5 w-7 rounded-md text-[11px] font-semibold transition-colors max-md:h-8 max-md:w-9', batch === n ? 'text-fg' : 'text-fg-3 hover:text-fg-2')}
               >
                 {batch === n && <motion.span layoutId="gen-batch" className="absolute inset-0 rounded-md bg-white/[0.1]" transition={spring} />}
                 <span className="relative">×{n}</span>
@@ -190,7 +191,7 @@ export function GenSpace(): React.JSX.Element {
             ))}
           </div>
           <div className="flex-1 text-[10.5px] text-fg-3">{recipe?.estSeconds ? `${formatEta(recipe.estSeconds * batch)}` : ''}</div>
-          <Button variant="primary" size="sm" icon={<Sparkles className="size-3.5" />} loading={busy} disabled={!recipe || !prompt.trim() || !!missingRequired} onClick={() => void go()}>
+          <Button variant="primary" size="sm" className="max-md:h-9 max-md:px-3.5" icon={<Sparkles className="size-3.5" />} loading={busy} disabled={!recipe || !prompt.trim() || !!missingRequired} onClick={() => void go()}>
             Generate
           </Button>
         </div>
@@ -217,12 +218,14 @@ export function GenSpace(): React.JSX.Element {
 }
 
 function ParamControl({ spec, value, onChange }: { spec: ParamSpec; value: unknown; onChange: (v: unknown) => void }): React.JSX.Element {
+  // Phones can't drag files in: the slot is tap-to-add there.
+  const tapToAdd = useCompact() || isTouch
   const label = <div className="mb-1 truncate text-[10.5px] font-semibold tracking-wide text-fg-3 uppercase">{spec.label}</div>
   if (spec.type === 'image' || spec.type === 'audio') {
     return (
       <div className="col-span-1">
         {label}
-        <MediaSlot kind={spec.type} value={typeof value === 'string' ? value : undefined} onChange={onChange} label={spec.type === 'image' ? 'Drop an image' : 'Drop audio'} aspect="aspect-[16/10]" />
+        <MediaSlot kind={spec.type} value={typeof value === 'string' ? value : undefined} onChange={onChange} label={spec.type === 'image' ? (tapToAdd ? 'Add an image' : 'Drop an image') : tapToAdd ? 'Add audio' : 'Drop audio'} aspect="aspect-[16/10]" />
       </div>
     )
   }
@@ -272,15 +275,16 @@ function JobCard({ job }: { job: GenJob }): React.JSX.Element {
             {isActive(job) && <ProgressBar value={job.status === 'queued' ? undefined : p} />}
           </div>
           {isActive(job) && (
-            <button onClick={() => void cancel(job.id)} className="absolute top-1 right-1 grid size-5 place-items-center rounded-md bg-black/55 text-white opacity-0 transition group-hover:opacity-100" title="Cancel">
+            <button onClick={() => void cancel(job.id)} className="absolute top-1 right-1 grid size-5 place-items-center rounded-md bg-black/55 text-white opacity-0 transition group-hover:opacity-100 max-md:size-7 max-md:rounded-lg max-md:opacity-100" title="Cancel" aria-label="Cancel">
               <X className="size-3" />
             </button>
           )}
           {job.status === 'error' && (
             <button
               onClick={() => void useGen.getState().submit({ recipeId: job.recipeId, params: job.params, label: job.label, origin: job.origin, projectId: job.projectId })}
-              className="absolute top-1 right-1 grid size-5 place-items-center rounded-md bg-black/55 text-white"
+              className="absolute top-1 right-1 grid size-5 place-items-center rounded-md bg-black/55 text-white max-md:size-7 max-md:rounded-lg"
               title="Retry"
+              aria-label="Retry"
             >
               <RotateCcw className="size-3" />
             </button>
@@ -311,6 +315,16 @@ function DoneTile({ asset }: { asset: Asset }): React.JSX.Element {
       <Badge tone="success" className="absolute top-1 left-1 h-4.5 gap-0.5 bg-black/55 px-1 text-[9.5px] backdrop-blur">
         <Check className="size-2.5" /> Ready
       </Badge>
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          appendAsset(asset)
+        }}
+        className="absolute top-1 right-1 hidden size-7 place-items-center rounded-lg bg-black/55 text-white backdrop-blur transition active:scale-90 max-md:grid"
+        aria-label="Append to timeline"
+      >
+        <Plus className="size-3.5" />
+      </button>
     </div>
   )
 }

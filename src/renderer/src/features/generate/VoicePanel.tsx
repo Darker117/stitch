@@ -4,11 +4,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { AudioLines, ChevronDown, CornerUpLeft, Download, Drama, FlaskConical, FolderOpen, HardDrive, Mic, MoreHorizontal, Play, Power, Save, Trash2, UserRound, Wand2 } from 'lucide-react'
+import { AudioLines, ChevronDown, CornerUpLeft, Download, Drama, FlaskConical, FolderOpen, HardDrive, History as HistoryIcon, Mic, MoreHorizontal, Play, Power, Save, SlidersHorizontal, Trash2, UserRound, Wand2 } from 'lucide-react'
 import { create } from 'zustand'
 import type { VoiceEngineInfo } from '@shared/ipc'
 import type { Asset, Character, CharacterVoice, ID, VoiceConnector, VoiceKind } from '@shared/types'
 import { errorText, fileUrl, invoke } from '@/lib/api'
+import { useCompact } from '@/lib/platform'
 import { cn, formatDuration, timeAgo } from '@/lib/utils'
 import { ease, rise, spring, springSoft, stagger } from '@/lib/motion'
 import {
@@ -31,13 +32,15 @@ import {
 import { db, useCollection, useDoc } from '@/stores/db'
 import { toast } from '@/stores/toast'
 import { PendingWave, WavePlayer } from '@/components/audio'
+import { REVEAL_LABEL, RevealIcon } from '@/components/media'
 import { DesignForm, EngineCards, ProviderIcon, RemoveEngineDialog, SampleInput, VoicePicker, useEngineForKind, useNotifyEngine } from '@/components/voice-picker'
 import { Orb } from '@/components/ui/orb'
 import { Button, Chip, IconButton } from '@/components/ui/button'
 import { Input, SearchField, Textarea } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/controls'
 import { Avatar, EmptyState, Kbd, ProgressBar, StatusDot } from '@/components/ui/misc'
-import { Menu, MenuItem, MenuLabel, Popover, PopoverClose, Select } from '@/components/ui/overlay'
+import { Menu, MenuItem, MenuLabel, MenuSeparator, Popover, PopoverClose, Select } from '@/components/ui/overlay'
+import { LiveDot, Pane, PaneTabs } from './mobile'
 
 // ─── Draft state (survives tab switches and restarts) ────────────────────────
 
@@ -174,7 +177,7 @@ function SpeakingAs({ character }: { character?: Character }): React.JSX.Element
   return (
     <Menu
       trigger={
-        <button className="flex h-7.5 items-center gap-1.5 rounded-full border border-line bg-white/[0.04] pr-2.5 pl-1 text-[12px] font-medium text-fg-2 transition hover:border-line-strong hover:text-fg">
+        <button className="flex h-7.5 items-center gap-1.5 rounded-full border border-line bg-white/[0.04] pr-2.5 pl-1 text-[12px] font-medium text-fg-2 transition hover:border-line-strong hover:text-fg max-md:h-9 max-md:pr-3 max-md:pl-1.5">
           {character ? (
             <CharacterFace c={character} size={22} />
           ) : (
@@ -255,18 +258,18 @@ function ScriptCard({ busy, onGenerate, character, kind, model, blocked }: { bus
           <Drama className="size-3" /> Delivery
         </span>
         {DELIVERY_PRESETS.map((p) => (
-          <Chip key={p.label} active={instructions === p.value} onClick={() => setStudio({ instructions: instructions === p.value ? '' : p.value })} className="h-7 rounded-full">
+          <Chip key={p.label} active={instructions === p.value} onClick={() => setStudio({ instructions: instructions === p.value ? '' : p.value })} className="h-7 rounded-full max-md:h-8 max-md:px-3">
             {p.label}
           </Chip>
         ))}
       </div>
-      <div className="flex items-center gap-2 px-3.5 pb-3.5">
-        <Input value={instructions} onChange={(e) => setStudio({ instructions: e.target.value })} placeholder="…or direct it: “hushed and urgent, a little out of breath”" className="min-w-0 flex-1" />
+      <div className="flex items-center gap-2 px-3.5 pb-3.5 max-md:flex-col max-md:items-stretch max-md:gap-2.5">
+        <Input value={instructions} onChange={(e) => setStudio({ instructions: e.target.value })} placeholder="…or direct it: “hushed and urgent, a little out of breath”" className="min-w-0 flex-1 max-md:h-10 max-md:flex-none" />
         <span className="hidden items-center gap-0.5 lg:flex">
           <Kbd>Ctrl</Kbd>
           <Kbd>↵</Kbd>
         </span>
-        <Button variant="primary" size="lg" icon={<AudioLines className="size-4" />} disabled={!text.trim() || !!blocked} onClick={onGenerate} className="rounded-xl">
+        <Button variant="primary" size="lg" icon={<AudioLines className="size-4" />} disabled={!text.trim() || !!blocked} onClick={onGenerate} className="rounded-xl max-md:h-12">
           Generate
         </Button>
       </div>
@@ -329,6 +332,7 @@ function LabCard({ character, onUse, engine }: { character?: Character; onUse: (
         {canDesign ? (
           <Segmented<LabMode>
             size="sm"
+            className="max-md:flex max-md:w-full max-md:[&>button]:h-8 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center max-md:[&>button]:px-1.5"
             value={lab}
             onChange={(v) => setStudio({ lab: v })}
             items={[
@@ -386,6 +390,7 @@ function LabCard({ character, onUse, engine }: { character?: Character; onUse: (
 // ─── Right column ────────────────────────────────────────────────────────────
 
 function EngineStrip(): React.JSX.Element | null {
+  const compact = useCompact()
   const status = useVoiceEngine()
   const connectors = useVoiceConnectors()
   const navigate = useNavigate()
@@ -413,20 +418,20 @@ function EngineStrip(): React.JSX.Element | null {
             </div>
             <AnimatePresence mode="wait" initial={false}>
               <motion.div key={status?.activity?.label ?? status?.device ?? ''} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.18 }} className="truncate text-[10.5px] text-fg-3">
-                {status?.activity?.label ?? (status?.installed ? status.device : 'Install Qwen3-TTS, Kokoro or Pocket TTS on the left')}
+                {status?.activity?.label ?? (status?.installed ? status.device : `Install Qwen3-TTS, Kokoro or Pocket TTS ${compact ? 'in Studio' : 'on the left'}`)}
               </motion.div>
             </AnimatePresence>
           </div>
           {!status?.installed ? (
-            <Button size="xs" variant="secondary" onClick={() => navigate('/connectors')}>
+            <Button size="xs" variant="secondary" onClick={() => navigate('/connectors')} className="max-md:h-8 max-md:px-3">
               Details
             </Button>
           ) : status.running ? (
-            <IconButton label="Stop engine (frees VRAM)" size="xs" onClick={() => void act('voice:engineStop')} disabled={pending || status.busy === 'generating'}>
+            <IconButton label="Stop engine (frees VRAM)" size="xs" onClick={() => void act('voice:engineStop')} disabled={pending || status.busy === 'generating'} className="max-md:size-8">
               <Power className="size-3" />
             </IconButton>
           ) : (
-            <IconButton label="Start engine" size="xs" onClick={() => void act('voice:engineStart')} disabled={pending || status.busy !== 'idle'}>
+            <IconButton label="Start engine" size="xs" onClick={() => void act('voice:engineStart')} disabled={pending || status.busy !== 'idle'} className="max-md:size-8">
               <Play className="size-3 fill-current" />
             </IconButton>
           )}
@@ -469,6 +474,7 @@ function PendingClip({ p }: { p: Pending }): React.JSX.Element {
 }
 
 function ClipCard({ asset, fresh, onReuse }: { asset: Asset; fresh: boolean; onReuse: (a: Asset) => void }): React.JSX.Element {
+  const compact = useCompact()
   const character = useDoc('characters', asset.characterIds?.[0])
   const p = (asset.params ?? {}) as { provider?: VoiceKind; voice?: CharacterVoice; instructions?: string; resolvedVoice?: string; voiceName?: string; model?: string }
   const voiceTitle = p.voiceName ?? (p.resolvedVoice && !p.voice?.sampleAssetId ? prettyVoiceId(p.resolvedVoice) : describeVoice(p.voice).title)
@@ -513,22 +519,48 @@ function ClipCard({ asset, fresh, onReuse }: { asset: Asset; fresh: boolean; onR
             <span className="truncate">{character?.name ?? voiceTitle}</span>
             {p.provider && <span className="shrink-0">· {VOICE_KIND_LABEL[p.provider]}</span>}
             <span className="shrink-0">· {timeAgo(asset.createdAt)}</span>
-            <div className="ml-auto flex shrink-0 translate-x-1 gap-0.5 opacity-0 transition-[opacity,transform] duration-200 group-hover:translate-x-0 group-hover:opacity-100">
-              <IconButton label="Reuse script & voice" size="xs" onClick={() => onReuse(asset)}>
-                <CornerUpLeft className="size-3" />
-              </IconButton>
-              <IconButton label="Download" size="xs" onClick={() => void download()}>
-                <Download className="size-3" />
-              </IconButton>
-              <IconButton label="Show in folder" size="xs" onClick={() => void invoke('sys:showInFolder', asset.path)}>
-                <FolderOpen className="size-3" />
-              </IconButton>
-              <IconButton label="Delete" size="xs" className="hover:text-danger" onClick={() => void invoke('assets:delete', asset.id, true)}>
-                <Trash2 className="size-3" />
-              </IconButton>
-            </div>
+            {!compact && (
+              <div className="ml-auto flex shrink-0 translate-x-1 gap-0.5 opacity-0 transition-[opacity,transform] duration-200 group-hover:translate-x-0 group-hover:opacity-100">
+                <IconButton label="Reuse script & voice" size="xs" onClick={() => onReuse(asset)}>
+                  <CornerUpLeft className="size-3" />
+                </IconButton>
+                <IconButton label="Download" size="xs" onClick={() => void download()}>
+                  <Download className="size-3" />
+                </IconButton>
+                <IconButton label={REVEAL_LABEL} size="xs" onClick={() => void invoke('sys:showInFolder', asset.path)}>
+                  <RevealIcon className="size-3" />
+                </IconButton>
+                <IconButton label="Delete" size="xs" className="hover:text-danger" onClick={() => void invoke('assets:delete', asset.id, true)}>
+                  <Trash2 className="size-3" />
+                </IconButton>
+              </div>
+            )}
           </div>
         </div>
+        {compact && (
+          <Menu
+            align="end"
+            trigger={
+              <IconButton label="Clip actions" size="md" className="-mt-1.5 -mr-1.5 rounded-full">
+                <MoreHorizontal className="size-4" />
+              </IconButton>
+            }
+          >
+            <MenuItem icon={<CornerUpLeft />} onSelect={() => onReuse(asset)}>
+              Reuse script & voice
+            </MenuItem>
+            <MenuItem icon={<Download />} onSelect={() => void download()}>
+              Download
+            </MenuItem>
+            <MenuItem icon={<RevealIcon />} onSelect={() => void invoke('sys:showInFolder', asset.path)}>
+              {REVEAL_LABEL}
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={<Trash2 />} danger onSelect={() => void invoke('assets:delete', asset.id, true)}>
+              Delete
+            </MenuItem>
+          </Menu>
+        )}
       </div>
       <WavePlayer src={fileUrl(asset.path)} seed={asset.id} duration={asset.duration} size="sm" height={30} bars={56} autoPlay={fresh} />
       {p.instructions && (
@@ -540,25 +572,30 @@ function ClipCard({ asset, fresh, onReuse }: { asset: Asset; fresh: boolean; onR
   )
 }
 
-function History({ pending, fresh, onReuse }: { pending: Pending[]; fresh?: ID; onReuse: (a: Asset) => void }): React.JSX.Element {
+/** Generated voice clips, newest first. */
+function useVoiceClips(): Asset[] {
   const assets = useCollection('assets')
-  const [q, setQ] = useState('')
-  const [limit, setLimit] = useState(40)
-  const clips = useMemo(
+  return useMemo(
     () => assets.filter((a) => a.kind === 'audio' && a.source === 'voice' && !a.tags?.includes('voice-preview')).sort((a, b) => b.createdAt - a.createdAt),
     [assets]
   )
+}
+
+function History({ pending, fresh, onReuse }: { pending: Pending[]; fresh?: ID; onReuse: (a: Asset) => void }): React.JSX.Element {
+  const [q, setQ] = useState('')
+  const [limit, setLimit] = useState(40)
+  const clips = useVoiceClips()
   const needle = q.trim().toLowerCase()
   const shown = needle ? clips.filter((a) => `${a.prompt ?? ''} ${a.name}`.toLowerCase().includes(needle)) : clips
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-2 px-4 pt-4 pb-3">
-        <span className="text-[13px] font-semibold tracking-tight">History</span>
-        <span className="text-[11px] text-fg-3 tabular-nums">{clips.length}</span>
-        <div className="flex-1" />
-        <SearchField value={q} onChange={setQ} placeholder="Search lines" className="w-44" />
+      <div className="flex items-center gap-2 px-4 pt-4 pb-3 max-md:pt-3">
+        <span className="text-[13px] font-semibold tracking-tight max-md:hidden">History</span>
+        <span className="text-[11px] text-fg-3 tabular-nums max-md:hidden">{clips.length}</span>
+        <div className="flex-1 max-md:hidden" />
+        <SearchField value={q} onChange={setQ} placeholder="Search lines" className="w-44 max-md:w-auto max-md:min-w-0 max-md:flex-1 max-md:basis-40" />
       </div>
-      <div className="scroll-fade min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+      <div className="scroll-fade min-h-0 flex-1 overflow-y-auto px-3 pb-4 max-md:pb-6">
         <div className="flex flex-col gap-2">
           <AnimatePresence initial={false}>
             {pending.map((p) => (
@@ -627,7 +664,7 @@ function EngineDetails({ engine }: { engine: VoiceEngineInfo }): React.JSX.Eleme
       <Menu
         align="end"
         trigger={
-          <IconButton label={`${engine.name} options`} size="xs" disabled={busy}>
+          <IconButton label={`${engine.name} options`} size="xs" disabled={busy} className="max-md:size-8">
             <MoreHorizontal className="size-3.5" />
           </IconButton>
         }
@@ -677,6 +714,10 @@ export function VoicePanel({ className }: { className?: string }): React.JSX.Ele
   const notify = useNotify()
   const engineStatus = useVoiceEngine()
   const busy = pending.length > 0
+  // Phone: the studio and the clip history become two panes.
+  const compact = useCompact()
+  const [view, setView] = useState<'studio' | 'history'>('studio')
+  const clipCount = useVoiceClips().length
 
   useEffect(() => {
     if (!fresh) return
@@ -689,6 +730,8 @@ export function VoicePanel({ className }: { className?: string }): React.JSX.Ele
     if (!line || !connector) return
     const id = Math.random().toString(36).slice(2)
     setPending((p) => [{ id, text: line, startedAt: Date.now(), local: isLocalKind(kind) }, ...p])
+    // Phone: show the clip rendering (and autoplaying when it lands) in History.
+    if (compact) setView('history')
     try {
       const asset = await speak({
         connectorId: connector.id,
@@ -713,6 +756,7 @@ export function VoicePanel({ className }: { className?: string }): React.JSX.Ele
   const reuse = (a: Asset): void => {
     const p = (a.params ?? {}) as { voice?: CharacterVoice; instructions?: string }
     setStudio({ text: a.prompt ?? '', instructions: p.instructions ?? '', ...(p.voice ? { voice: p.voice } : {}), characterId: a.characterIds?.[0] })
+    if (compact) setView('studio')
     scroller.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -748,91 +792,130 @@ export function VoicePanel({ className }: { className?: string }): React.JSX.Ele
   const voiceDiffers = character && JSON.stringify(character.voice ?? {}) !== JSON.stringify({ ...voice, connectorId: voice.connectorId ?? connector?.id })
   const orbState = busy ? 'generating' : engineStatus?.busy === 'loading-model' ? 'thinking' : 'idle'
 
+  const studio = (
+    <div ref={scroller} className="min-w-0 flex-1 overflow-y-auto max-md:h-full">
+      <motion.div variants={stagger(0.06, 0.02)} initial="initial" animate="animate" className="mx-auto flex max-w-[780px] flex-col gap-4 px-7 pt-6 pb-12 max-md:px-4 max-md:pt-4 max-md:pb-8">
+        <motion.header variants={rise} className="flex items-center gap-3.5">
+          <div className="-m-2.5 shrink-0">
+            <Orb size={46} state={orbState} density={0.6} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="display text-[22px]">
+              Voice <span className="text-grad">studio</span>
+            </h1>
+            <p className="mt-0.5 text-[12.5px] text-fg-3 max-md:hidden">Narration, dialogue and character voices — local on your PC or from the cloud, identical everywhere they speak.</p>
+          </div>
+        </motion.header>
+
+        <motion.section variants={rise} className="flex flex-col gap-2">
+          <div className="flex items-center justify-between px-1 max-md:flex-col max-md:items-start max-md:gap-0.5">
+            <span className="label-caps">Engine</span>
+            <span className="text-[11px] text-fg-3">Local engines run on your PC · cloud engines use your API key</span>
+          </div>
+          <EngineCards value={kind} onSelect={(e) => void selectEngine(e)} />
+          <AnimatePresence initial={false}>{engine && <EngineDetails key={engine.id} engine={engine} />}</AnimatePresence>
+        </motion.section>
+
+        <motion.section variants={rise} className="glass hairline rounded-[20px] p-4">
+          <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-[14px] font-semibold tracking-tight">
+              <AudioLines className="size-4 text-accent" /> Voice
+            </h2>
+            <div className="flex items-center gap-2 max-md:flex-wrap max-md:justify-end">
+              <AnimatePresence>
+                {voiceDiffers && (
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={spring}>
+                    <Button size="sm" variant="ghost" icon={<Save className="size-3.5" />} onClick={() => void saveVoiceToCharacter(character!, { ...voice, connectorId: voice.connectorId ?? connector?.id })}>
+                      Save as {character!.name}’s voice
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {modelOptions.length > 1 && (
+                <Select
+                  size="sm"
+                  className="w-[196px]"
+                  value={model}
+                  onChange={(m) => kind && setStudio({ models: { ...models, [kind]: m } })}
+                  options={modelOptions.map((m) => ({ value: m.value, label: m.label, hint: m.hint }))}
+                />
+              )}
+            </div>
+          </div>
+          <VoicePicker
+            value={voice}
+            onChange={(v) => setStudio({ voice: v })}
+            lab={false}
+            hideProviders
+            name={character?.name}
+            characterIds={character ? [character.id] : undefined}
+            previewText={text.trim() ? text.trim().slice(0, 160) : undefined}
+          />
+        </motion.section>
+
+        <motion.div variants={rise}>
+          <ScriptCard busy={busy} onGenerate={() => void generate()} character={character} kind={kind} model={model} blocked={blocked} />
+        </motion.div>
+
+        <AnimatePresence initial={false}>
+          {connector && (kind === 'local-qwen' || kind === 'local-pocket' || kind === 'elevenlabs') && !blocked && (
+            <motion.div key="lab" variants={rise} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6, transition: { duration: 0.18 } }} transition={springSoft}>
+              <LabCard character={character} onUse={useVoice} engine={connector} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </div>
+  )
+
+  const aside = (
+    <motion.aside
+      initial={{ opacity: 0, x: 16 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.45, ease, delay: 0.08 }}
+      className="flex w-[380px] shrink-0 flex-col border-l border-line bg-black/[0.12] max-md:h-full max-md:w-full max-md:border-l-0 max-md:bg-transparent"
+    >
+      <EngineStrip />
+      <History pending={pending} fresh={fresh} onReuse={reuse} />
+    </motion.aside>
+  )
+
+  if (compact) {
+    return (
+      <div className={cn('flex h-full min-h-0 w-full flex-col', className)}>
+        <PaneTabs
+          value={view}
+          onChange={setView}
+          items={[
+            { value: 'studio', label: 'Studio', icon: <SlidersHorizontal /> },
+            {
+              value: 'history',
+              label: (
+                <span className="flex items-center gap-1.5">
+                  History
+                  {busy ? <LiveDot /> : clipCount > 0 && <span className="text-[11px] text-fg-3 tabular-nums">{clipCount}</span>}
+                </span>
+              ),
+              icon: <HistoryIcon />
+            }
+          ]}
+        />
+        <div className="relative min-h-0 flex-1">
+          <Pane active={view === 'studio'} side="left">
+            {studio}
+          </Pane>
+          <Pane active={view === 'history'} side="right">
+            {aside}
+          </Pane>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={cn('flex h-full min-h-0 w-full', className)}>
-      <div ref={scroller} className="min-w-0 flex-1 overflow-y-auto">
-        <motion.div variants={stagger(0.06, 0.02)} initial="initial" animate="animate" className="mx-auto flex max-w-[780px] flex-col gap-4 px-7 pt-6 pb-12">
-          <motion.header variants={rise} className="flex items-center gap-3.5">
-            <div className="-m-2.5 shrink-0">
-              <Orb size={46} state={orbState} density={0.6} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h1 className="display text-[22px]">
-                Voice <span className="text-grad">studio</span>
-              </h1>
-              <p className="mt-0.5 text-[12.5px] text-fg-3">Narration, dialogue and character voices — local on your PC or from the cloud, identical everywhere they speak.</p>
-            </div>
-          </motion.header>
-
-          <motion.section variants={rise} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between px-1">
-              <span className="label-caps">Engine</span>
-              <span className="text-[11px] text-fg-3">Local engines run on your PC · cloud engines use your API key</span>
-            </div>
-            <EngineCards value={kind} onSelect={(e) => void selectEngine(e)} />
-            <AnimatePresence initial={false}>{engine && <EngineDetails key={engine.id} engine={engine} />}</AnimatePresence>
-          </motion.section>
-
-          <motion.section variants={rise} className="glass hairline rounded-[20px] p-4">
-            <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-[14px] font-semibold tracking-tight">
-                <AudioLines className="size-4 text-accent" /> Voice
-              </h2>
-              <div className="flex items-center gap-2">
-                <AnimatePresence>
-                  {voiceDiffers && (
-                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={spring}>
-                      <Button size="sm" variant="ghost" icon={<Save className="size-3.5" />} onClick={() => void saveVoiceToCharacter(character!, { ...voice, connectorId: voice.connectorId ?? connector?.id })}>
-                        Save as {character!.name}’s voice
-                      </Button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                {modelOptions.length > 1 && (
-                  <Select
-                    size="sm"
-                    className="w-[196px]"
-                    value={model}
-                    onChange={(m) => kind && setStudio({ models: { ...models, [kind]: m } })}
-                    options={modelOptions.map((m) => ({ value: m.value, label: m.label, hint: m.hint }))}
-                  />
-                )}
-              </div>
-            </div>
-            <VoicePicker
-              value={voice}
-              onChange={(v) => setStudio({ voice: v })}
-              lab={false}
-              hideProviders
-              name={character?.name}
-              characterIds={character ? [character.id] : undefined}
-              previewText={text.trim() ? text.trim().slice(0, 160) : undefined}
-            />
-          </motion.section>
-
-          <motion.div variants={rise}>
-            <ScriptCard busy={busy} onGenerate={() => void generate()} character={character} kind={kind} model={model} blocked={blocked} />
-          </motion.div>
-
-          <AnimatePresence initial={false}>
-            {connector && (kind === 'local-qwen' || kind === 'local-pocket' || kind === 'elevenlabs') && !blocked && (
-              <motion.div key="lab" variants={rise} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6, transition: { duration: 0.18 } }} transition={springSoft}>
-                <LabCard character={character} onUse={useVoice} engine={connector} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-      </div>
-
-      <motion.aside
-        initial={{ opacity: 0, x: 16 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.45, ease, delay: 0.08 }}
-        className="flex w-[380px] shrink-0 flex-col border-l border-line bg-black/[0.12]"
-      >
-        <EngineStrip />
-        <History pending={pending} fresh={fresh} onReuse={reuse} />
-      </motion.aside>
+      {studio}
+      {aside}
     </div>
   )
 }

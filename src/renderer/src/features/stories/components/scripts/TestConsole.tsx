@@ -88,12 +88,13 @@ export function TestConsole({ script, adventureId }: { script: StoryScript; adve
   const textChanged = run && out ? out.text !== run.env.text : false
 
   return (
-    <div className="flex h-full flex-col">
+    // Phones: the whole console scrolls as one column (its pane scrolls, not the results box).
+    <div className="flex h-full flex-col max-md:h-auto">
       <div className="flex flex-col gap-3 border-b border-line p-4">
         <Segmented
           size="sm"
           caps
-          className="w-full [&>button]:flex-1 [&>button]:justify-center"
+          className="w-full [&>button]:flex-1 [&>button]:justify-center max-md:[&>button]:h-8"
           value={hook}
           onChange={(h) => {
             setHook(h)
@@ -139,7 +140,7 @@ export function TestConsole({ script, adventureId }: { script: StoryScript; adve
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 max-md:flex-none max-md:overflow-visible max-md:pb-6">
         <AnimatePresence mode="wait" initial={false}>
           {!run || !out ? (
             <motion.p key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pt-6 text-center text-[12px] leading-relaxed text-fg-3">

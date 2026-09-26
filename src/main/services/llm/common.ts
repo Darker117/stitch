@@ -9,7 +9,8 @@ export const DEFAULT_BASE: Record<LlmConnector['kind'], string> = {
   ollama: 'http://127.0.0.1:11434',
   lmstudio: 'http://127.0.0.1:1234/v1',
   gemini: 'https://generativelanguage.googleapis.com/v1beta/openai',
-  'openai-compatible': 'http://127.0.0.1:5000/v1'
+  'openai-compatible': 'http://127.0.0.1:5000/v1',
+  device: ''
 }
 
 export function baseUrl(c: LlmConnector): string {

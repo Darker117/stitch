@@ -154,7 +154,7 @@ export interface VoiceLibraryQuery {
  * downloaded weights); removing the last local engine also removes the shared runtime. Ask the
  * user to confirm first. Cloud engines can't be installed/removed here (use Connectors).
  */
-export type VoiceEngineId = 'qwen3' | 'kokoro' | 'pocket' | 'elevenlabs' | 'openai' | 'azure'
+export type VoiceEngineId = 'qwen3' | 'kokoro' | 'pocket' | 'elevenlabs' | 'openai' | 'azure' | 'device'
 
 export interface VoiceEngineInfo {
   id: VoiceEngineId
@@ -246,6 +246,75 @@ export interface ExportProgress {
   /** Library asset registered for the finished export. */
   assetId?: ID
   canceled?: boolean
+}
+
+// ─── Phone remote ────────────────────────────────────────────────────────────
+
+/** A phone paired with this PC (secrets never leave the main process). */
+export interface RemoteDevice {
+  id: ID
+  name: string
+  platform: string
+  appVersion?: string
+  createdAt: number
+  lastSeenAt?: number
+  lastAddress?: string
+  /** Connected right now. */
+  online: boolean
+}
+
+export interface RemoteHost {
+  address: string
+  /** 'LAN' | 'Tailscale' | 'Other' */
+  label: string
+}
+
+export type AnywhereMode = 'off' | 'cloudflare' | 'tailscale' | 'custom'
+
+/** Public address for the phone remote (Settings → Phone → Access from anywhere). */
+export interface AnywhereStatus {
+  mode: AnywhereMode
+  state: 'off' | 'downloading' | 'starting' | 'ready' | 'error' | 'needs-action'
+  /** The public HTTPS address once it's up. */
+  url?: string
+  error?: string
+  /** 0–1 while downloading the tunnel tool. */
+  progress?: number
+  /** Something the user must do first (e.g. allow Tailscale Funnel), with a link. */
+  actionUrl?: string
+  actionLabel?: string
+  tailscale?: { installed: boolean; running: boolean; dnsName?: string; funnel: boolean }
+}
+
+export interface RemoteStatus {
+  enabled: boolean
+  running: boolean
+  port: number
+  hosts: RemoteHost[]
+  pcId: string
+  pcName: string
+  error?: string
+  devices: RemoteDevice[]
+  anywhere: AnywhereStatus
+  /** Every address a phone may use, best first (LAN, Tailscale, public). */
+  endpoints: string[]
+}
+
+export interface PairingInfo {
+  /** 6-digit code for typing on the phone. */
+  code: string
+  expiresAt: number
+  /** `stitch://pair?d=…` — what the QR code encodes. */
+  url: string
+  /** QR code as an SVG string (white modules, transparent background). */
+  qrSvg: string
+}
+
+/** Folder listing for picking a PC folder from the phone. */
+export interface RemoteDirListing {
+  path: string | null
+  parent: string | null
+  entries: { name: string; path: string; dir: boolean }[]
 }
 
 // ─── Contract ────────────────────────────────────────────────────────────────
@@ -396,6 +465,22 @@ export interface IpcInvoke {
   'editor:cancelExport': [[exportId: string], void]
   /** Short-GOP preview copy of a video asset for smooth scrubbing (null if ffmpeg is missing). */
   'editor:proxy': [[assetId: ID], string | null]
+
+  // phone remote (Settings → Phone). Pairing-management channels are not callable from phones.
+  'remote:status': [[], RemoteStatus]
+  'remote:setEnabled': [[enabled: boolean, port?: number], RemoteStatus]
+  /** Start (or restart) a 10-minute pairing window; returns the code and QR. */
+  'remote:pairStart': [[], PairingInfo]
+  'remote:pairCancel': [[], void]
+  'remote:revoke': [[deviceId: ID], void]
+  /** Access from anywhere: off, a Cloudflare tunnel, Tailscale Funnel or your own address. */
+  'remote:setAnywhere': [[mode: AnywhereMode, customUrl?: string], RemoteStatus]
+  /** Phones: browse PC folders (no path = drives / home). */
+  'remote:listDir': [[path?: string], RemoteDirListing]
+  /** Phones: a PC path for saving an export (`<library>/exports/<name>`, made unique). */
+  'remote:savePath': [[name: string], string]
+  /** Phones: unpair the calling phone (answered by the remote server itself). */
+  'remote:forgetMe': [[], void]
 }
 
 export interface IpcEvents {
@@ -410,6 +495,9 @@ export interface IpcEvents {
   /** Local model files or their metadata changed (download finished, identified, deleted). */
   'models:changed': null
   'update:state': UpdateState
+  'remote:changed': RemoteStatus
+  /** A phone just paired (Settings → Phone celebrates, then closes the QR). */
+  'remote:paired': RemoteDevice
 }
 
 export type InvokeChannel = keyof IpcInvoke

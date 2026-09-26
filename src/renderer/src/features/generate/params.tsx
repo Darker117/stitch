@@ -68,9 +68,9 @@ export function CastPicker({ value, onChange }: { value: string[]; onChange: (id
             key={c.id}
             whileTap={{ scale: 0.95 }}
             onClick={() => onChange(active ? value.filter((x) => x !== c.id) : [...value, c.id])}
-            className={cn('flex h-8 items-center gap-1.5 rounded-full border py-0.5 pr-3 pl-0.5 text-[12px] font-medium transition-colors', active ? 'border-[color-mix(in_oklab,var(--accent)_50%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] text-fg' : 'border-line bg-white/[0.03] text-fg-2 hover:text-fg')}
+            className={cn('flex h-8 items-center gap-1.5 rounded-full border py-0.5 pr-3 pl-0.5 text-[12px] font-medium transition-colors max-md:h-9 max-md:pr-3.5', active ? 'border-[color-mix(in_oklab,var(--accent)_50%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] text-fg' : 'border-line bg-white/[0.03] text-fg-2 hover:text-fg')}
           >
-            <span className="relative size-7 overflow-hidden rounded-full bg-white/10">
+            <span className="relative size-7 overflow-hidden rounded-full bg-white/10 max-md:size-8">
               {refAsset ? <img src={fileUrl(refAsset.path)} className="size-full object-cover" /> : <UserRound className="m-auto mt-1.5 size-4 text-fg-3" />}
               {active && (
                 <span className="absolute inset-0 grid place-items-center bg-black/45">
@@ -136,7 +136,7 @@ export function ParamControl({
             value={String(v ?? -1)}
             onChange={(e) => onChange(Number(e.target.value))}
             suffix={
-              <button onClick={() => onChange(Math.floor(Math.random() * 2 ** 31))} className="grid size-7 place-items-center rounded-md text-fg-3 hover:bg-white/10 hover:text-fg" title="Random seed">
+              <button onClick={() => onChange(Math.floor(Math.random() * 2 ** 31))} className="grid size-7 place-items-center rounded-md text-fg-3 hover:bg-white/10 hover:text-fg max-md:active:bg-white/10" title="Random seed">
                 <Dice5 className="size-3.5" />
               </button>
             }
@@ -237,9 +237,15 @@ export function StyleTags({ value, onChange }: { value: string; onChange: (v: st
   }
   return (
     <div className="space-y-2">
-      <Segmented size="sm" value={group} onChange={setGroup} items={Object.keys(STYLE_TAGS).map((g) => ({ value: g, label: g }))} />
+      <Segmented
+        size="sm"
+        value={group}
+        onChange={setGroup}
+        items={Object.keys(STYLE_TAGS).map((g) => ({ value: g, label: g }))}
+        className="max-md:flex max-md:w-full max-md:[&>button]:h-8 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center max-md:[&>button]:px-1"
+      />
       <AnimatePresence mode="wait" initial={false}>
-        <motion.div key={group} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -2 }} transition={{ duration: 0.18 }} className="flex flex-wrap gap-1">
+        <motion.div key={group} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -2 }} transition={{ duration: 0.18 }} className="flex flex-wrap gap-1 max-md:gap-1.5">
           {STYLE_TAGS[group].map((t) => {
             const on = current.includes(t.toLowerCase())
             return (
@@ -248,7 +254,7 @@ export function StyleTags({ value, onChange }: { value: string; onChange: (v: st
                 whileTap={{ scale: 0.94 }}
                 onClick={() => toggle(t)}
                 className={cn(
-                  'inline-flex h-6.5 items-center gap-1 rounded-full border px-2.5 text-[11.5px] font-medium transition-colors',
+                  'inline-flex h-6.5 items-center gap-1 rounded-full border px-2.5 text-[11.5px] font-medium transition-colors max-md:h-8 max-md:px-3',
                   on ? 'border-[color-mix(in_oklab,var(--accent)_50%,transparent)] bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] text-fg' : 'border-line bg-white/[0.03] text-fg-2 hover:text-fg'
                 )}
               >
@@ -274,9 +280,9 @@ function LyricsField({ label, help, value, onChange }: { label: string; help?: s
   return (
     <Field label={label} help={help}>
       <Textarea value={value} onChange={(e) => onChange(e.target.value)} minRows={6} maxRows={18} placeholder={'[Verse]\nFirst line of your song…\n\n[Chorus]\n…'} className="leading-relaxed" />
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1 max-md:gap-1.5">
         {SECTIONS.map((t) => (
-          <button key={t} onClick={() => add(t)} className="h-6 rounded-md border border-line bg-white/[0.03] px-2 font-mono text-[10.5px] text-fg-3 transition-colors hover:border-line-strong hover:text-fg">
+          <button key={t} onClick={() => add(t)} className="h-6 rounded-md border border-line bg-white/[0.03] px-2 font-mono text-[10.5px] text-fg-3 transition-colors hover:border-line-strong hover:text-fg max-md:h-8 max-md:rounded-lg max-md:px-2.5 max-md:text-[11px]">
             {t}
           </button>
         ))}

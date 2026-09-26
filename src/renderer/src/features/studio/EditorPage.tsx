@@ -1,12 +1,15 @@
 // The Studio video editor: assets + timelines on the left, Clip Viewer (or Gen
 // Space) and Timeline Viewer in the middle, inspector on the right and the
 // multi-track timeline along the bottom. Panels resize by dragging the gutters.
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+// On a phone it becomes a CapCut-style editor: preview on top, then a tab row
+// switching the lower half between the timeline, media, Gen Space and inspector.
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { AlertCircle, Check, ChevronLeft, Clapperboard, CloudOff, Download, PanelRight, Sparkles } from 'lucide-react'
+import { AlertCircle, Check, ChevronLeft, Clapperboard, CloudOff, Download, GalleryHorizontalEnd, Images, PanelRight, Redo2, SlidersHorizontal, Sparkles, Undo2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ease, rise, spring, stagger } from '@/lib/motion'
+import { useCompact } from '@/lib/platform'
 import { useCollectionLoaded, useDoc } from '@/stores/db'
 import { Page } from '@/components/shell/page'
 import { Button, IconButton } from '@/components/ui/button'
@@ -14,7 +17,7 @@ import { Segmented } from '@/components/ui/controls'
 import { EmptyState, Spinner } from '@/components/ui/misc'
 import { Tooltip } from '@/components/ui/overlay'
 import { AssetsPanel, TimelinesList } from './AssetsPanel'
-import { ClipViewer, TimelineViewer } from './Monitors'
+import { ClipViewer, MobileMonitor, TimelineViewer } from './Monitors'
 import { programControls, sourceControls, timelineControls } from './controls'
 import { GenSpace } from './GenSpace'
 import { Inspector } from './Inspector'
@@ -95,6 +98,7 @@ export function EditorPage(): React.JSX.Element {
   const tl = useEditor((s) => s.tl)
   const tab = useEditor((s) => s.tab)
   const inspector = useEditor((s) => s.inspector)
+  const compact = useCompact()
   const [exporting, setExporting] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const midRef = useRef<HTMLDivElement>(null)
@@ -291,6 +295,15 @@ export function EditorPage(): React.JSX.Element {
     )
   }
 
+  if (compact) {
+    return (
+      <Page scroll={false} className="flex flex-col">
+        <MobileEditor onExport={() => setExporting(true)} />
+        <ExportDialog open={exporting} onClose={() => setExporting(false)} tl={tl} />
+      </Page>
+    )
+  }
+
   return (
     <Page scroll={false} className="flex flex-col">
       <TopBar onExport={() => setExporting(true)} />
@@ -392,6 +405,144 @@ export function EditorPage(): React.JSX.Element {
   )
 }
 
+// ─── Phone layout ────────────────────────────────────────────────────────────
+
+type PhoneTab = 'timeline' | 'media' | 'gen' | 'inspect'
+const PHONE_TABS: PhoneTab[] = ['timeline', 'media', 'gen', 'inspect']
+
+function MobileEditor({ onExport }: { onExport: () => void }): React.JSX.Element {
+  const [tab, setTab] = useState<PhoneTab>('timeline')
+  // Panes mount on first visit and then stay (keeps scroll, filters, a half-written prompt).
+  const [visited, setVisited] = useState<PhoneTab[]>(['timeline'])
+  const selCount = useEditor((s) => s.selection.length)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [typing, setTyping] = useState(false)
+  const [short, setShort] = useState(false)
+  const idx = PHONE_TABS.indexOf(tab)
+
+  // With the keyboard up the panel gets short: fold the preview away while typing.
+  useLayoutEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const measure = (): void => setShort(el.clientHeight < 500)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const go = (t: PhoneTab): void => {
+    setTab(t)
+    setVisited((v) => (v.includes(t) ? v : [...v, t]))
+  }
+
+  const pane = (t: PhoneTab): React.ReactNode =>
+    t === 'timeline' ? (
+      <div className="flex min-h-0 flex-1" onPointerDownCapture={() => useEditor.setState({ focus: 'program' })}>
+        <TimelinePanel />
+      </div>
+    ) : t === 'media' ? (
+      <>
+        <AssetsPanel />
+        <TimelinesList defaultOpen={false} />
+      </>
+    ) : t === 'gen' ? (
+      <GenSpace />
+    ) : (
+      <Inspector />
+    )
+
+  return (
+    <>
+      <MobileTopBar onExport={onExport} />
+      <motion.div ref={rootRef} variants={stagger(0.05, 0.02)} initial="initial" animate="animate" className="flex min-h-0 flex-1 flex-col gap-2 px-2 pb-2">
+        <motion.div variants={rise} className={cn('shrink-0', typing && short && 'hidden')}>
+          <MobileMonitor />
+        </motion.div>
+        <motion.div variants={rise} className="shrink-0">
+          <Segmented
+            size="sm"
+            className="w-full [&>button]:h-8 [&>button]:min-w-0 [&>button]:flex-1 [&>button]:justify-center [&>button]:px-1"
+            value={tab}
+            onChange={go}
+            items={[
+              { value: 'timeline', label: 'Timeline', icon: <GalleryHorizontalEnd /> },
+              { value: 'media', label: 'Media', icon: <Images /> },
+              { value: 'gen', label: 'Generate', icon: <Sparkles /> },
+              { value: 'inspect', label: 'Edit', icon: <SlidersHorizontal />, count: selCount || undefined }
+            ]}
+          />
+        </motion.div>
+        <motion.div
+          variants={rise}
+          className="relative min-h-0 flex-1 overflow-hidden rounded-[14px] border border-line bg-white/[0.02]"
+          onFocusCapture={(e) => isEditableTarget(e.target) && setTyping(true)}
+          onBlurCapture={(e) => !isEditableTarget(e.relatedTarget) && setTyping(false)}
+        >
+          {PHONE_TABS.filter((t) => visited.includes(t)).map((t) => {
+            const active = t === tab
+            const i = PHONE_TABS.indexOf(t)
+            return (
+              <motion.div
+                key={t}
+                inert={!active}
+                className={cn('absolute inset-0 flex min-h-0 flex-col', !active && 'pointer-events-none')}
+                initial={t === 'timeline' ? false : { opacity: 0, x: 28 }}
+                animate={active ? { opacity: 1, x: 0, visibility: 'visible' } : { opacity: 0, x: (i < idx ? -1 : 1) * 28, transitionEnd: { visibility: 'hidden' } }}
+                transition={{ duration: 0.28, ease }}
+              >
+                {pane(t)}
+              </motion.div>
+            )
+          })}
+        </motion.div>
+      </motion.div>
+    </>
+  )
+}
+
+function MobileTopBar({ onExport }: { onExport: () => void }): React.JSX.Element {
+  const navigate = useNavigate()
+  const tl = useEditor((s) => s.tl)!
+  const canUndo = useEditor((s) => s.past.length > 0)
+  const canRedo = useEditor((s) => s.future.length > 0)
+  const [name, setName] = useState(tl.name)
+  useEffect(() => setName(tl.name), [tl.name])
+  const commitName = (): void => {
+    const n = name.trim()
+    if (n && n !== tl.name) editor.commit((t) => ({ ...t, name: n }))
+    else setName(tl.name)
+  }
+  return (
+    <div className="flex h-12 shrink-0 items-center gap-1 pr-2 pl-1.5">
+      <IconButton label="All timelines" onClick={() => void flushSave().then(() => navigate('/studio'))}>
+        <ChevronLeft className="size-4.5" />
+      </IconButton>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={commitName}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        }}
+        spellCheck={false}
+        aria-label="Timeline name"
+        className="h-8 min-w-0 flex-1 truncate rounded-lg border border-transparent bg-transparent px-1.5 text-[14px] font-semibold tracking-tight text-fg outline-none focus:border-[color-mix(in_oklab,var(--accent)_50%,transparent)] focus:bg-white/[0.04]"
+      />
+      <SaveIndicator compact />
+      <IconButton label="Undo" disabled={!canUndo} onClick={() => editor.undo()}>
+        <Undo2 className="size-4" />
+      </IconButton>
+      <IconButton label="Redo" disabled={!canRedo} onClick={() => editor.redo()}>
+        <Redo2 className="size-4" />
+      </IconButton>
+      <Button variant="primary" size="sm" className="ml-0.5 h-8.5 px-3" icon={<Download className="size-3.5" />} onClick={onExport}>
+        Export
+      </Button>
+    </div>
+  )
+}
+
 // ─── Top bar ─────────────────────────────────────────────────────────────────
 
 function TopBar({ onExport }: { onExport: () => void }): React.JSX.Element {
@@ -455,11 +606,15 @@ function TopBar({ onExport }: { onExport: () => void }): React.JSX.Element {
   )
 }
 
-function SaveIndicator(): React.JSX.Element {
+function SaveIndicator({ compact }: { compact?: boolean }): React.JSX.Element {
   const state = useEditor((s) => s.saveState)
   const label = state === 'saved' ? 'Saved' : state === 'error' ? 'Not saved' : 'Saving…'
   return (
-    <div className="flex h-6 items-center gap-1.5 rounded-full border border-line bg-white/[0.03] px-2 text-[11px] font-medium text-fg-3">
+    <div
+      className={cn('flex h-6 items-center gap-1.5 rounded-full border border-line bg-white/[0.03] text-[11px] font-medium text-fg-3', compact ? 'w-6 shrink-0 justify-center' : 'px-2')}
+      title={compact ? label : undefined}
+      aria-label={compact ? label : undefined}
+    >
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.span
           key={state === 'dirty' ? 'saving' : state}
@@ -472,8 +627,8 @@ function SaveIndicator(): React.JSX.Element {
           {state === 'saved' ? <Check className="size-3 text-success" /> : state === 'error' ? <CloudOff className="size-3 text-danger" /> : <Spinner className="size-3" />}
         </motion.span>
       </AnimatePresence>
-      <span>{label}</span>
-      {state === 'error' && <AlertCircle className="size-3 text-danger" />}
+      {!compact && <span>{label}</span>}
+      {state === 'error' && !compact && <AlertCircle className="size-3 text-danger" />}
     </div>
   )
 }

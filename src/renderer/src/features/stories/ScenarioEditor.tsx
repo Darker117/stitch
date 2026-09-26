@@ -63,8 +63,8 @@ function HeaderCover({ scenario, onClick }: { scenario: Scenario; onClick: () =>
   const progress = useCoverProgress(target)
   const running = progress.phase !== 'idle'
   return (
-    <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} transition={spring} onClick={onClick} title={running ? 'Painting the cover…' : 'Cover (Details)'} className="group relative shrink-0">
-      <CoverArt coverAssetId={scenario.coverAssetId} template={scenario.template} title={scenario.title} compact className="h-10 w-16 rounded-[10px] ring-1 ring-line-strong">
+    <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} transition={spring} onClick={onClick} title={running ? 'Painting the cover…' : 'Cover (Details)'} className="group relative shrink-0 max-[380px]:hidden">
+      <CoverArt coverAssetId={scenario.coverAssetId} template={scenario.template} title={scenario.title} compact className="h-10 w-16 rounded-[10px] ring-1 ring-line-strong max-md:w-12">
         {running && (
           <div className="absolute inset-0 grid place-items-center bg-black/45">
             <ProgressRing value={progress.phase === 'painting' ? progress.value : undefined} size={18} />
@@ -168,43 +168,62 @@ function Editor({ id }: { id: string | undefined }): React.JSX.Element {
       <StoryStyles />
       {/* Frosted sticky header — the page diffuses underneath as it scrolls. */}
       <FrostHeader width={780}>
-        <div className="flex items-center gap-3">
+        {/* Phones: one compact row — the save state moves under the title, Play becomes an icon. */}
+        <div className="flex items-center gap-3 max-md:gap-2.5">
           {isChild && (
-            <IconButton label={`Back to ${parent?.title || 'parent'}`} variant="secondary" onClick={() => void finish()}>
+            <IconButton label={`Back to ${parent?.title || 'parent'}`} variant="secondary" onClick={() => void finish()} className="max-md:size-10">
               <ArrowLeft className="size-4" />
             </IconButton>
           )}
           <HeaderCover scenario={scenario} onClick={() => setTab('details')} />
-          <div className="min-w-0">
-            <h1 className="flex items-center gap-2 font-serif text-[21px] leading-tight font-semibold tracking-tight">
-              {isChild ? 'Edit Choice' : 'Edit Scenario'}
-              <Pencil className="size-3.5 text-fg-3" />
+          <div className="min-w-0 max-md:flex-1">
+            <h1 className="flex items-center gap-2 font-serif text-[21px] leading-tight font-semibold tracking-tight max-md:text-[17px]">
+              <span className="max-md:truncate">{isChild ? 'Edit Choice' : 'Edit Scenario'}</span>
+              <Pencil className="size-3.5 text-fg-3 max-md:hidden" />
             </h1>
-            <div className="truncate text-[11.5px] text-fg-3">{isChild ? `Part of “${parent?.title || 'Untitled'}”` : scenario.title || 'Untitled scenario'}</div>
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="min-w-0 truncate text-[11.5px] text-fg-3">{isChild ? `Part of “${parent?.title || 'Untitled'}”` : scenario.title || 'Untitled scenario'}</div>
+              <span className="shrink-0 md:hidden [&>span]:text-[11px]">
+                <SavedIndicator state={state} />
+              </span>
+            </div>
           </div>
-          <SavedIndicator state={state} />
-          <div className="flex-1" />
-          <Button variant="secondary" icon={<Play className="size-3.5 fill-current" />} loading={starting} onClick={() => void play()}>
-            Play
+          <span className="contents max-md:hidden">
+            <SavedIndicator state={state} />
+          </span>
+          <div className="flex-1 max-md:hidden" />
+          <Button variant="secondary" icon={<Play className="size-3.5 fill-current" />} loading={starting} onClick={() => void play()} aria-label="Play" className="max-md:size-10 max-md:rounded-xl max-md:px-0">
+            <span className="max-md:hidden">Play</span>
           </Button>
-          <Button variant="primary" className="min-w-[92px] tracking-wide uppercase" onClick={() => void finish()}>
+          <Button variant="primary" className="min-w-[92px] tracking-wide uppercase max-md:h-10 max-md:min-w-0 max-md:rounded-xl max-md:px-3.5" onClick={() => void finish()}>
             Finish
           </Button>
         </div>
-        <div className="mt-3.5">
+        <div className="mt-3.5 max-md:mt-3">
           <Segmented
             caps
             value={tab}
             onChange={setTab}
+            className="max-md:flex max-md:w-full max-md:[&_svg]:hidden max-md:[&>button]:h-9 max-md:[&>button]:flex-1 max-md:[&>button]:justify-center max-md:[&>button]:px-2"
             items={[
               { value: 'plot', label: setup ? 'Setup' : 'Plot', icon: setup ? <Settings /> : <SlidersHorizontal /> },
-              { value: 'cards', label: 'Story cards', icon: <LayoutGrid />, count: scenario.cards.length },
+              {
+                value: 'cards',
+                label: (
+                  <>
+                    <span className="max-md:hidden">Story cards</span>
+                    <span className="md:hidden">Cards</span>
+                  </>
+                ),
+                icon: <LayoutGrid />,
+                count: scenario.cards.length
+              },
               { value: 'details', label: 'Details', icon: <List /> }
             ]}
           />
         </div>
       </FrostHeader>
-      <div className="mx-auto max-w-[780px] px-6 pb-24">
+      <div className="mx-auto max-w-[780px] px-6 pb-24 max-md:px-3 max-md:pb-16">
 
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={`${id}-${tab}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.28, ease }} className="pt-2">

@@ -16,11 +16,27 @@ export function errorText(err: unknown): string {
   return msg.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 }
 
-/** URL the renderer can load for a local file (images, video, audio). */
-export function fileUrl(path: string | undefined | null): string {
-  if (!path) return ''
+function localUrl(path: string): string {
   const p = path.replace(/\\/g, '/')
   return `stitch://local/${encodeURI(p).replace(/#/g, '%23').replace(/\?/g, '%3F')}`
+}
+
+/** URL the renderer can load for a local file (images, video, audio). On the phone this is the PC's media server. */
+export function fileUrl(path: string | undefined | null): string {
+  if (!path) return ''
+  return resolveUrl(localUrl(path))
+}
+
+/** A downscaled still for grids and cards (the phone fetches a JPEG thumbnail; desktop loads the file). */
+export function thumbUrl(path: string | undefined | null, size = 480): string {
+  if (!path) return ''
+  const url = localUrl(path)
+  return window.stitch.mediaUrl ? window.stitch.mediaUrl(url, { thumb: size }) : url
+}
+
+/** Rewrite a stitch:// URL for wherever this renderer runs (identity on desktop). */
+export function resolveUrl(url: string): string {
+  return window.stitch.mediaUrl ? window.stitch.mediaUrl(url) : url
 }
 
 export interface StreamHandle {

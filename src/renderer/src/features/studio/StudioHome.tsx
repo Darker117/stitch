@@ -37,18 +37,20 @@ export function StudioHome(): React.JSX.Element {
         icon={<Clapperboard />}
         title="Studio"
         subtitle="Cut your generated shots, music and voice lines into finished videos."
+        inline={timelines.length <= 3}
         actions={
           <>
-            {timelines.length > 3 && <SearchField value={query} onChange={setQuery} placeholder="Search timelines" className="w-56" />}
-            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
-              New timeline
+            {timelines.length > 3 && <SearchField value={query} onChange={setQuery} placeholder="Search timelines" className="w-56 max-md:w-auto max-md:min-w-0 max-md:flex-1" />}
+            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setCreating(true)} className="max-md:h-10 max-md:rounded-xl max-md:px-4">
+              <span className="max-md:hidden">New timeline</span>
+              <span className="md:hidden">New</span>
             </Button>
           </>
         }
       />
 
       {!loaded ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4 px-8 pb-10">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4 px-8 pb-10 max-md:grid-cols-1 max-md:gap-3 max-md:px-4 max-md:pb-6">
           {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="aspect-[16/12] rounded-2xl" />
           ))}
@@ -56,14 +58,14 @@ export function StudioHome(): React.JSX.Element {
       ) : timelines.length === 0 ? (
         <EmptyStudio onCreate={() => setCreating(true)} />
       ) : (
-        <motion.div variants={stagger(0.045, 0.05)} initial="initial" animate="animate" className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4 px-8 pb-10">
+        <motion.div variants={stagger(0.045, 0.05)} initial="initial" animate="animate" className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4 px-8 pb-10 max-md:grid-cols-1 max-md:gap-3 max-md:px-4 max-md:pb-6">
           <motion.button
             variants={rise}
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.985 }}
             transition={spring}
             onClick={() => setCreating(true)}
-            className="group relative flex min-h-[220px] flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border border-dashed border-line-strong bg-white/[0.015] text-fg-3 transition-colors duration-300 hover:border-[color-mix(in_oklab,var(--accent)_45%,transparent)] hover:text-fg"
+            className="group relative flex min-h-[220px] flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border border-dashed max-md:hidden border-line-strong bg-white/[0.015] text-fg-3 transition-colors duration-300 hover:border-[color-mix(in_oklab,var(--accent)_45%,transparent)] hover:text-fg"
           >
             <div className="absolute inset-0 bg-grad-soft opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
             <span className="relative grid size-12 place-items-center rounded-2xl bg-grad text-white shadow-[0_10px_30px_-10px_color-mix(in_oklab,var(--accent)_80%,transparent)] transition-transform duration-500 ease-[var(--ease-out)] group-hover:scale-110 group-hover:rotate-90">
@@ -196,11 +198,11 @@ function TimelineCard({
           {duration > 0 ? shortDuration(duration) : 'Empty'}
         </span>
 
-        <div className="absolute top-2 right-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100 has-[[data-state=open]]:opacity-100" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute top-2 right-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100 has-[[data-state=open]]:opacity-100 max-md:opacity-100" onClick={(e) => e.stopPropagation()}>
           <Menu
             align="end"
             trigger={
-              <button className="grid size-7 place-items-center rounded-lg bg-black/55 text-white/90 backdrop-blur-md transition hover:bg-black/75" aria-label="Timeline menu">
+              <button className="grid size-7 place-items-center rounded-lg bg-black/55 text-white/90 backdrop-blur-md transition hover:bg-black/75 max-md:size-9 max-md:rounded-xl" aria-label="Timeline menu">
                 <MoreHorizontal className="size-4" />
               </button>
             }
@@ -264,7 +266,7 @@ function EmptyStudio({ onCreate }: { onCreate: () => void }): React.JSX.Element 
     { y: 3, clips: [[18, 50]], tone: 'accent' }
   ]
   return (
-    <div className="flex flex-col items-center px-8 pt-10 pb-16">
+    <div className="flex flex-col items-center px-8 pt-10 pb-16 max-md:px-4 max-md:pt-4 max-md:pb-10">
       <motion.div
         initial={{ opacity: 0, y: 14, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -306,8 +308,8 @@ function EmptyStudio({ onCreate }: { onCreate: () => void }): React.JSX.Element 
           />
         </div>
       </motion.div>
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease, delay: 0.15 }} className="mt-8 flex flex-col items-center gap-3 text-center">
-        <div className="display text-[22px]">Your first cut starts here</div>
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease, delay: 0.15 }} className="mt-8 flex flex-col items-center gap-3 text-center max-md:mt-6">
+        <div className="display text-[22px] max-md:text-[20px]">Your first cut starts here</div>
         <p className="max-w-md text-[13px] text-fg-3">Drop FastH3 shots, stills, music and voice lines on a multi-track timeline, add titles, and export an MP4 — all on your machine.</p>
         <Button variant="primary" size="lg" className="mt-2" icon={<Plus className="size-4" />} onClick={onCreate}>
           New timeline

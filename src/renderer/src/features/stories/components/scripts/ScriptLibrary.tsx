@@ -33,8 +33,8 @@ function ScriptCard({ s, added, onAdd, onEdit, onDelete }: { s: StoryScript; add
     if (full) await saveFile(`${full.name || 'script'} (script)`, scriptToJson(full), 'json')
   }
   return (
-    <motion.div layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98 }} transition={springSoft} className="group flex gap-3 rounded-2xl border border-line bg-white/[0.03] p-3.5 transition-colors hover:border-line-strong">
-      <ScriptGlyph name={s.name} className="size-10" />
+    <motion.div layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98 }} transition={springSoft} className="group flex gap-3 rounded-2xl border border-line bg-white/[0.03] p-3.5 transition-colors hover:border-line-strong max-md:gap-2.5 max-md:p-3">
+      <ScriptGlyph name={s.name} className="size-10 max-md:size-9" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-[13.5px] font-semibold">{s.name}</span>
@@ -46,13 +46,13 @@ function ScriptCard({ s, added, onAdd, onEdit, onDelete }: { s: StoryScript; add
         <HookChips script={s} className="mt-2.5" />
       </div>
       <div className="flex shrink-0 flex-col items-end gap-2">
-        <Button size="sm" variant={added ? 'ghost' : 'primary'} disabled={added} icon={added ? <Check className="size-3.5" /> : <Plus className="size-3.5" />} onClick={onAdd}>
+        <Button size="sm" variant={added ? 'ghost' : 'primary'} disabled={added} icon={added ? <Check className="size-3.5" /> : <Plus className="size-3.5" />} onClick={onAdd} className="max-md:h-9">
           {added ? 'Added' : 'Add'}
         </Button>
         <Menu
           align="end"
           trigger={
-            <IconButton label="More" size="sm">
+            <IconButton label="More" size="sm" className="max-md:size-9">
               <MoreHorizontal className="size-4" />
             </IconButton>
           }
@@ -123,15 +123,16 @@ export function ScriptLibrary({ open, onClose, onPick, added, adventureId }: { o
         className="h-[80vh]"
       >
         <div className="flex h-full flex-col">
-          <div className="flex items-center gap-2 border-b border-line px-5 py-3">
-            <SearchField value={q} onChange={setQ} placeholder="Search scripts" className="flex-1" />
-            <Button variant="primary" icon={<Plus className="size-3.5" />} onClick={() => setEditor({ draft: newScriptDraft(), n: Date.now() })}>
+          {/* Phones: search on its own row, New / Import share the next. */}
+          <div className="flex items-center gap-2 border-b border-line px-5 py-3 max-md:flex-wrap max-md:px-4">
+            <SearchField value={q} onChange={setQ} placeholder="Search scripts" className="flex-1 max-md:basis-full" />
+            <Button variant="primary" icon={<Plus className="size-3.5" />} onClick={() => setEditor({ draft: newScriptDraft(), n: Date.now() })} className="max-md:flex-1">
               New script
             </Button>
             <Menu
               align="end"
               trigger={
-                <Button icon={<Upload className="size-3.5" />} variant="secondary">
+                <Button icon={<Upload className="size-3.5" />} variant="secondary" className="max-md:flex-1">
                   Import
                 </Button>
               }
@@ -147,7 +148,7 @@ export function ScriptLibrary({ open, onClose, onPick, added, adventureId }: { o
               </MenuItem>
             </Menu>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6 max-md:px-4">
             {groups.length === 0 ? (
               <EmptyState title="No scripts found" body={q ? 'Try another search.' : 'Write one, or import any AI Dungeon script.'} />
             ) : (

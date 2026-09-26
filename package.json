@@ -37,8 +37,10 @@
     "@lezer/highlight": "^1.2.4",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.2",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.2.0",
     "clsx": "^2.1.1",
     "electron": "^44.4.5",
@@ -62,7 +64,9 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
-    "nanoid": "^6.0.1"
+    "nanoid": "^6.0.1",
+    "qrcode": "^1.5.4",
+    "ws": "^8.21.3"
   },
   "allowScripts": {
     "esbuild@0.25.12": true,
