@@ -11,10 +11,11 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "dist": "electron-vite build && electron-builder --win --x64",
+    "dist": "npm run searxng && electron-vite build && electron-builder --win --x64",
     "postinstall": "install-electron",
     "icons": "node scripts/make-icons.mjs",
-    "dist:publish": "electron-vite build && electron-builder --win --x64 --publish always",
+    "searxng": "node scripts/searxng.mjs",
+    "dist:publish": "npm run searxng && electron-vite build && electron-builder --win --x64 --publish always",
     "release": "npm version patch -m \"Release v%s\" && git push --follow-tags",
     "release:minor": "npm version minor -m \"Release v%s\" && git push --follow-tags",
     "release:major": "npm version major -m \"Release v%s\" && git push --follow-tags",
@@ -42,6 +43,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.2.0",
+    "@xyflow/react": "^12.12.0",
     "clsx": "^2.1.1",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
@@ -101,6 +103,14 @@
           "**/*",
           "!**/__pycache__/**",
           "!.venv/**"
+        ]
+      },
+      {
+        "from": "resources/searxng",
+        "to": "searxng",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**"
         ]
       }
     ],

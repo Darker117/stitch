@@ -3,10 +3,12 @@ import { memo, useEffect, useRef, useState } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { AnimatePresence, motion } from 'motion/react'
-import { AlertTriangle, AudioLines, BookOpen, Brain, Check, ChevronDown, Clapperboard, ImageIcon, Mic2, PenLine, ScanFace, Users, X } from 'lucide-react'
+import { AlertTriangle, AudioLines, BookOpen, Brain, Check, ChevronDown, Clapperboard, FileText, Globe, ImageIcon, Mic2, PenLine, ScanFace, Users, X } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import type { ChatMessage, ChatToolCall, ID } from '@shared/types'
+import { invoke } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { searchSources } from '@/lib/web'
 import { ease, spring } from '@/lib/motion'
 import { AssetLightbox, AssetThumb } from '@/components/media'
 import { Button } from '@/components/ui/button'
@@ -23,7 +25,17 @@ const TOOL_META: Record<string, { label: string; icon: React.ReactNode }> = {
   speak: { label: 'Voicing line', icon: <Mic2 /> },
   list_characters: { label: 'Checking characters', icon: <Users /> },
   create_character: { label: 'Creating character', icon: <ScanFace /> },
-  create_story: { label: 'Writing a story', icon: <BookOpen /> }
+  create_story: { label: 'Writing a story', icon: <BookOpen /> },
+  web_search: { label: 'Searching the web', icon: <Globe /> },
+  open_page: { label: 'Reading a page', icon: <FileText /> }
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
 }
 
 function parseResult(r?: string): { ok?: boolean; id?: string; title?: string; name?: string; error?: string } {
@@ -42,7 +54,8 @@ function ToolCard({ call, onApprove, pending, onOpen }: { call: ChatToolCall; on
   const callJobs = (call.jobIds ?? []).map((id) => jobs[id]).filter(Boolean)
   const outputs = callJobs.flatMap((j) => j.outputs).map((id) => assets.find((a) => a.id === id)).filter(Boolean)
   const res = parseResult(call.result)
-  const prompt = String(call.args.prompt ?? call.args.instruction ?? call.args.text ?? call.args.name ?? call.args.title ?? '')
+  const prompt = String(call.args.prompt ?? call.args.instruction ?? call.args.text ?? call.args.name ?? call.args.title ?? call.args.query ?? call.args.url ?? '')
+  const sources = call.name === 'web_search' && call.status === 'done' ? searchSources(call.result).slice(0, 5) : []
   const running = call.status === 'running'
   const active = callJobs.find((j) => j.status === 'running') ?? callJobs.find((j) => j.status === 'queued')
   const pct = active?.progress?.max ? active.progress.value / active.progress.max : undefined
@@ -54,7 +67,7 @@ function ToolCard({ call, onApprove, pending, onOpen }: { call: ChatToolCall; on
         <span className={cn('grid size-7 shrink-0 place-items-center rounded-lg [&>svg]:size-3.5', call.status === 'error' ? 'bg-danger/15 text-danger' : 'bg-grad text-white')}>{meta.icon}</span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-[12.5px] font-medium">
-            {call.status === 'done' ? meta.label.replace(/^(\w+)ing\b/, (m) => ({ Generating: 'Generated', Editing: 'Edited', Voicing: 'Voiced', Checking: 'Checked', Creating: 'Created', Writing: 'Wrote' })[m] ?? m) : meta.label}
+            {call.status === 'done' ? meta.label.replace(/^(\w+)ing\b/, (m) => ({ Generating: 'Generated', Editing: 'Edited', Voicing: 'Voiced', Checking: 'Checked', Creating: 'Created', Writing: 'Wrote', Searching: 'Searched', Reading: 'Read' })[m] ?? m) : meta.label}
             {running && <Spinner className="size-3 text-fg-3" />}
             {call.status === 'done' && <Check className="size-3.5 text-success" />}
             {call.status === 'rejected' && <span className="text-[11px] text-fg-3">skipped</span>}
@@ -106,6 +119,22 @@ function ToolCard({ call, onApprove, pending, onOpen }: { call: ChatToolCall; on
       {voiceAsset && (
         <div className="border-t border-line p-2.5">
           <AssetThumb asset={voiceAsset} className="h-20" onClick={() => onOpen(voiceAsset.id)} />
+        </div>
+      )}
+
+      {sources.length > 0 && (
+        <div className="border-t border-line px-2 py-1.5">
+          {sources.map((s, i) => (
+            <button
+              key={s.url}
+              onClick={() => void invoke('sys:openExternal', s.url)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition hover:bg-white/[0.05] max-md:py-2"
+            >
+              <span className="grid size-5 shrink-0 place-items-center rounded-md bg-white/[0.06] font-mono text-[10px] text-fg-3">{i + 1}</span>
+              <span className="min-w-0 flex-1 truncate text-[12px] text-fg-2">{s.title}</span>
+              <span className="shrink-0 text-[11px] text-fg-3">{hostOf(s.url)}</span>
+            </button>
+          ))}
         </div>
       )}
 

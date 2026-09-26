@@ -18,7 +18,9 @@ function backendParam(m: CatalogModel): ParamSpec {
   const options = [{ value: 'auto', label: 'Auto (fastest available)' }]
   for (const b of ['npu', 'gpu', 'cpu'] as DeviceBackend[]) {
     if (!m.backends.includes(b)) continue
-    const ok = backendAvailable('image', b)
+    // Runtimes differ per format (e.g. stable-diffusion.cpp's GPU path isn't the ONNX one): prefer the per-format list.
+    const rt = useDevice.getState().info?.runtimes?.[m.format]
+    const ok = rt ? !!rt.find((x) => x.id === b)?.available : backendAvailable('image', b)
     options.push({ value: b, label: `${BACKEND_LABEL[b]}${ok ? '' : ' — not on this phone'}` })
   }
   return { key: 'backend', label: 'Run on', type: 'select', default: 'auto', options, help: 'NPU uses Qualcomm QNN on Snapdragon chips.' }
@@ -48,7 +50,8 @@ function recipeFor(m: CatalogModel): RecipeInfo {
     requires: [],
     available: ready,
     missing: ready ? [] : [`Download ${m.name} in More → This phone`],
-    estSeconds: Math.round((m.steps ?? 4) * (b === 'npu' ? 0.6 : b === 'gpu' ? 1.8 : 6)),
+    // Per-step seconds at 512 px (Pixel 8a CPU: ONNX ≈6 s, stable-diffusion.cpp ≈10–20 s), scaled by the model's area.
+    estSeconds: Math.round((m.steps ?? 4) * (b === 'npu' ? 0.6 : b === 'gpu' ? 1.8 : m.format === 'sd-cpp' ? 16 : 6) * ((m.resolution ?? 512) / 512) ** 2),
     builtin: true
   }
 }
@@ -121,6 +124,8 @@ async function run(job: GenJob): Promise<void> {
       modelId: m.id,
       backend,
       dir: st.dir,
+      format: m.format,
+      file: m.entry,
       prompt: String(p.prompt ?? ''),
       negativePrompt: p.negative ? String(p.negative) : undefined,
       steps,

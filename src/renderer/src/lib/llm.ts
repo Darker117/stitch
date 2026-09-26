@@ -18,11 +18,12 @@ export const LLM_KIND_LABEL: Record<LlmConnector['kind'], string> = {
   lmstudio: 'LM Studio',
   gemini: 'Google Gemini',
   'openai-compatible': 'OpenAI-compatible',
-  device: 'This phone'
+  device: 'This phone',
+  llamacpp: 'llama.cpp'
 }
 
 export function isLocalKind(kind: LlmConnector['kind']): boolean {
-  return kind === 'ollama' || kind === 'lmstudio' || kind === 'openai-compatible'
+  return kind === 'ollama' || kind === 'lmstudio' || kind === 'openai-compatible' || kind === 'llamacpp'
 }
 
 export function useLlmConnectors(): LlmConnector[] {

@@ -1,8 +1,9 @@
 // Contract for the native `StitchDevice` Capacitor plugin (android/app/src/main/java/com/stitch/mobile/device).
 // On-device generation: text (LiteRT-LM), images (ONNX Runtime Stable Diffusion) and voice (on-device TTS),
 // each on the Qualcomm NPU (QNN), the GPU or the CPU. The model catalog lives in `catalog.ts`; native code only
-// downloads the files it is handed, and runs the formats below.
+// downloads the files it is handed, and runs the formats below. Plus web search: SearXNG on the phone (`web.ts`).
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
+import type { WebPage, WebSearchRequest, WebSearchResult } from '@shared/ipc'
 
 export type DeviceTask = 'text' | 'image' | 'voice'
 /** npu = Qualcomm Hexagon NPU through QNN. */
@@ -32,14 +33,21 @@ export interface DeviceInfo {
   htpArch?: string
   gpu?: string
   backends: Record<DeviceTask, BackendSupport[]>
+  /** Backends each runtime can use on this phone (e.g. gguf: ['gpu', 'cpu'] when the GPU backend works here). */
+  runtimes?: Partial<Record<DeviceFormat, BackendSupport[]>>
 }
 
 /** Model file formats the native runtimes understand. */
 export type DeviceFormat =
   /** One .litertlm bundle (LiteRT-LM). */
   | 'litertlm'
+  /** One llama.cpp GGUF file (text; the entry). Split GGUFs list every part, the first is the entry. */
+  | 'gguf'
   /** Stable Diffusion as ONNX: tokenizer (vocab.json + merges.txt), text_encoder, unet, vae_decoder. */
   | 'sd-onnx'
+  /** stable-diffusion.cpp: one checkpoint (.safetensors / .ckpt / .gguf — SD 1.x, 2.x, SDXL, Turbo …) as the entry,
+   *  optionally with a VAE / text encoders beside it (named in `config`). */
+  | 'sd-cpp'
   /** On-device TTS model (see `voiceEngine`). */
   | 'tts-onnx'
   /** Android's built-in TextToSpeech — nothing to download. */
@@ -85,8 +93,10 @@ export interface TextGenerateOptions {
   backend: DeviceBackend
   /** Folder of a ready model (from `status`). */
   dir: string
-  /** File inside `dir` to load (the .litertlm bundle). */
+  /** File inside `dir` to load (the .litertlm bundle or the .gguf). */
   file: string
+  /** Runtime to use; default 'litertlm'. */
+  format?: DeviceFormat
   system?: string
   messages: ChatTurn[]
   maxTokens?: number
@@ -110,6 +120,10 @@ export interface ImageGenerateOptions {
   modelId: string
   backend: DeviceBackend
   dir: string
+  /** Runtime to use; default 'sd-onnx'. */
+  format?: DeviceFormat
+  /** Checkpoint inside `dir` (sd-cpp). */
+  file?: string
   prompt: string
   negativePrompt?: string
   steps: number
@@ -172,12 +186,31 @@ export interface SystemVoice {
   network?: boolean
 }
 
+/** The phone's own SearXNG (Chaquopy's CPython in the app; nothing loads until the first start/search). */
+export interface PhoneWebStatus {
+  where: 'phone'
+  state: 'stopped' | 'starting' | 'running' | 'error'
+  /** SearXNG version this build ships (e.g. "2026.9.25+12f8b6515"). */
+  version: string
+  error?: string
+  /** Enabled engines once loaded. */
+  engines?: number
+  /** How long the last start took, ms (Python + SearXNG). */
+  loadMs?: number
+}
+
 export interface StitchDevicePlugin {
   info(): Promise<DeviceInfo>
 
   /** Download (or resume) a model's files into its folder. Progress arrives as `download` events. */
   download(opts: { id: string; files: DeviceFile[]; headers?: Record<string, string> }): Promise<void>
   cancelDownload(opts: { id: string }): Promise<void>
+  /**
+   * Import model files the user picks on the phone (Storage Access Framework) into model `id`'s folder,
+   * copying natively (multi-GB files never pass through JS). Progress arrives as `download` events for `id`.
+   * Resolves with the copied files (paths relative to the folder); rejects with code CANCELED if the picker is dismissed.
+   */
+  importFiles(opts: { id: string; mimeTypes?: string[]; multiple?: boolean }): Promise<{ files: { path: string; name: string; size: number }[] }>
   status(opts: { ids: string[]; files?: Record<string, DeviceFile[]> }): Promise<{ models: ModelStatus[] }>
   deleteModel(opts: { id: string }): Promise<void>
 
@@ -191,6 +224,14 @@ export interface StitchDevicePlugin {
   speak(opts: SpeakOptions): Promise<SpeakResult>
   systemVoices(): Promise<{ voices: SystemVoice[] }>
 
+  /** Web search on the phone. Python can't be unloaded: webStop only marks the engine idle. */
+  webStatus(): Promise<PhoneWebStatus>
+  webStart(opts?: { safeSearch?: 0 | 1 | 2 }): Promise<PhoneWebStatus>
+  webStop(): Promise<PhoneWebStatus>
+  /** Loads SearXNG first if needed (`webStatus` events report "starting"). */
+  webSearch(opts: { req: WebSearchRequest }): Promise<Omit<WebSearchResult, 'where'>>
+  webPage(opts: { url: string; maxChars?: number }): Promise<Omit<WebPage, 'where'>>
+
   /** Free loaded models (all, or one task). */
   unload(opts?: { task?: DeviceTask }): Promise<void>
   /** Delete a generated output file once it has been uploaded. */
@@ -202,6 +243,7 @@ export interface StitchDevicePlugin {
   addListener(event: 'text', fn: (e: TextEvent) => void): Promise<PluginListenerHandle>
   addListener(event: 'image', fn: (e: ImageEvent) => void): Promise<PluginListenerHandle>
   addListener(event: 'insets', fn: (e: { top: number; bottom: number; left: number; right: number; ime: number }) => void): Promise<PluginListenerHandle>
+  addListener(event: 'webStatus', fn: (e: PhoneWebStatus) => void): Promise<PluginListenerHandle>
 }
 
 export const StitchDevice = registerPlugin<StitchDevicePlugin>('StitchDevice')

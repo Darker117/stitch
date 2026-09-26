@@ -1,19 +1,19 @@
 // Backgrounds (sunset, Wallpaper Engine, custom) and accent colours.
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, Film, Globe, ImageIcon, Paintbrush, Palette, Sparkles, Upload, Wand2 } from 'lucide-react'
-import type { BackgroundSettings, ThemeSettings, WallpaperItem } from '@shared/types'
+import { Film, ImageIcon, Paintbrush, Palette, Sparkles, Upload, Wand2 } from 'lucide-react'
+import type { BackgroundSettings, ThemeSettings } from '@shared/types'
 import { SUNSET, SUNSET_STOPS, tintFrom, tuneAccent } from '@shared/theme'
-import { errorText, fileUrl, invoke } from '@/lib/api'
+import { errorText, invoke } from '@/lib/api'
 import { accentsForBackground, blurFor, glassFor } from '@/lib/theme'
-import { cn } from '@/lib/utils'
-import { rise, spring, stagger } from '@/lib/motion'
+import { isPhone } from '@/lib/platform'
+import { rise, stagger } from '@/lib/motion'
 import { Button } from '@/components/ui/button'
-import { Segmented, SliderField } from '@/components/ui/controls'
-import { SearchField } from '@/components/ui/input'
-import { Badge, EmptyState, SectionTitle, Skeleton, Spinner } from '@/components/ui/misc'
+import { Segmented, SliderField, SwitchRow } from '@/components/ui/controls'
+import { SectionTitle, Spinner } from '@/components/ui/misc'
 import { useAppSettings, useSettings } from '@/stores/settings'
 import { toast } from '@/stores/toast'
+import { WallpaperPicker } from './wallpaper/WallpaperPicker'
 
 type Source = 'sunset' | 'wallpaper' | 'custom' | 'plain'
 
@@ -26,71 +26,6 @@ function sourceOf(bg: BackgroundSettings): Source {
   if (bg.type === 'gradient') return 'sunset'
   if (bg.type === 'none') return 'plain'
   return bg.wallpaperId ? 'wallpaper' : 'custom'
-}
-
-const TYPE_ICON: Record<string, React.ReactNode> = { video: <Film className="size-3" />, web: <Globe className="size-3" />, scene: <Sparkles className="size-3" /> }
-
-function WallpaperGallery({ current, onApply }: { current?: string; onApply: (w: WallpaperItem) => void }): React.JSX.Element {
-  const [items, setItems] = useState<WallpaperItem[] | null>(null)
-  const [q, setQ] = useState('')
-  const [type, setType] = useState<'all' | 'video' | 'web' | 'scene'>('all')
-  useEffect(() => {
-    void invoke('wallpaper:list').then(setItems)
-  }, [])
-  const list = useMemo(() => (items ?? []).filter((w) => (type === 'all' || w.type === type) && (!q || w.title.toLowerCase().includes(q.toLowerCase()))), [items, q, type])
-
-  if (items && !items.length) return <EmptyState icon={<ImageIcon />} title="Wallpaper Engine not found" body="Install Wallpaper Engine from Steam and subscribe to a few wallpapers — they'll appear here." />
-  return (
-    <div>
-      <div className="mb-3 flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch max-md:gap-2">
-        <SearchField value={q} onChange={setQ} placeholder={`Search ${items?.length ?? ''} wallpapers`} className="w-[260px] max-md:w-full" />
-        <Segmented
-          size="sm"
-          className={segFull}
-          value={type}
-          onChange={setType}
-          items={[
-            { value: 'all', label: 'All' },
-            { value: 'video', label: 'Video' },
-            { value: 'web', label: 'Web' },
-            { value: 'scene', label: 'Scene' }
-          ]}
-        />
-      </div>
-      <div className="grid max-h-[460px] grid-cols-4 gap-2.5 overflow-y-auto pr-1 max-md:max-h-[52vh] max-md:grid-cols-2 max-md:gap-2 max-md:pr-0">
-        {!items && Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="aspect-video" />)}
-        {list.map((w) => {
-          const active = current === w.id
-          return (
-            <motion.button
-              key={`${w.dir}`}
-              whileHover={{ y: -2 }}
-              transition={spring}
-              onClick={() => onApply(w)}
-              className={cn('group relative aspect-video overflow-hidden rounded-xl bg-white/[0.04] text-left ring-1 transition', active ? 'ring-2 ring-accent' : 'ring-line hover:ring-line-strong')}
-            >
-              {w.preview && <img src={fileUrl(w.preview)} loading="lazy" className="absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-105" />}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-2 pt-6">
-                <div className="truncate text-[11px] font-medium text-white">{w.title}</div>
-              </div>
-              <div className="absolute top-1.5 left-1.5 flex gap-1">
-                <Badge className="bg-black/50 text-white/85 backdrop-blur">
-                  {TYPE_ICON[w.type]} {w.type}
-                </Badge>
-              </div>
-              {w.schemeColor && <span className="absolute top-2 right-2 size-3 rounded-full ring-2 ring-black/40" style={{ background: w.schemeColor }} />}
-              {active && (
-                <span className="absolute right-2 bottom-2 grid size-5 place-items-center rounded-full bg-accent text-accent-fg">
-                  <Check className="size-3" strokeWidth={3} />
-                </span>
-              )}
-            </motion.button>
-          )
-        })}
-      </div>
-      <p className="mt-2 text-[11.5px] text-fg-3">Video and web wallpapers play live. Scene wallpapers use their animated preview (the scene format is proprietary).</p>
-    </div>
-  )
 }
 
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }): React.JSX.Element {
@@ -114,6 +49,7 @@ export function AppearanceSettings(): React.JSX.Element {
   const bg = theme.background
   const [source, setSource] = useState<Source>(sourceOf(bg))
   const [busy, setBusy] = useState(false)
+  const [applying, setApplying] = useState<string>()
 
   const setTheme = (patch: Partial<ThemeSettings>): Promise<unknown> => update({ theme: patch })
 
@@ -134,6 +70,23 @@ export function AppearanceSettings(): React.JSX.Element {
       toast.error('Could not apply background', errorText(err))
     } finally {
       setBusy(false)
+    }
+  }
+
+  /** Wallpaper Engine item → background. Scenes are read (and cached) first, which can take a moment. */
+  const applyWallpaper = async (id: string): Promise<void> => {
+    if (applying) return
+    setApplying(id)
+    try {
+      const r = await invoke('wallpaper:apply', id)
+      // Coming from the built-in gradient: start light so the wallpaper shines through.
+      const fresh = !bg.wallpaperId
+      if (fresh) await setTheme({ glass: -1, glassBlur: -1 }) // -1 = automatic
+      await applyBackground({ ...r.background, dim: fresh ? r.background.dim : bg.dim, blur: bg.blur, audio: bg.audio }, r.background.preview, r.schemeColor)
+    } catch (err) {
+      toast.error('Could not apply wallpaper', errorText(err))
+    } finally {
+      setApplying(undefined)
     }
   }
 
@@ -170,16 +123,7 @@ export function AppearanceSettings(): React.JSX.Element {
               </div>
             )}
             {source === 'wallpaper' && (
-              <WallpaperGallery
-                current={bg.wallpaperId}
-                onApply={async (w) => {
-                  const r = await invoke('wallpaper:apply', w.id)
-                  // Coming from the built-in gradient: start light so the wallpaper shines through.
-                  const fresh = !bg.wallpaperId
-                  if (fresh) await setTheme({ glass: -1, glassBlur: -1 }) // -1 = automatic
-                  await applyBackground({ ...r.background, dim: fresh ? r.background.dim : bg.dim, blur: bg.blur }, w.preview, r.schemeColor)
-                }}
-              />
+              <WallpaperPicker current={bg.wallpaperId} applying={applying} onApply={(id) => void applyWallpaper(id)} />
             )}
             {source === 'custom' && (
               <div className="flex items-center gap-3 max-md:flex-col max-md:items-stretch max-md:gap-2">
@@ -198,6 +142,16 @@ export function AppearanceSettings(): React.JSX.Element {
             )}
           </motion.div>
         </AnimatePresence>
+        {source === 'wallpaper' && !isPhone && (
+          <div className="mt-4">
+            <SwitchRow
+              label="React to what's playing"
+              help="Audio-reactive wallpapers follow this PC's sound. It's analysed on the spot, never recorded or sent anywhere."
+              checked={bg.audio !== false}
+              onChange={(v) => void setTheme({ background: { ...bg, audio: v } })}
+            />
+          </div>
+        )}
         {bg.type !== 'none' && (
           <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 max-md:grid-cols-1 max-md:gap-y-6">
             <SliderField label="Dim" help="Darkens the background itself." value={Math.round(bg.dim * 100)} min={0} max={90} format={(v) => `${v}%`} defaultValue={bg.type === 'gradient' ? 35 : 18} onChange={(v) => void setTheme({ background: { ...bg, dim: v / 100 } })} />

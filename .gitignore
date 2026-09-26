@@ -7,3 +7,5 @@ voice-server/.venv/
 voice-server/__pycache__/
 *.tsbuildinfo
 dev-app-update.yml
+resources/searxng/
+resources/searxng.build/

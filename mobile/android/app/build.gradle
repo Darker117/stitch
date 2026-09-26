@@ -1,5 +1,6 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'com.chaquo.python'
 
 // The app ships with each Stitch release: its version is the repo's package.json version
 // (0.3.0 → versionName "0.3.0", versionCode 300), so `npm run release` bumps both apps.
@@ -11,15 +12,41 @@ def keystorePropsFile = rootProject.file('keystore.properties')
 def keystoreProps = new Properties()
 if (keystorePropsFile.exists()) keystorePropsFile.withInputStream { keystoreProps.load(it) }
 
+// On-device web search: SearXNG running in-process on CPython 3.13 (Chaquopy), started lazily by the StitchDevice
+// plugin (device/web/). scripts/searxng.mjs (run by `npm run apk`) stages SearXNG's source, the wheels pip can't
+// find for Android and a build-machine Python 3.13 into ../.searxng; build.json there says where they are.
+def searxngDir = new File(rootDir, '.searxng')
+def searxngStamp = new File(searxngDir, 'build.json')
+def searxng = searxngStamp.isFile() ? new groovy.json.JsonSlurper().parse(searxngStamp) : null
+
+// On-device llama.cpp (GGUF chat models) and stable-diffusion.cpp (image checkpoints), compiled with the NDK from
+// src/main/cpp/CMakeLists.txt. scripts/native.mjs (run by `npm run apk`) stages their pinned sources and the Vulkan
+// shader tools into ../.native; build.json there has the paths and the NDK / CMake versions it found.
+def nativeStamp = new File(rootDir, '.native/build.json')
+def nativeBuild = nativeStamp.isFile() ? new groovy.json.JsonSlurper().parse(nativeStamp) : null
+def nativeCmakeArgs = ['-DANDROID_STL=c++_shared']
+if (nativeBuild != null) {
+    nativeCmakeArgs += ["-DSTITCH_LLAMA_DIR=${nativeBuild.llamaDir}", "-DSTITCH_SDCPP_DIR=${nativeBuild.sdcppDir}",
+                        "-DFETCHCONTENT_SOURCE_DIR_KLEIDIAI=${nativeBuild.kleidiaiDir}"]
+    if (nativeBuild.vulkan) {
+        def vk = nativeBuild.vulkan
+        nativeCmakeArgs += ['-DSTITCH_VULKAN=ON', "-DGGML_VULKAN_SHADERS_GEN_EXECUTABLE=${vk.shadersGen}",
+                            "-DVulkan_INCLUDE_DIR=${vk.headers}", "-DVulkan_GLSLC_EXECUTABLE=${vk.glslc}",
+                            "-DSPIRV-Headers_DIR=${vk.spirvConfig}", "-DSTITCH_SPIRV_HEADERS=${vk.spirvHeaders}"]
+    }
+}
+
 android {
     namespace = "com.stitch.mobile"
     compileSdk = rootProject.ext.compileSdkVersion
+    ndkVersion = nativeBuild?.ndkVersion ?: '29.0.14206865'
     defaultConfig {
         applicationId "com.stitch.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode stitchVersionCode
         versionName stitchVersion
+        buildConfigField "String", "SEARXNG_VERSION", "\"${searxng?.version ?: ''}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -30,6 +57,17 @@ android {
         // that can run them is arm64, so only package that ABI.
         ndk {
             abiFilters 'arm64-v8a'
+        }
+        externalNativeBuild {
+            cmake {
+                arguments(*nativeCmakeArgs)
+            }
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path = file('src/main/cpp/CMakeLists.txt')
+            version = nativeBuild?.cmakeVersion ?: '3.31.6'
         }
     }
     signingConfigs {
@@ -57,12 +95,18 @@ android {
             useLegacyPackaging = true
             // QNN's legacy HVX "DSP" backend (V66) is unused; the HTP (NPU) and GPU backends are kept.
             excludes += ['**/libQnnDsp.so', '**/libQnnDspV66Skel.so', '**/libQnnDspV66Stub.so']
+            // ggml's SVE2-without-SME CPU build: on 128-bit SVE cores (Tensor G3's X3/A715) it measured slower than the
+            // NEON + i8mm build (llama.cpp prompts 80 vs 113 tok/s, SD steps 1.3x slower), which phones then load instead.
+            excludes += ['**/libggml-cpu-android_armv9.0_1.so']
         }
     }
     sourceSets {
         main {
             jniLibs.srcDirs += [new File(buildDir, 'generated/stitch-jni')]
         }
+    }
+    buildFeatures {
+        buildConfig = true
     }
     testOptions {
         unitTests.returnDefaultValues = true
@@ -72,6 +116,32 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version = "3.13"
+        if (searxng != null) {
+            buildPython(searxng.buildPython as String)
+            pip {
+                install("-r", searxng.requirements as String)
+            }
+        }
+        // SearXNG loads engines (and answerers) from .py files on disk, so these stay real files.
+        extractPackages("searx.engines", "searx.answerers")
+    }
+    sourceSets {
+        getByName("main") {
+            srcDir(new File(searxngDir, 'python'))
+        }
+    }
+}
+
+tasks.named('preBuild').configure {
+    doFirst {
+        if (searxng == null) throw new GradleException("SearXNG isn't staged for the app yet: run `node scripts/searxng.mjs` in mobile/ (npm run apk does it).")
+        if (nativeBuild == null) throw new GradleException("llama.cpp / stable-diffusion.cpp aren't staged yet: run `node scripts/native.mjs` in mobile/ (npm run apk does it).")
     }
 }
 

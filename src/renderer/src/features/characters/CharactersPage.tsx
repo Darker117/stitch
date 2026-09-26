@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { BookOpenText, Check, CircleCheck, FolderOpen, ImagePlus, Lock, Mic2, Plus, ScanFace, ShieldCheck, SlidersHorizontal, Sparkles, UserRound, Users, Wand2, Zap } from 'lucide-react'
+import { CircleCheck, Images, ImagePlus, Lock, Mic2, Plus, ScanFace, Sparkles, UserRound, Users, Wand2, Workflow, Zap } from 'lucide-react'
 import type { Asset, Character, SheetSlot } from '@shared/types'
 import { errorText, fileUrl } from '@/lib/api'
 import { characterRefs, pickEditRecipe, SHEET_SLOTS } from '@/lib/characters'
@@ -9,17 +9,21 @@ import { useCompact } from '@/lib/platform'
 import { cn, timeAgo } from '@/lib/utils'
 import { ease, rise, spring, stagger } from '@/lib/motion'
 import { Page } from '@/components/shell/page'
-import { AssetLightbox, AssetThumb, DropZone, pickAndImport } from '@/components/media'
+import { AssetLightbox, DropZone, pickAndImport } from '@/components/media'
 import { Button } from '@/components/ui/button'
 import { Tabs } from '@/components/ui/controls'
 import { Input } from '@/components/ui/input'
-import { Badge, EmptyState } from '@/components/ui/misc'
+import { Badge, EmptyState, Spinner } from '@/components/ui/misc'
 import { Dialog } from '@/components/ui/overlay'
 import { useCollection, useDoc } from '@/stores/db'
 import { useGen } from '@/stores/gen'
 import { toast } from '@/stores/toast'
+import { CharacterGenerations, useCharacterGenerations } from './Generations'
 import { createCharacter, generateSheet } from './sheet'
 import { Silhouette } from './Silhouette'
+
+// The node editor is heavy; load it when the Studio tab opens.
+const CharacterStudio = lazy(() => import('./studio/Studio').then((m) => ({ default: m.CharacterStudio })))
 
 const PREVIEW_SLOTS: SheetSlot[] = ['front', 'three-quarter-left', 'three-quarter-right', 'profile-left', 'profile-right', 'back', 'low-angle', 'high-angle', 'full-body']
 
@@ -143,51 +147,6 @@ function UploadCard({ bare }: { bare?: boolean } = {}): React.JSX.Element {
   )
 }
 
-function HowItWorks(): React.JSX.Element {
-  const steps = [
-    { n: '1', title: 'Upload your reference', body: 'Any clear image of your character — face and outfit visible works best.', art: <ImagePlus className="size-6 text-fg-3" /> },
-    { n: '2', title: 'Generate the sheet', body: 'Qwen Image 2.1 or Flux 2 Klein renders every angle, expression and lighting setup from that single image, on your GPU.', art: <span className="inline-flex items-center gap-2 rounded-xl bg-grad px-5 py-3 text-[14px] font-semibold text-white shadow-lg"><Sparkles className="size-4" /> Generate sheet</span> },
-    { n: '3', title: 'Reuse everywhere', body: 'Stories, scenes and H3 videos automatically use the sheet as the character reference. No more drift.', art: <Users className="size-6 text-fg-3" /> }
-  ]
-  const features = [
-    { icon: <ShieldCheck />, title: 'Identity lock', body: 'Face, hair, wardrobe and marks stay locked across every headshot, pose, expression and lighting panel.' },
-    { icon: <SlidersHorizontal />, title: 'A full studio document', body: 'Nine angles, five expressions and five lighting references plus a cloned voice — one character, ready for production.' },
-    { icon: <Lock />, title: 'Local by design', body: 'Everything renders on your own GPUs through ComfyUI. Nothing leaves your machine unless you choose a cloud voice.' }
-  ]
-  return (
-    <div className="space-y-14 max-md:space-y-10">
-      <div>
-        <h2 className="display text-[30px] uppercase max-md:text-[23px]">Your character sheet in 3 steps</h2>
-        <p className="mt-1.5 text-[13px] text-fg-3">From one reference image to a complete studio document.</p>
-        <motion.div variants={stagger(0.08)} initial="initial" whileInView="animate" viewport={{ once: true }} className="mt-6 grid grid-cols-3 gap-4 max-md:mt-5 max-md:grid-cols-1 max-md:gap-6">
-          {steps.map((s) => (
-            <motion.div key={s.n} variants={rise}>
-              <div className="glass hairline grid h-[180px] place-items-center rounded-2xl max-md:h-[128px]">{s.art}</div>
-              <div className="mt-4 text-[15px] font-bold tracking-tight uppercase max-md:mt-3">
-                {s.n}. {s.title}
-              </div>
-              <p className="mt-1.5 text-[12.5px] leading-relaxed text-fg-3">{s.body}</p>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-      <div className="text-center">
-        <h2 className="display text-[30px] uppercase max-md:text-[23px]">Built to kill character drift</h2>
-        <p className="mt-1.5 text-[13px] text-fg-3">Everything here serves one goal: the same character in every shot.</p>
-        <motion.div variants={stagger(0.08)} initial="initial" whileInView="animate" viewport={{ once: true }} className="mt-7 grid grid-cols-3 gap-4 text-left max-md:mt-5 max-md:grid-cols-1 max-md:gap-3">
-          {features.map((f) => (
-            <motion.div key={f.title} variants={rise} className="glass hairline rounded-2xl p-6 max-md:p-4.5">
-              <div className="grid size-10 place-items-center rounded-xl border border-line bg-white/[0.05] text-fg-2 [&>svg]:size-4.5">{f.icon}</div>
-              <div className="mt-6 text-[15px] font-semibold max-md:mt-4">{f.title}</div>
-              <p className="mt-1.5 text-[12.5px] leading-relaxed text-fg-3">{f.body}</p>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-    </div>
-  )
-}
-
 function CharacterCard({ c }: { c: Character }): React.JSX.Element {
   const navigate = useNavigate()
   const refId = characterRefs(c, 1)[0]
@@ -234,7 +193,7 @@ export function CharactersPage(): React.JSX.Element {
   const assets = useCollection('assets')
   const navigate = useNavigate()
   const compact = useCompact()
-  const [tab, setTab] = useState<'how' | 'mine' | 'gens'>(characters.length ? 'mine' : 'how')
+  const [tab, setTab] = useState<'studio' | 'mine' | 'gens'>(characters.length ? 'mine' : 'studio')
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [newOpen, setNewOpen] = useState(false)
   // Characters load after first paint: land on the list once they arrive, unless a tab was picked.
@@ -244,7 +203,8 @@ export function CharactersPage(): React.JSX.Element {
   }, [characters.length])
   // Phones: with characters to show, lead with them; the hero and sheet board are for first visits.
   const listFirst = compact && characters.length > 0
-  const gens = useMemo(() => assets.filter((a) => a.characterIds?.length && a.source === 'generated'), [assets])
+  const gens = useCharacterGenerations()
+  const genCount = useMemo(() => new Set(gens.flatMap((g) => g.items.map((a) => a.id))).size, [gens])
 
   // Show the most recent character's sheet in the hero board.
   const featured = characters.find((c) => Object.keys(c.sheet).length >= 3)
@@ -307,13 +267,13 @@ export function CharactersPage(): React.JSX.Element {
                 listFirst
                   ? [
                       { value: 'mine', label: 'Characters', count: characters.length },
-                      { value: 'gens', label: 'Generations', count: gens.length },
-                      { value: 'how', label: 'How it works' }
+                      { value: 'studio', label: 'Studio' },
+                      { value: 'gens', label: 'Generations', count: genCount }
                     ]
                   : [
-                      { value: 'how', label: 'How it works', icon: compact ? undefined : <BookOpenText /> },
                       { value: 'mine', label: compact ? 'Characters' : 'My characters', icon: compact ? undefined : <Users />, count: characters.length },
-                      { value: 'gens', label: compact ? 'Generations' : 'My generations', icon: compact ? undefined : <FolderOpen />, count: gens.length }
+                      { value: 'studio', label: compact ? 'Studio' : 'Character Studio', icon: compact ? undefined : <Workflow /> },
+                      { value: 'gens', label: compact ? 'Generations' : 'Generations', icon: compact ? undefined : <Images />, count: genCount }
                     ]
               }
             />
@@ -321,7 +281,11 @@ export function CharactersPage(): React.JSX.Element {
           <div className="pt-8 max-md:pt-5">
             <AnimatePresence mode="wait">
               <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3, ease }}>
-                {tab === 'how' && <HowItWorks />}
+                {tab === 'studio' && (
+                  <Suspense fallback={<div className="grid h-[420px] place-items-center"><Spinner /></div>}>
+                    <CharacterStudio />
+                  </Suspense>
+                )}
                 {tab === 'mine' &&
                   (characters.length ? (
                     <motion.div variants={stagger(0.04)} initial="initial" animate="animate" className="grid grid-cols-4 gap-4 max-md:grid-cols-2 max-md:gap-3 min-[440px]:max-md:grid-cols-3">
@@ -344,16 +308,7 @@ export function CharactersPage(): React.JSX.Element {
                   ) : (
                     <EmptyState icon={<Users />} title="No characters yet" body="Upload a reference above to lock your first character." />
                   ))}
-                {tab === 'gens' &&
-                  (gens.length ? (
-                    <div className="grid grid-cols-5 gap-3 max-md:grid-cols-3 max-md:gap-2">
-                      {gens.map((a) => (
-                        <AssetThumb key={a.id} asset={a} className="aspect-square" onClick={() => setLightbox(a.id)} />
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState icon={<Check />} title="Nothing yet" body="Everything you generate with a locked character shows up here." />
-                  ))}
+                {tab === 'gens' && <CharacterGenerations onOpen={setLightbox} />}
               </motion.div>
             </AnimatePresence>
           </div>

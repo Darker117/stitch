@@ -1,0 +1,93 @@
+/* Character Studio canvas: React Flow's base styles, dressed in Stitch's glass and theme accents. */
+.stitch-flow .react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke-width-default: 2;
+  --xy-connectionline-stroke-default: var(--accent);
+  --xy-connectionline-stroke-width-default: 2;
+  --xy-selection-background-color-default: color-mix(in oklab, var(--accent) 10%, transparent);
+  --xy-selection-border-default: 1px dashed color-mix(in oklab, var(--accent) 55%, transparent);
+  background: transparent;
+}
+
+.stitch-flow .react-flow__pane {
+  cursor: grab;
+}
+.stitch-flow .react-flow__pane.dragging {
+  cursor: grabbing;
+}
+
+.stitch-flow .react-flow__node {
+  border-radius: 18px;
+}
+.stitch-flow .react-flow__node.selected > div {
+  box-shadow:
+    0 0 0 1.5px color-mix(in oklab, var(--accent) 70%, transparent),
+    0 24px 60px -28px rgb(0 0 0 / 0.85);
+}
+
+.stitch-flow .react-flow__handle {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  border: 2.5px solid var(--panel-solid);
+  background: var(--port, var(--accent));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--port, var(--accent)) 45%, transparent);
+  transition: transform 0.18s var(--ease-out);
+}
+.stitch-flow .react-flow__handle-left:hover,
+.stitch-flow .react-flow__handle-left.connectingto {
+  transform: translate(-50%, -50%) scale(1.3);
+}
+.stitch-flow .react-flow__handle-right:hover,
+.stitch-flow .react-flow__handle-right.connectingto {
+  transform: translate(50%, -50%) scale(1.3);
+}
+.stitch-flow .react-flow__handle.connectingfrom,
+.stitch-flow .react-flow__handle.valid {
+  box-shadow: 0 0 0 5px color-mix(in oklab, var(--port, var(--accent)) 30%, transparent);
+}
+
+/* Bigger touch targets on phones and tablets. */
+@media (pointer: coarse) {
+  .stitch-flow .react-flow__handle {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.stitch-flow .react-flow__edge-path {
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.85;
+  transition: opacity 0.2s var(--ease-out);
+}
+.stitch-flow .react-flow__edge:hover .react-flow__edge-path {
+  opacity: 1;
+}
+.stitch-flow .react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 3;
+  opacity: 1;
+  filter: drop-shadow(0 0 6px color-mix(in oklab, var(--accent) 60%, transparent));
+}
+
+.stitch-flow .react-flow__attribution {
+  margin: 8px 12px;
+  padding: 0;
+  background: transparent;
+  font-size: 9.5px;
+  opacity: 0.45;
+}
+.stitch-flow .react-flow__attribution a {
+  color: var(--fg-3);
+}
+
+.stitch-flow .react-flow__minimap {
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  backdrop-filter: blur(var(--glass-blur, 22px));
+}
+.stitch-flow .react-flow__minimap-node {
+  stroke: none;
+}

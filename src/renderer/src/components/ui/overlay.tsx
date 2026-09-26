@@ -186,7 +186,8 @@ export function MenuItem({
   danger,
   hint,
   disabled,
-  right
+  right,
+  description
 }: {
   icon?: ReactNode
   children: ReactNode
@@ -195,18 +196,24 @@ export function MenuItem({
   hint?: ReactNode
   disabled?: boolean
   right?: ReactNode
+  /** A second, quieter line under the label. */
+  description?: ReactNode
 }): React.JSX.Element {
   return (
     <M.Item
       disabled={disabled}
       onSelect={onSelect}
       className={cn(
-        'flex h-8.5 cursor-default items-center gap-2.5 rounded-lg px-2.5 text-[12.5px] outline-none transition-colors data-[disabled]:opacity-40 data-[highlighted]:bg-white/[0.08]',
+        'flex cursor-default gap-2.5 rounded-lg px-2.5 text-[12.5px] outline-none transition-colors data-[disabled]:opacity-40 data-[highlighted]:bg-white/[0.08]',
+        description ? 'items-start py-2' : 'h-8.5 items-center',
         danger ? 'text-danger' : 'text-fg'
       )}
     >
-      {icon && <span className={cn('grid size-4 place-items-center [&>svg]:size-3.5', danger ? 'text-danger' : 'text-fg-2')}>{icon}</span>}
-      <span className="flex-1">{children}</span>
+      {icon && <span className={cn('grid size-4 place-items-center [&>svg]:size-3.5', description && 'mt-px', danger ? 'text-danger' : 'text-fg-2')}>{icon}</span>}
+      <span className="min-w-0 flex-1">
+        {children}
+        {description && <span className="mt-0.5 block text-[11px] leading-snug text-fg-3">{description}</span>}
+      </span>
       {hint && <span className="text-[11px] text-fg-3">{hint}</span>}
       {right}
     </M.Item>

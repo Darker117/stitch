@@ -2,6 +2,7 @@
 import type { BackgroundSettings, ThemeSettings } from '@shared/types'
 import { hexToRgb, hslToRgb, onColor, pickAccents, rgbToHex, rgbToHsl, tintFrom, tuneAccent } from '@shared/theme'
 import { fileUrl } from './api'
+import { isPhone } from './platform'
 
 export function applyTheme(t: ThemeSettings): void {
   const root = document.documentElement.style
@@ -13,14 +14,18 @@ export function applyTheme(t: ThemeSettings): void {
   const pr = Math.round(r * 0.55 + 9)
   const pg = Math.round(g * 0.55 + 8)
   const pb = Math.round(b * 0.55 + 12)
-  const glass = glassFor(t)
+  // Phones: small type close to a busy wallpaper needs thicker frost than the desktop's big panels.
+  const glass = isPhone ? Math.min(0.9, Math.max(glassFor(t) + 0.2, 0.76)) : glassFor(t)
+  const blur = isPhone ? Math.max(blurFor(t), 20) + 8 : blurFor(t)
   // Surfaces lean towards the tint and let the backdrop through by `glass`.
   root.setProperty('--panel', `rgb(${pr} ${pg} ${pb} / ${glass})`)
   root.setProperty('--panel-strong', `rgb(${Math.round(pr * 0.8)} ${Math.round(pg * 0.8)} ${Math.round(pb * 0.8)} / ${Math.min(0.94, glass + 0.2)})`)
   root.setProperty('--panel-solid', rgbToHex({ r: pr, g: pg, b: pb }))
-  root.setProperty('--glass-blur', `${blurFor(t)}px`)
+  root.setProperty('--glass-blur', `${blur}px`)
+  // The phone shell's page-wide wash keeps the chosen glass, frosted, so the wallpaper still reads.
+  if (isPhone) root.setProperty('--phone-wash', `rgb(${pr} ${pg} ${pb} / ${glassFor(t)})`)
   // Media backgrounds need a little extra help keeping text legible.
-  const media = t.background.type === 'image' || t.background.type === 'video' || t.background.type === 'web'
+  const media = t.background.type === 'image' || t.background.type === 'video' || t.background.type === 'web' || t.background.type === 'scene'
   document.documentElement.dataset.bg = media ? 'media' : 'plain'
 }
 

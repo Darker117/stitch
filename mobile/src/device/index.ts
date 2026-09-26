@@ -1,12 +1,13 @@
 // On-device generation wired into the app: "This phone" appears as a text connector, a voice
-// connector and image recipes, answered on the phone instead of the PC.
-import type { Connector, DbChange } from '@shared/types'
-import { emitLocal, merge, override, PASS } from '@mobile/bridge/router'
-import { installImage } from './image'
+// connector and image recipes, answered on the phone instead of the PC. Web search can run here too (web.ts).
+import type { Connector, DbChange, GenRequest, RecipeInfo } from '@shared/types'
+import { emitLocal, merge, override, PASS, route } from '@mobile/bridge/router'
+import { installImage, PHONE_RECIPE } from './image'
 import { installLlm, phoneLlmConnector, PHONE_LLM_ID } from './llm'
 import { installOutbox } from './outbox'
-import { initDevice, onDeviceChange, setPrefs, useDevice } from './store'
+import { deviceOnly, initDevice, onDeviceChange, readyModels, setPrefs, useDevice } from './store'
 import { installVoice, phoneVoiceConnector, PHONE_VOICE_ID } from './voice'
+import { installWeb } from './web'
 
 const PHONE_IDS = new Set([PHONE_LLM_ID, PHONE_VOICE_ID])
 
@@ -32,13 +33,55 @@ async function write(id: string, doc: Partial<Connector> | null): Promise<Connec
   return phoneConnector(id)
 }
 
+/** PC recipes seen last (so "This phone only" knows what kind a rerouted request is). */
+let pcRecipes: RecipeInfo[] = []
+
+/** The on-device image model used when a PC image recipe is rerouted: recommended first. */
+function phoneImageRecipe(): string | undefined {
+  const ready = readyModels('image')
+  const m = ready.find((x) => x.recommended) ?? ready[0]
+  return m ? PHONE_RECIPE + m.id : undefined
+}
+
 export function installDevice(): void {
+  // "This phone only" reroutes PC image requests before the phone's own image queue sees them.
+  override('gen:submit', ([r]) => {
+    const req = r as GenRequest
+    if (!deviceOnly() || req.recipeId.startsWith(PHONE_RECIPE)) return PASS
+    const kind = pcRecipes.find((x) => x.id === req.recipeId)?.kind ?? 'image'
+    if (kind !== 'image') throw new Error(`${kind === 'video' ? 'Video' : 'Music and sound'} can't be made on a phone. Turn off “Only this phone” in Settings → Phone to use your PC for it.`)
+    const recipeId = phoneImageRecipe()
+    if (!recipeId) throw new Error('Download an image model in More → This phone first (Only this phone is on).')
+    const p = req.params
+    return route('gen:submit', [{ ...req, recipeId, params: { prompt: p.prompt, negative: p.negative, aspect: p.aspect ?? '1:1', seed: p.seed ?? -1, backend: 'auto' } }])
+  })
+
   installLlm()
   installImage()
   installVoice()
   installOutbox()
+  installWeb()
 
-  merge('db:list', (list, [col]) => (col === 'connectors' ? [...(list as Connector[]).filter((c) => !PHONE_IDS.has(c.id)), ...phoneConnectors()] : list))
+  // "This phone only": pickers offer just this phone's models.
+  merge('gen:recipes', (list) => {
+    const all = list as RecipeInfo[]
+    pcRecipes = all.filter((x) => !x.id.startsWith(PHONE_RECIPE))
+    return deviceOnly() ? all.filter((x) => x.id.startsWith(PHONE_RECIPE)) : all
+  })
+  merge('db:list', (list, [col]) => {
+    if (col !== 'connectors') return list
+    const pc = (list as Connector[]).filter((c) => !PHONE_IDS.has(c.id) && !(deviceOnly() && (c.category === 'llm' || c.category === 'voice')))
+    return [...pc, ...phoneConnectors()]
+  })
+  override('phone:deviceOnly', async ([v]) => {
+    if (typeof v === 'boolean') {
+      await setPrefs({ deviceOnly: v })
+      // Pickers and recipe lists refresh with the new set of models.
+      emitLocal('models:changed', null)
+      for (const c of phoneConnectors()) announce(c.id)
+    }
+    return { deviceOnly: deviceOnly(), ready: { text: readyModels('text').length, image: readyModels('image').length, voice: readyModels('voice').length } }
+  })
   override('db:get', ([col, id]) => (col === 'connectors' && PHONE_IDS.has(String(id)) ? (phoneConnector(String(id)) ?? null) : PASS))
   override('db:put', ([col, doc]) => {
     const d = doc as Connector

@@ -55,7 +55,9 @@ export default defineConfig({
   server: {
     port: 5174,
     host: true,
-    fs: { allow: [__dirname, desktop] }
+    fs: { allow: [__dirname, desktop] },
+    // Gradle output (the APK build, bundled Python) is not part of the web app.
+    watch: { ignored: ['**/android/**'] }
   },
   build: {
     outDir: 'dist',

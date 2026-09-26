@@ -1,5 +1,5 @@
 // Play-screen top bar: Now Playing (left) and model / undo / redo / settings (right).
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { motion } from 'motion/react'
 import { Check, Clapperboard, Feather, Link2, LogOut, Pencil, Redo2, Settings2, Undo2 } from 'lucide-react'
@@ -8,22 +8,42 @@ import { Button, IconButton } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverClose, Tooltip } from '@/components/ui/overlay'
 import { Avatar } from '@/components/ui/misc'
+import { fileUrl } from '@/lib/api'
 import { cn, pluralize } from '@/lib/utils'
 import { ease } from '@/lib/motion'
 import { modelLabel, type LlmChoice } from '@/lib/llm'
 import { LogoMark } from '@/components/shell/logo'
+import { useDoc } from '@/stores/db'
+import { useSettings } from '@/stores/settings'
 import { CoverArt } from '../components/art'
 import { CharacterLinkPicker } from '../components/cards'
 import { useCharacterFace } from '../hooks'
 import { ModelChooser } from './ModelChooser'
 
+/** Names an adventure gets before the profile is known. */
+const PLACEHOLDER_NAMES = new Set(['', 'You', 'Storyteller', 'Player'])
+
+/**
+ * Is the player playing as themselves (not a linked character or a character-creator hero)? Then
+ * the profile's name and avatar are who they are — kept live, so edits to the profile show up here.
+ */
+function useSelf(adv: Adventure): { self: boolean; name?: string; avatar?: string } {
+  const settings = useSettings((s) => s.settings)
+  const avatar = useDoc('assets', settings?.persona?.avatarAssetId)
+  const name = settings?.userName?.trim() || undefined
+  const self = !adv.player.characterId && !adv.player.choices?.['character.name'] && (PLACEHOLDER_NAMES.has((adv.player.name ?? '').trim()) || adv.player.name === name)
+  return { self, name, avatar: avatar ? fileUrl(avatar.path) : undefined }
+}
+
 function PlayerRow({ adv, onChange }: { adv: Adventure; onChange: (p: Partial<Adventure['player']>) => void }): React.JSX.Element {
   const { character, src } = useCharacterFace(adv.player.characterId)
+  const me = useSelf(adv)
+  const shown = me.self ? (me.name ?? adv.player.name) : adv.player.name
   const [editing, setEditing] = useState(false)
-  const [name, setName] = useState(adv.player.name)
+  const [name, setName] = useState(shown)
   return (
     <div className="flex items-center gap-2.5 rounded-xl border border-line bg-white/[0.03] p-2.5">
-      <Avatar src={src} name={adv.player.name || character?.name} size={34} className="ring-2 ring-[color-mix(in_oklab,var(--accent)_40%,transparent)]" />
+      <Avatar src={src ?? (me.self ? me.avatar : undefined)} name={shown || character?.name} size={34} className="ring-2 ring-[color-mix(in_oklab,var(--accent)_40%,transparent)]" />
       <div className="min-w-0 flex-1">
         {editing ? (
           <Input
@@ -40,8 +60,8 @@ function PlayerRow({ adv, onChange }: { adv: Adventure; onChange: (p: Partial<Ad
           />
         ) : (
           <>
-            <div className="truncate text-[13px] font-semibold">{adv.player.name || 'You'}</div>
-            <div className="truncate text-[11px] text-fg-3">{character ? `Playing as ${character.name}` : 'Player'}</div>
+            <div className="truncate text-[13px] font-semibold">{shown || 'You'}</div>
+            <div className="truncate text-[11px] text-fg-3">{character ? `Playing as ${character.name}` : me.self ? 'Playing as yourself' : 'Player'}</div>
           </>
         )}
       </div>
@@ -61,7 +81,7 @@ function PlayerRow({ adv, onChange }: { adv: Adventure; onChange: (p: Partial<Ad
           label="Edit name"
           size="sm"
           onClick={() => {
-            setName(adv.player.name)
+            setName(shown)
             setEditing(true)
           }}
         >
@@ -102,6 +122,12 @@ export function TopBar({
 }): React.JSX.Element {
   const navigate = useNavigate()
   const [modelsOpen, setModelsOpen] = useState(false)
+  // Playing as yourself: the story's player name follows the profile (it may have been a placeholder
+  // when the adventure started, or the profile changed since).
+  const me = useSelf(adv)
+  useEffect(() => {
+    if (me.self && me.name && adv.player.name !== me.name) onPlayer({ name: me.name })
+  }, [me.self, me.name]) // eslint-disable-line react-hooks/exhaustive-deps
   const turns = adv.actions.filter((a) => a.type !== 'start').length
   const canUndo = !busy && adv.actions.length > 1
   const canRedo = !busy && adv.redo.length > 0

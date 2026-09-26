@@ -41,6 +41,7 @@ import { useGen } from '@/stores/gen'
 import { toast } from '@/stores/toast'
 import { ParamControl } from '../generate/params'
 import { startChat } from '../create/runtime'
+import { WebSearchSkill } from './WebSearchSkill'
 
 interface BuiltinSkill {
   id: string
@@ -404,6 +405,13 @@ export function SkillsPage(): React.JSX.Element {
           {tab === 'explore' ? (
             <motion.div key="explore" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease }}>
               <div className="mt-8 mb-4 flex items-center gap-2 text-[15px] font-bold tracking-tight uppercase max-md:mt-6 max-md:mb-3 max-md:text-[14px]">
+                <span className="grid size-5 place-items-center rounded-full bg-grad text-white">
+                  <Zap className="size-3" />
+                </span>
+                For your text models
+              </div>
+              <WebSearchSkill />
+              <div className="mt-10 mb-4 flex items-center gap-2 text-[15px] font-bold tracking-tight uppercase max-md:mt-8 max-md:mb-3 max-md:text-[14px]">
                 <span className="grid size-5 place-items-center rounded-full bg-grad text-white">
                   <Zap className="size-3" />
                 </span>

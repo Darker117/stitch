@@ -1,11 +1,11 @@
 // "This phone" as a text connector: shows up in every model picker (chat, stories, cards) and answers
 // llm:* calls with the on-device model instead of the PC.
-import type { LlmEvent, LlmMessage, LlmRequest, LlmResult } from '@shared/ipc'
+import type { LlmEvent, LlmMessage, LlmRequest, LlmResult, LlmTool } from '@shared/ipc'
 import type { LlmConnector } from '@shared/types'
 import { emitLocal, override, PASS } from '@mobile/bridge/router'
 import type { PluginListenerHandle } from '@capacitor/core'
 import { StitchDevice, type ChatTurn } from './plugin'
-import { modelById, readyModels, resolveBackend, useDevice, BACKEND_LABEL } from './store'
+import { deviceOnly, modelById, readyModels, resolveBackend, useDevice, BACKEND_LABEL } from './store'
 import { thinkSplitter } from './think'
 
 export const PHONE_LLM_ID = 'phone-llm'
@@ -30,11 +30,34 @@ export function phoneLlmConnector(): LlmConnector {
   }
 }
 
+type Schema = { properties?: Record<string, { type?: string; enum?: string[] }>; required?: string[] }
+
+/**
+ * The on-device runtime has no tool channel, so tools are described in the prompt and the model
+ * answers with a `<tool_call>` line — the chat agent picks those up (`extractTextToolCalls`).
+ */
+function toolGuide(tools: LlmTool[]): string {
+  const lines = tools.map((t) => {
+    const s = t.parameters as Schema
+    const req = new Set(s.required ?? [])
+    const args = Object.entries(s.properties ?? {})
+      .map(([k, v]) => `${k}${req.has(k) ? '' : '?'}: ${v.enum ? v.enum.map((e) => JSON.stringify(e)).join(' | ') : (v.type ?? 'any')}`)
+      .join(', ')
+    return `- ${t.name}(${args}): ${t.description}`
+  })
+  return `You can use tools. To use one, reply with nothing but a single line like:
+<tool_call>{"name": "web_search", "arguments": {"query": "..."}}</tool_call>
+Then stop — the result arrives in the next message. One tool call per reply. When you have what you need, answer normally.
+
+Tools:
+${lines.join('\n')}`
+}
+
 /** Flatten the app's messages into plain chat turns the on-device runtime understands. */
 function turns(req: LlmRequest): { system?: string; messages: ChatTurn[] } {
   let system = req.system ?? ''
   if (req.json) system += `${system ? '\n\n' : ''}Reply with a single JSON object only — no prose, no code fences.`
-  if (req.tools?.length) system += `${system ? '\n\n' : ''}(Tools are unavailable on this phone model — answer in plain text.)`
+  if (req.tools?.length) system += `${system ? '\n\n' : ''}${toolGuide(req.tools)}`
   const messages: ChatTurn[] = []
   for (const m of req.messages as LlmMessage[]) {
     if (m.role === 'system') {
@@ -74,6 +97,7 @@ async function generate(req: LlmRequest, requestId: string, onDelta: (t: string)
       backend,
       dir: st.dir,
       file: m.entry ?? m.files[0]?.path ?? '',
+      format: m.format,
       system,
       messages,
       maxTokens: req.maxTokens,
@@ -104,7 +128,8 @@ export function installLlm(): void {
 
   override('llm:stream', ([r, rid]) => {
     const req = r as LlmRequest
-    if (req.connectorId !== PHONE_LLM_ID) return PASS
+    // "This phone only": PC models are answered here too, with the phone's model.
+    if (req.connectorId !== PHONE_LLM_ID && !deviceOnly()) return PASS
     const requestId = String(rid)
     const send = (ev: LlmEvent): void => emitLocal('llm:event', ev)
     // Resolve the invoke right away; the reply streams as llm:event, like the PC does.
@@ -121,7 +146,7 @@ export function installLlm(): void {
 
   override('llm:complete', async ([r]) => {
     const req = r as LlmRequest
-    if (req.connectorId !== PHONE_LLM_ID) return PASS
+    if (req.connectorId !== PHONE_LLM_ID && !deviceOnly()) return PASS
     return generate(req, `c-${Math.random().toString(36).slice(2)}`, () => {}, () => {})
   })
 

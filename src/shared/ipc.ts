@@ -26,6 +26,7 @@ import type {
   VoiceKind,
   WallpaperItem
 } from './types'
+import type { SceneData, WorkshopDownload, WorkshopEnvironment, WorkshopItem, WorkshopPage, WorkshopQuery } from './wallpaper'
 
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
 
@@ -104,6 +105,8 @@ export interface ComfyStatus {
   queueRemaining: number
   version?: string
   error?: string
+  /** Runs on a linked node PC (Settings → Computers). */
+  node?: { id: ID; name: string; gpu: number }
 }
 
 export interface DetectResult {
@@ -317,6 +320,224 @@ export interface RemoteDirListing {
   entries: { name: string; path: string; dir: boolean }[]
 }
 
+// ─── Web search (bundled SearXNG) ────────────────────────────────────────────
+
+export interface WebResult {
+  title: string
+  url: string
+  /** Short excerpt from the search engine. */
+  snippet: string
+  engines?: string[]
+  /** ISO date, when the engine knows it. */
+  published?: string
+  thumbnail?: string
+}
+
+export interface WebSearchRequest {
+  query: string
+  category?: 'general' | 'news' | 'science' | 'it' | 'images' | 'videos'
+  timeRange?: 'day' | 'week' | 'month' | 'year'
+  /** SearXNG language code, e.g. `en-US`; default `auto`. */
+  language?: string
+  page?: number
+  /** Most results to return (default `settings.web.maxResults`). */
+  limit?: number
+  safeSearch?: 0 | 1 | 2
+}
+
+export interface WebSearchResult {
+  query: string
+  results: WebResult[]
+  /** Direct answers (calculators, definitions…). */
+  answers: string[]
+  suggestions: string[]
+  infobox?: { title: string; text: string; url?: string }
+  /** Engines that failed or timed out. */
+  unresponsive?: string[]
+  tookMs: number
+  /** Which SearXNG answered. */
+  where: 'pc' | 'phone'
+}
+
+/** A web page reduced to readable text for a model. */
+export interface WebPage {
+  url: string
+  title: string
+  text: string
+  truncated: boolean
+  where: 'pc' | 'phone'
+}
+
+export type WebEngineState = 'missing' | 'stopped' | 'starting' | 'running' | 'error'
+/** Phone app: where searches go. `auto` = the PC while connected, otherwise this phone. */
+export type WebRoute = 'auto' | 'phone' | 'pc'
+
+export interface WebStatus {
+  where: 'pc' | 'phone'
+  state: WebEngineState
+  /** SearXNG version (commit date) that ships with this build. */
+  version?: string
+  error?: string
+  /** Phone app only. */
+  route?: WebRoute
+}
+
+// ─── Computers (multi-PC compute) ────────────────────────────────────────────
+// One Stitch is the main (where you work); others offer their GPUs as nodes on the LAN.
+// Nodes are found over UDP, linked with a 6-digit code shown on the node, and reached through
+// the phone-remote server's authenticated /api/node/* endpoints (see src/main/cluster/).
+
+export interface GpuLive {
+  /** nvidia-smi index. */
+  index: number
+  name: string
+  /** Bytes. */
+  memTotal: number
+  memUsed: number
+  /** 0–100. */
+  util?: number
+  /** °C. */
+  temp?: number
+  computeCap?: string
+  /** Node: a linked main may use it. */
+  shared?: boolean
+}
+
+export interface PcHardware {
+  gpus: GpuLive[]
+  cpu: { model: string; cores: number }
+  ram: { total: number; free: number }
+  os: string
+  /** Stitch version. */
+  version: string
+  /** A ComfyUI install was found. */
+  comfy: boolean
+  /** Installed llama.cpp build. */
+  llama?: { tag: string; flavor: string }
+  at: number
+}
+
+/** A service a node runs for its main (ComfyUI or llama.cpp rpc-server on one GPU). */
+export interface NodeService {
+  kind: 'comfy' | 'rpc'
+  gpu: number
+  state: 'stopped' | 'installing' | 'starting' | 'running' | 'crashed' | 'error'
+  /** 0–1 while installing. */
+  progress?: number
+  error?: string
+}
+
+/** A Stitch PC announcing itself as a node on the LAN. */
+export interface FoundPc {
+  id: string
+  name: string
+  address: string
+  port: number
+  version?: string
+  gpus: { name: string; memTotal: number }[]
+  /** Already linked to this PC. */
+  linked: boolean
+}
+
+export interface ModelCopy {
+  id: string
+  name: string
+  folder: string
+  sent: number
+  total: number
+  state: 'copying' | 'done' | 'error' | 'canceled'
+  error?: string
+}
+
+/** A node linked to this main. */
+export interface LinkedNode {
+  id: string
+  name: string
+  address?: string
+  port: number
+  state: 'connecting' | 'online' | 'offline' | 'revoked'
+  error?: string
+  version?: string
+  hardware?: PcHardware
+  services: NodeService[]
+  lastSeenAt?: number
+  copies: ModelCopy[]
+}
+
+/** A main that linked this node. */
+export interface LinkedMain {
+  id: string
+  name: string
+  online: boolean
+  createdAt: number
+  lastSeenAt?: number
+  lastAddress?: string
+}
+
+export interface ClusterStatus {
+  role: 'main' | 'node'
+  pcId: string
+  name: string
+  hardware?: PcHardware
+  /** This PC as a node. */
+  node: {
+    listening: boolean
+    port: number
+    error?: string
+    /** Link code shown while a main may link (10 minutes). */
+    linkWindow?: { code: string; expiresAt: number; requestedBy?: string }
+    mains: LinkedMain[]
+    services: NodeService[]
+  }
+  /** Nodes found on the network (main). */
+  found: FoundPc[]
+  /** Linked nodes (main). */
+  nodes: LinkedNode[]
+}
+
+/** A recipe a node can't run yet, and what it lacks (with the file on this PC when there is one). */
+export interface NodeModelGap {
+  recipeId: string
+  recipeName: string
+  kind: string
+  missing: { folder: string; label: string; source?: { name: string; size: number } }[]
+}
+
+export interface GgufFile {
+  path: string
+  name: string
+  size: number
+  /** Folder label (LM Studio, Stitch, …). */
+  where: string
+}
+
+export interface LlamaDevice {
+  /** 'local:<gpu>' or '<nodeId>:<gpu>'. */
+  key: string
+  label: string
+  /** PC name. */
+  pc: string
+  memTotal: number
+  memFree: number
+  online: boolean
+}
+
+export interface LlamaStatus {
+  state: 'missing' | 'installing' | 'stopped' | 'starting' | 'running' | 'error'
+  installed?: { tag: string; flavor: string }
+  /** What is happening right now (download, a node getting ready, loading the model). */
+  step?: { label: string; progress?: number }
+  port?: number
+  model?: string
+  /** Devices holding layers in the running server, in llama.cpp order. */
+  devices?: { key: string; label: string; split: number }[]
+  connectorId?: string
+  error?: string
+  /** Speed of the last reply. */
+  tokensPerSecond?: number
+  promptPerSecond?: number
+}
+
 // ─── Contract ────────────────────────────────────────────────────────────────
 
 export interface FileFilter {
@@ -427,6 +648,14 @@ export interface IpcInvoke {
   'wallpaper:list': [[], WallpaperItem[]]
   'wallpaper:apply': [[id: string], { background: BackgroundSettings; schemeColor?: string }]
   'wallpaper:pickCustom': [[], { background: BackgroundSettings } | null]
+  /** A scene wallpaper compiled for the WebGL renderer (textures extracted to the cache). */
+  'wallpaper:scene': [[id: string], SceneData]
+  /** Steam Workshop browse/search (no key, no login). */
+  'wallpaper:search': [[query: WorkshopQuery], WorkshopPage]
+  'wallpaper:details': [[id: string], WorkshopItem | null]
+  /** Open the item in the Steam client on the PC and watch for its download. */
+  'wallpaper:subscribe': [[id: string], WorkshopDownload]
+  'wallpaper:environment': [[], WorkshopEnvironment & { downloads: WorkshopDownload[] }]
 
   // editor
   // model library & civitai
@@ -481,6 +710,58 @@ export interface IpcInvoke {
   'remote:savePath': [[name: string], string]
   /** Phones: unpair the calling phone (answered by the remote server itself). */
   'remote:forgetMe': [[], void]
+
+  // web search for text models (Skills → Web search): the SearXNG bundled with the app
+  'web:status': [[], WebStatus]
+  /** Start (or restart) the bundled SearXNG. Searches start it on demand too. */
+  'web:start': [[], WebStatus]
+  'web:stop': [[], WebStatus]
+  'web:search': [[req: WebSearchRequest], WebSearchResult]
+  /** Fetch a page and reduce it to readable text (default 12 000 characters). */
+  'web:page': [[url: string, maxChars?: number], WebPage]
+  /** Phone app: where searches go (answered on the phone; the PC ignores it). */
+  'web:setRoute': [[route: WebRoute], WebStatus]
+  /** Phone app only (answered on the phone, never by the PC): run every generation on the phone's own hardware. */
+  'phone:deviceOnly': [[value?: boolean], { deviceOnly: boolean; ready: { text: number; image: number; voice: number } }]
+
+  // computers (Settings → Computers): link other Stitch PCs and use their GPUs
+  /** Also keeps live hardware sampling on for a minute (the page calls it periodically). */
+  'cluster:status': [[], ClusterStatus]
+  'cluster:setRole': [[role: 'main' | 'node'], ClusterStatus]
+  /** Node: open (or close) the 10-minute window in which a main can link with the shown code. */
+  'cluster:linkWindow': [[open: boolean], ClusterStatus]
+  /** Main: ask a found PC to show its link code. */
+  'cluster:requestLink': [[pcId: string], void]
+  /** Main: link a found PC with the code it shows. */
+  'cluster:link': [[pcId: string, code: string], LinkedNode]
+  /** Main: find a node by address (other subnet, Tailscale): `192.168.1.20` or `host:port`. */
+  'cluster:probe': [[address: string], FoundPc]
+  /** Main: forget a node (it is told to forget this PC too). */
+  'cluster:unlink': [[nodeId: string], void]
+  /** Node: cut a main off. */
+  'cluster:revokeMain': [[mainId: string], void]
+  /** Main: recipes a node can't run and the missing files. */
+  'cluster:modelGaps': [[nodeId: string], NodeModelGap[]]
+  /** Main: copy a model file from this PC to a node over the link. */
+  'cluster:copyModel': [[nodeId: string, folder: string, name: string], void]
+  'cluster:cancelCopy': [[copyId: string], void]
+  /** Main: the log of a node's ComfyUI or rpc-server. */
+  'cluster:nodeLogs': [[nodeId: string, kind: 'comfy' | 'rpc', gpu: number], string[]]
+
+  // llama.cpp text engine
+  'llama:status': [[], LlamaStatus]
+  /** Download the official llama.cpp build for this PC (also happens on first start). */
+  'llama:install': [[], LlamaStatus]
+  'llama:models': [[refresh?: boolean], GgufFile[]]
+  /** GPUs that can hold layers: this PC's and linked nodes'. */
+  'llama:devices': [[], LlamaDevice[]]
+  /** GGUF files in a Hugging Face repo (`owner/name`). */
+  'llama:hfFiles': [[repo: string], { path: string; size: number }[]]
+  /** Download a GGUF from Hugging Face into <userData>/models/llm (progress via download:progress). */
+  'llama:download': [[repo: string, path: string], DownloadState]
+  'llama:start': [[], LlamaStatus]
+  'llama:stop': [[], LlamaStatus]
+  'llama:logs': [[], string[]]
 }
 
 export interface IpcEvents {
@@ -498,6 +779,11 @@ export interface IpcEvents {
   'remote:changed': RemoteStatus
   /** A phone just paired (Settings → Phone celebrates, then closes the QR). */
   'remote:paired': RemoteDevice
+  'web:status': WebStatus
+  /** A workshop subscription we're waiting on changed state (ready = on disk). */
+  'wallpaper:download': WorkshopDownload
+  'cluster:changed': ClusterStatus
+  'llama:status': LlamaStatus
 }
 
 export type InvokeChannel = keyof IpcInvoke

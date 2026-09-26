@@ -11,6 +11,8 @@ buildscript {
         classpath 'com.google.gms:google-services:4.4.4'
         // Kotlin for the on-device AI plugin (StitchDevice). LiteRT-LM is compiled with Kotlin 2.4 metadata.
         classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20'
+        // CPython for on-device web search (SearXNG); see app/build.gradle and scripts/searxng.mjs.
+        classpath 'com.chaquo.python:gradle:17.0.0'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files

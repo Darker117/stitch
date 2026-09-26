@@ -1,10 +1,11 @@
 import type { ComfyStatus } from '@shared/ipc'
-import type { ComfyConnector } from '@shared/types'
+import type { ComfyConnector, GenKind } from '@shared/types'
 import { emit, handle } from '../../ipc'
 import { getSettings } from '../../settings'
 import { db } from '../../store'
 import { registerTester } from '../connectors'
-import { comfyPlan, enabledGpus } from '../gpu'
+import { comfyPlan, enabledGpus, remotePool, type Device } from '../gpu'
+import { isLinked, nodeLink, setWantedRemoteComfy } from '../../cluster'
 import { detectGpus } from '../system'
 import { ComfyClient } from './client'
 import { attachInstance, cancel, clearFinished, initJobs, instanceLost, knownModels, listJobs, listRecipes, pump, refreshModels, submit, waitFor, type Instance } from './jobs'
@@ -47,10 +48,21 @@ function sync(): void {
   }
 }
 
+/** A node's ComfyUI as the job queue sees it: its state comes from the node over the link. */
+function remoteState(c: ComfyConnector): ComfyStatus['processState'] {
+  const l = c.node ? nodeLink(c.node.node) : undefined
+  const svc = l?.online ? l.service('comfy', c.node!.gpu) : undefined
+  if (!svc) return 'stopped'
+  return svc.state === 'installing' ? 'starting' : svc.state === 'error' ? 'crashed' : svc.state
+}
+
 function statusOf(inst: Instance): ComfyStatus {
-  const managed = !!inst.connector.managed
-  const ps = processState(inst.connector.id)
+  const remote = inst.connector.node
+  const managed = !!inst.connector.managed || !!remote
+  const ps = remote ? remoteState(inst.connector) : processState(inst.connector.id)
+  const link = remote ? nodeLink(remote.node) : undefined
   return {
+    node: remote ? { id: remote.node, name: link?.rec.name ?? 'Linked PC', gpu: remote.gpu } : undefined,
     connectorId: inst.connector.id,
     name: inst.connector.name,
     url: inst.connector.url,
@@ -98,6 +110,7 @@ async function poll(): Promise<void> {
       }
     })
   )
+  wakeRemote()
   const statuses = comfyStatuses()
   const sig = JSON.stringify(statuses.map((s) => [s.connectorId, s.online, s.processState, s.queueRemaining, s.gpu, Math.round((s.vramFree ?? 0) / 2 ** 28)]))
   if (sig !== lastSig) {
@@ -108,6 +121,28 @@ async function poll(): Promise<void> {
 
 export function allInstances(): Instance[] {
   return [...instances.values()]
+}
+
+/** Jobs are waiting: start a linked node's ComfyUI that is stopped (at most every 30 s per instance). */
+const woken = new Map<string, number>()
+function wakeRemote(): void {
+  if (!listJobs().some((j) => j.status === 'queued' && !j.promptId)) return
+  for (const inst of instances.values()) {
+    const n = inst.connector.node
+    if (!n || inst.online || !inst.connector.enabled) continue
+    const l = nodeLink(n.node)
+    if (!l?.online || remoteState(inst.connector) !== 'stopped' || Date.now() - (woken.get(inst.connector.id) ?? 0) < 30_000) continue
+    woken.set(inst.connector.id, Date.now())
+    void l.call('comfy.start', { gpu: n.gpu }).catch((err: Error) => console.warn('[comfy] could not start on', l.rec.name, err.message))
+  }
+}
+
+function remoteComfy(id: string): { link: NonNullable<ReturnType<typeof nodeLink>>; gpu: number } | null {
+  const c = db('connectors').get(id)
+  if (c?.category !== 'comfy' || !c.node) return null
+  const link = nodeLink(c.node.node)
+  if (!link) throw new Error('That PC is no longer linked')
+  return { link, gpu: c.node.gpu }
 }
 
 export function registerComfy(): void {
@@ -124,13 +159,23 @@ export function registerComfy(): void {
   })
 
   handle('comfy:status', () => comfyStatuses())
-  handle('comfy:launch', (id) => {
+  handle('comfy:launch', async (id) => {
     const c = db('connectors').get(id)
     if (!c || c.category !== 'comfy') throw new Error('ComfyUI connector not found')
-    launchComfy(c, () => void poll())
+    const r = remoteComfy(id)
+    if (r) await r.link.call('comfy.start', { gpu: r.gpu })
+    else launchComfy(c, () => void poll())
   })
-  handle('comfy:stop', (id) => stopComfy(id))
-  handle('comfy:logs', (id) => processLogs(id))
+  handle('comfy:stop', async (id) => {
+    const r = remoteComfy(id)
+    if (r) await r.link.call('comfy.stop', { gpu: r.gpu })
+    else stopComfy(id)
+  })
+  handle('comfy:logs', async (id) => {
+    const r = remoteComfy(id)
+    if (!r) return processLogs(id)
+    return r.link.online ? r.link.call<string[]>('comfy.logs', { gpu: r.gpu }) : [`${r.link.rec.name} is offline.`]
+  })
   handle('comfy:models', async (folder) => {
     const online = allInstances().filter((i) => i.online)
     for (const i of online) await refreshModels(i)
@@ -157,22 +202,24 @@ export async function applyGpuLayout(): Promise<void> {
   const s = getSettings().gpu
   const col = db('connectors')
   const managed = comfyConnectors().filter((c) => c.managed)
+  const gpus = s.managed ? await detectGpus() : []
+  const fullPlan = await layoutPlan(gpus.map((g) => g.index))
+  await applyRemoteLayout(fullPlan.filter((p) => p.device.node), true)
 
   if (!s.managed) {
     for (const c of managed) {
       stopComfy(c.id)
       col.delete(c.id)
     }
-    if (!comfyConnectors().length) {
+    if (!comfyConnectors().some((c) => !c.node)) {
       col.put({ id: 'comfy-local', name: 'ComfyUI', category: 'comfy', url: 'http://127.0.0.1:8188', roles: [], enabled: true, createdAt: Date.now() })
     }
     sync()
     return
   }
 
-  const gpus = await detectGpus()
   const names = new Map(gpus.map((g) => [g.index, g.name.replace(/NVIDIA GeForce /i, '')]))
-  const plan = comfyPlan(enabledGpus(gpus.map((g) => g.index)))
+  const plan = fullPlan.filter((p) => !p.device.node).map((p) => ({ gpu: p.device.gpu, roles: p.roles }))
   const wanted = new Set(plan.map((p) => `comfy-gpu${p.gpu}`))
 
   for (const c of managed) {
@@ -199,7 +246,7 @@ export async function applyGpuLayout(): Promise<void> {
     if (changed && processState(id) !== 'stopped') stopComfy(id)
   })
   // External instances would compete for the same work; switch them off.
-  for (const c of comfyConnectors()) if (!c.managed && c.enabled) col.put({ ...c, enabled: false })
+  for (const c of comfyConnectors()) if (!c.managed && !c.node && c.enabled) col.put({ ...c, enabled: false })
   sync()
   setTimeout(() => {
     for (const c of comfyConnectors()) {
@@ -212,6 +259,58 @@ export async function applyGpuLayout(): Promise<void> {
       }
     }
   }, 1500)
+}
+
+/** Every device in the layout: this PC's enabled GPUs (when Stitch runs ComfyUI) plus linked nodes' pooled GPUs. */
+async function layoutPlan(localGpus?: number[]): Promise<{ device: Device; roles: GenKind[] }[]> {
+  const s = getSettings().gpu
+  const available = s.managed ? (localGpus ?? (await detectGpus()).map((g) => g.index)) : []
+  const local: Device[] = s.managed ? enabledGpus(available).map((gpu) => ({ gpu })) : []
+  return comfyPlan([...local, ...remotePool(isLinked)])
+}
+
+/**
+ * ComfyUI on linked nodes: one connector per node GPU in the plan (`node-<id>-gpu<n>`), reached
+ * through a local tunnel (its port changes per session). The node starts its ComfyUI when asked —
+ * right away after "Apply layout", else when it comes online (with auto-launch) or a job waits.
+ */
+async function applyRemoteLayout(plan: { device: Device; roles: GenKind[] }[], startNow: boolean): Promise<void> {
+  const col = db('connectors')
+  const wanted = new Set<string>()
+  for (const p of plan) {
+    const node = p.device.node!
+    const gpu = p.device.gpu
+    const link = nodeLink(node)
+    if (!link) continue
+    const id = `node-${node}-gpu${gpu}`
+    wanted.add(id)
+    const url = `http://127.0.0.1:${await link.tunnel('comfy', gpu)}`
+    const prev = col.get(id)
+    const gpuName = link.hw?.gpus.find((g) => g.index === gpu)?.name.replace(/NVIDIA GeForce /i, '') ?? `GPU ${gpu}`
+    const next: ComfyConnector = {
+      id,
+      name: `ComfyUI · ${link.rec.name} · ${gpuName}`,
+      category: 'comfy',
+      url,
+      roles: p.roles,
+      enabled: true,
+      createdAt: prev?.createdAt ?? Date.now(),
+      node: { node, gpu }
+    }
+    if (JSON.stringify(prev) !== JSON.stringify(next)) col.put(next)
+  }
+  for (const c of comfyConnectors()) if (c.node && !wanted.has(c.id)) col.delete(c.id)
+  setWantedRemoteComfy(
+    plan.map((p) => ({ node: p.device.node!, gpu: p.device.gpu })),
+    startNow
+  )
+  sync()
+}
+
+/** Nodes came online or went away: refresh their tunnels and connectors. */
+export async function refreshRemoteComfy(): Promise<void> {
+  const plan = await layoutPlan()
+  await applyRemoteLayout(plan.filter((p) => p.device.node), false)
 }
 
 export function autoLaunchComfy(): void {

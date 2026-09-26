@@ -25,17 +25,17 @@ function TopBar({ onMenu, onSearch, onPc }: { onMenu: () => void; onSearch: () =
   const navigate = useNavigate()
   return (
     <header className="relative z-30 shrink-0 pt-[var(--sat)]">
-      <div className="flex h-[var(--topbar)] items-center gap-1 px-2">
-        <button onClick={onMenu} className="grid size-10 place-items-center rounded-xl text-fg-2 transition active:scale-90 active:bg-white/[0.06]" aria-label="Menu">
-          <Menu className="size-[18px]" />
+      <div className="flex h-[var(--topbar)] items-center gap-1 px-2 min-[600px]:px-4">
+        <button onClick={onMenu} className="grid size-10 place-items-center rounded-xl text-fg-2 transition active:scale-90 active:bg-white/[0.06] min-[600px]:size-12" aria-label="Menu">
+          <Menu className="size-[18px] min-[600px]:size-[22px]" />
         </button>
-        <button onClick={() => navigate('/')} className="flex items-center gap-1.5 rounded-xl px-1 py-1 active:scale-95">
+        <button onClick={() => navigate('/')} className="flex origin-left items-center gap-1.5 rounded-xl px-1 py-1 active:scale-95 min-[600px]:scale-[1.15]">
           <LogoMark size={26} />
           <Wordmark height={14} className="mt-0.5 text-fg" />
         </button>
         <div className="flex-1" />
-        <button onClick={onSearch} className="grid size-10 place-items-center rounded-xl text-fg-2 transition active:scale-90 active:bg-white/[0.06]" aria-label="Search">
-          <Search className="size-[18px]" />
+        <button onClick={onSearch} className="grid size-10 place-items-center rounded-xl text-fg-2 transition active:scale-90 active:bg-white/[0.06] min-[600px]:size-12" aria-label="Search">
+          <Search className="size-[18px] min-[600px]:size-[22px]" />
         </button>
         <PcPill onClick={onPc} />
       </div>
@@ -48,7 +48,7 @@ function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }): R
   const { pathname } = useLocation()
   return (
     <Sheet open={open} onClose={onClose} title="Everything else">
-      <motion.div variants={stagger(0.03, 0.05)} initial="initial" animate="animate" className="grid grid-cols-2 gap-2.5 px-4 pt-3 pb-5">
+      <motion.div variants={stagger(0.03, 0.05)} initial="initial" animate="animate" className="grid grid-cols-2 gap-2.5 px-4 pt-3 pb-5 min-[600px]:grid-cols-3 min-[600px]:gap-3 min-[600px]:px-5">
         {MORE.map((m) => {
           const active = m.match(pathname)
           return (
@@ -63,7 +63,7 @@ function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }): R
               }}
               className={cn('relative flex items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left', active ? 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-white/[0.07]' : 'border-line bg-white/[0.03]')}
             >
-              <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl border [&>svg]:size-[18px]', active ? 'border-transparent bg-grad text-white' : 'border-line bg-white/[0.05] text-fg-2')}>{m.icon}</span>
+              <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl border [&>svg]:size-[18px] min-[600px]:size-12 min-[600px]:[&>svg]:size-[22px]', active ? 'border-transparent bg-grad text-white' : 'border-line bg-white/[0.05] text-fg-2')}>{m.icon}</span>
               <span className="min-w-0">
                 <span className="block truncate text-[13.5px] font-semibold">{m.label}</span>
                 <span className="block truncate text-[11.5px] text-fg-3">{m.hint}</span>
@@ -159,8 +159,8 @@ export function MobileShell({ onPair }: { onPair: () => void }): React.JSX.Eleme
 
   return (
     <div className="relative flex h-full flex-col pr-[var(--sar)] pl-[var(--sal)]">
-      {/* One continuous glass surface on phones — no window-in-window frame. */}
-      <div className="pointer-events-none absolute inset-0 bg-[var(--panel)]" />
+      {/* One continuous frosted surface on phones — no window-in-window frame. */}
+      <div className="phone-wash pointer-events-none absolute inset-0" />
       <AnimatePresence initial={false}>
         {!detail && (
           <motion.div key="top" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.28, ease }} className="relative z-30">

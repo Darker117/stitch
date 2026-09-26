@@ -7,7 +7,7 @@ import { override, merge, PASS } from '@mobile/bridge/router'
 import type { CatalogModel } from './catalog'
 import { sendToPc } from './outbox'
 import { StitchDevice } from './plugin'
-import { BACKEND_LABEL, catalogFor, isReady, modelById, readyModels, resolveBackend, useDevice } from './store'
+import { BACKEND_LABEL, catalogFor, deviceOnly, isReady, modelById, readyModels, resolveBackend, useDevice } from './store'
 
 export const PHONE_VOICE_ID = 'phone-voice'
 /** Voice ids are `<modelId>/<speakerId>`; system voices use the `system` model. */
@@ -67,6 +67,7 @@ export function phoneVoiceEngine(): VoiceEngineInfo {
 }
 
 function targetsPhone(req: SpeakRequest): boolean {
+  if (deviceOnly()) return true
   if (req.connectorId) return req.connectorId === PHONE_VOICE_ID
   if (req.voice?.connectorId) return req.voice.connectorId === PHONE_VOICE_ID
   return useSettings.getState().settings?.defaultVoice?.connectorId === PHONE_VOICE_ID
@@ -74,11 +75,13 @@ function targetsPhone(req: SpeakRequest): boolean {
 
 async function speak(req: SpeakRequest): Promise<unknown> {
   const [modelPart, speaker] = (req.voice?.voiceId ?? '').split('/')
-  const m = modelById(req.model && req.model !== 'default' ? req.model : modelPart) ?? modelById(modelPart) ?? readyModels('voice')[0] ?? modelById(SYSTEM)
+  const named = modelById(modelPart)
+  const m = modelById(req.model && req.model !== 'default' ? req.model : modelPart) ?? named ?? readyModels('voice')[0] ?? modelById(SYSTEM)
   if (!m) throw new Error('No on-device voice yet — get one in More → This phone.')
   const st = useDevice.getState().status[m.id]
   if (m.format !== 'tts-system' && !st?.ready) throw new Error(`${m.name} isn't downloaded yet — get it in More → This phone.`)
-  const voice = speaker || m.voices?.[0]?.id || useDevice.getState().systemVoices[0]?.id
+  // A PC voice id (rerouted in "This phone only") means nothing here: use the model's first voice.
+  const voice = (m === named && speaker) || m.voices?.[0]?.id || useDevice.getState().systemVoices[0]?.id
   const res = await StitchDevice.speak({
     modelId: m.id,
     backend: resolveBackend('voice', m),

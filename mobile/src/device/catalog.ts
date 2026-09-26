@@ -1,9 +1,14 @@
 // On-device model catalog: what the phone can download and run, with verified file lists.
 // Every size is the Hugging Face API size of that exact revision; URLs are pinned to a commit so sizes can't drift
 // (a changed file on `main` would otherwise fail the download's size check). Checked 2026-09-25.
-// Measured on a Pixel 8a (Tensor G3, CPU/GPU): Qwen3 0.6B CPU ≈21 tok/s, GPU ≈36 tok/s; SDXS 512 px ≈6 s (CPU);
-// LCM int8 384 px 4 steps ≈10 s (CPU); Piper RTF ≈0.08, Kitten ≈0.35, Kokoro ≈1.4 (CPU).
+// The hand-written entries below carry runtime configs worked out model by model; the bulk of the catalog (GGUF text
+// models for llama.cpp, more LiteRT-LM and NPU builds, stable-diffusion.cpp checkpoints, voices) is generated into
+// catalog.gen.ts by scripts/catalog.mjs from scripts/catalog/*.mjs, with the same pinning.
+// Measured on a Pixel 8a (Tensor G3, CPU/GPU): LiteRT-LM Qwen3 0.6B CPU ≈21 tok/s, GPU ≈36 tok/s; llama.cpp Q4_0 CPU
+// Qwen3 0.6B ≈40–55 tok/s, 1.7B ≈21 tok/s (prompt ≈87 tok/s); SDXS 512 px ≈6 s (CPU); LCM int8 384 px 4 steps ≈10 s
+// (CPU); stable-diffusion.cpp SD 1.5 512 px ≈10 s/step Q8_0, ≈20 s fp16 (CPU); Piper RTF ≈0.08, Kitten ≈0.35, Kokoro ≈1.4 (CPU).
 import type { DeviceBackend, DeviceFile, DeviceFormat, DeviceTask } from './plugin'
+import { GENERATED_MODELS } from './catalog.gen'
 
 export interface CatalogVoice {
   id: string
@@ -47,6 +52,14 @@ export interface CatalogModel {
   voices?: CatalogVoice[]
   /** Runtime facts handed to the native engine (latent channels, TTS engine kind …). */
   config?: Record<string, unknown>
+  /** The original release, or a variant with refusals removed (abliterated) / trained without filters (uncensored). */
+  variant?: 'standard' | 'abliterated' | 'uncensored'
+  /** Extra chips on the card: 'vision' | 'thinking' | 'tools' | 'multilingual' | 'roleplay' | 'coding' | 'realistic' |
+   *  'anime' | 'turbo' | 'fast' | 'quality' | 'expressive' … (lowercase; the UI colours known ones). */
+  tags?: string[]
+  /** Added by the user (a link, a Hugging Face / Civitai page, or imported files) instead of the built-in catalog. */
+  custom?: boolean
+  source?: 'catalog' | 'url' | 'huggingface' | 'civitai' | 'import'
 }
 
 /** Hugging Face download URL for a file at a pinned revision (path segments URL-encoded). */
@@ -60,6 +73,20 @@ const file = (repo: string, rev: string, path: string, size: number, as = path):
 })
 
 const total = (files: DeviceFile[]) => files.reduce((n, f) => n + (f.size ?? 0), 0)
+
+/** A generated file: [repo, commit, path in the repo, bytes, saved as (default: same path)]. */
+export type GenFile = readonly [repo: string, rev: string, path: string, size: number, as?: string]
+
+/** A catalog.gen.ts entry: files as tuples, plus the repo/commit to take espeak-ng-data from (voices). */
+export type GenModel = Omit<CatalogModel, 'files' | 'sizeBytes'> & { files: readonly GenFile[]; espeak?: readonly [string, string] }
+
+/** A generated entry as a CatalogModel (pinned URLs, total size, espeak-ng-data when the voice needs it). */
+function fromGen({ files: gen, espeak, ...m }: GenModel): CatalogModel {
+  const files = [...gen.map(([repo, rev, path, size, as]) => file(repo, rev, path, size, as)), ...(espeak ? espeakFiles(espeak) : [])]
+  return { ...m, files, sizeBytes: total(files) }
+}
+
+const generated = (task: DeviceTask): CatalogModel[] => GENERATED_MODELS.filter((m) => m.task === task).map(fromGen)
 
 // --- Text (LiteRT-LM .litertlm) ---------------------------------------------------------------------------------------
 
@@ -98,6 +125,9 @@ const gemma3Npu = (soc: string, chip: string, path: string, size: number, note: 
     minRamGb: 6,
     contextLength: 1280,
     config: { sampler: null },
+    recommended: true,
+    variant: 'standard',
+    tags: ['fast'],
   })
 
 export const TEXT_MODELS: CatalogModel[] = [
@@ -112,6 +142,8 @@ export const TEXT_MODELS: CatalogModel[] = [
     minRamGb: 4,
     contextLength: 4096,
     config: { enableThinking: false },
+    variant: 'standard',
+    tags: ['fast', 'multilingual'],
   }),
   litertlm(LFM_230M, 'LFM2.5-230M_int8.litertlm', 266053344, {
     id: 'lfm2.5-230m-int8',
@@ -123,6 +155,8 @@ export const TEXT_MODELS: CatalogModel[] = [
     minRamGb: 3,
     contextLength: 4096,
     config: { enableThinking: false },
+    variant: 'standard',
+    tags: ['fast'],
   }),
   litertlm(LFM_12B, 'LFM2.5-1.2B-Instruct_int4_gpu.litertlm', 736220768, {
     id: 'lfm2.5-1.2b-instruct-int4',
@@ -134,6 +168,8 @@ export const TEXT_MODELS: CatalogModel[] = [
     minRamGb: 4,
     contextLength: 4096,
     config: { enableThinking: false },
+    variant: 'standard',
+    tags: ['fast', 'multilingual'],
   }),
   litertlm(GEMMA4_E2B, 'gemma-4-E2B-it.litertlm', 2588147712, {
     id: 'gemma-4-e2b-it',
@@ -142,9 +178,12 @@ export const TEXT_MODELS: CatalogModel[] = [
     description: 'Strongest small model: effective 2B parameters, mixed 2/4/8-bit weights with memory-mapped embeddings. Needs an 8 GB phone.',
     backends: ['gpu', 'cpu'],
     license: 'apache-2.0',
+    recommended: true,
     minRamGb: 8,
     contextLength: 8192,
     config: { sampling: { temperature: 1.0, topK: 64, topP: 0.95 } },
+    variant: 'standard',
+    tags: ['quality', 'multilingual', 'thinking'],
   }),
   // Snapdragon NPU builds (Qualcomm HTP through LiteRT's QNN dispatch library).
   gemma3Npu('SM8550', 'Snapdragon 8 Gen 2', 'Gemma3-1B-IT_q4_ekv1280_sm8550.litertlm', 690143232, 'Hexagon v73.'),
@@ -159,9 +198,12 @@ export const TEXT_MODELS: CatalogModel[] = [
     backends: ['npu'],
     socs: ['SM8750'],
     license: 'apache-2.0',
+    recommended: true,
     minRamGb: 8,
     contextLength: 4096,
     config: { sampler: null },
+    variant: 'standard',
+    tags: ['quality', 'multilingual'],
   }),
   // Google Tensor NPU builds (LiteRT's Tensor dispatch → the phone's edgetpu runtime). None exist for Tensor G3.
   litertlm(GEMMA3_1B_G4, 'Gemma3-1B-IT_int4hadamard_aot_ekv4096_G4.litertlm', 874631968, {
@@ -172,9 +214,12 @@ export const TEXT_MODELS: CatalogModel[] = [
     backends: ['npu'],
     socs: ['Tensor G4'],
     license: 'gemma',
+    recommended: true,
     minRamGb: 6,
     contextLength: 4096,
     config: { sampler: null },
+    variant: 'standard',
+    tags: ['fast'],
   }),
   gemma3Npu('Tensor G5', 'Tensor G5', 'Gemma3-1B-IT_q8_ekv1280_Google_Tensor_G5.litertlm', 1678542365, 'Pixel 10.'),
   gemma3Npu('Tensor G6', 'Tensor G6', 'Gemma3-1B-IT_q8_ekv1280_Google_Tensor_G6.litertlm', 2043971366, 'Pixel 11.'),
@@ -186,9 +231,12 @@ export const TEXT_MODELS: CatalogModel[] = [
     backends: ['npu'],
     socs: ['Tensor G5'],
     license: 'apache-2.0',
+    recommended: true,
     minRamGb: 8,
     contextLength: 4096,
     config: { sampler: null },
+    variant: 'standard',
+    tags: ['quality', 'multilingual'],
   }),
   litertlm(GEMMA4_E2B, 'gemma-4-E2B-it_Google_Tensor_G6.litertlm', 3313938293, {
     id: 'gemma-4-e2b-it-npu-tensor-g6',
@@ -198,10 +246,14 @@ export const TEXT_MODELS: CatalogModel[] = [
     backends: ['npu'],
     socs: ['Tensor G6'],
     license: 'apache-2.0',
+    recommended: true,
     minRamGb: 8,
     contextLength: 4096,
     config: { sampler: null },
+    variant: 'standard',
+    tags: ['quality', 'multilingual'],
   }),
+  ...generated('text'),
 ]
 
 // --- Images (Stable Diffusion as ONNX) --------------------------------------------------------------------------------
@@ -286,6 +338,8 @@ export const IMAGE_MODELS: CatalogModel[] = [
       vaeOutputRange: [-1, 1],
       textDim: 768,
     },
+    variant: 'standard',
+    tags: ['fast', 'turbo'],
   },
   {
     id: 'lcm-dreamshaper-v7-int8',
@@ -304,6 +358,8 @@ export const IMAGE_MODELS: CatalogModel[] = [
     steps: 4,
     guidance: 8,
     scheduler: 'lcm',
+    variant: 'standard',
+    tags: ['lcm', 'fast'],
     config: {
       ...SD_SCHEDULE,
       originalInferenceSteps: 50,
@@ -334,6 +390,8 @@ export const IMAGE_MODELS: CatalogModel[] = [
     steps: 4,
     guidance: 8,
     scheduler: 'lcm',
+    variant: 'standard',
+    tags: ['lcm'],
     config: {
       ...SD_SCHEDULE,
       originalInferenceSteps: 50,
@@ -363,6 +421,8 @@ export const IMAGE_MODELS: CatalogModel[] = [
     steps: 1,
     guidance: 0,
     scheduler: 'turbo',
+    variant: 'standard',
+    tags: ['turbo'],
     config: {
       ...SD_SCHEDULE,
       timestepSpacing: 'trailing',
@@ -376,6 +436,7 @@ export const IMAGE_MODELS: CatalogModel[] = [
       textDim: 1024,
     },
   },
+  ...generated('image'),
 ]
 
 // --- Voice (sherpa-onnx TTS + Android's system voice) -----------------------------------------------------------------
@@ -444,9 +505,13 @@ const ESPEAK_NG_DATA: readonly (readonly [string, number])[] = [
   ["yue_dict",563571],
 ]
 
+function espeakFiles(src: readonly [string, string]): DeviceFile[] {
+  return ESPEAK_NG_DATA.map(([p, size]) => file(src[0], src[1], `espeak-ng-data/${p}`, size))
+}
+
 const withEspeak = (src: readonly [string, string], own: [string, number][]): DeviceFile[] => [
   ...own.map(([path, size]) => file(src[0], src[1], path, size)),
-  ...ESPEAK_NG_DATA.map(([p, size]) => file(src[0], src[1], `espeak-ng-data/${p}`, size)),
+  ...espeakFiles(src),
 ]
 
 const KITTEN = ['csukuangfj2/kitten-nano-en-v0_8-int8', '90dfe12687f7822a90e5afc5931b536ba6caf22a'] as const
@@ -484,6 +549,8 @@ export const VOICE_MODELS: CatalogModel[] = [
     license: 'system',
     homepage: 'https://developer.android.com/reference/android/speech/tts/TextToSpeech',
     config: { engine: 'system' },
+    variant: 'standard',
+    tags: ['multilingual'],
   },
   {
     id: 'kitten-nano-en-v0_8-int8',
@@ -499,6 +566,8 @@ export const VOICE_MODELS: CatalogModel[] = [
     homepage: 'https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8',
     recommended: true,
     minRamGb: 2,
+    variant: 'standard',
+    tags: ['english', 'expressive', 'fast'],
     voices: [
       { id: '0', name: 'Jasper', gender: 'male', language: 'en-US' },
       { id: '1', name: 'Bella', gender: 'female', language: 'en-US' },
@@ -532,6 +601,8 @@ export const VOICE_MODELS: CatalogModel[] = [
     license: 'apache-2.0',
     homepage: 'https://huggingface.co/hexgrad/Kokoro-82M',
     minRamGb: 4,
+    variant: 'standard',
+    tags: ['multilingual', 'multi-speaker', 'quality'],
     voices: [
       { id: '0', name: 'Alloy', gender: 'female', language: 'en-US' }, // af_alloy
       { id: '1', name: 'Aoede', gender: 'female', language: 'en-US' }, // af_aoede
@@ -621,6 +692,8 @@ export const VOICE_MODELS: CatalogModel[] = [
     license: 'MIT (Piper); Lessac voice data under a research license',
     homepage: 'https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/lessac/medium',
     minRamGb: 2,
+    variant: 'standard',
+    tags: ['english', 'fast'],
     voices: [{ id: '0', name: 'Lessac', gender: 'female', language: 'en-US' }],
     config: {
       engine: 'vits',
@@ -633,6 +706,7 @@ export const VOICE_MODELS: CatalogModel[] = [
       lengthScale: 1.0,
     },
   },
+  ...generated('voice'),
 ]
 
 export const CATALOG: CatalogModel[] = [...TEXT_MODELS, ...IMAGE_MODELS, ...VOICE_MODELS]

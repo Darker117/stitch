@@ -17,6 +17,13 @@
   --topbar: 52px;
   --tabbar: 62px;
 }
+/* Tablets: roomier chrome (the shell's `min-[600px]:` variants size icons to match). */
+@media (min-width: 600px) {
+  :root {
+    --topbar: 60px;
+    --tabbar: 70px;
+  }
+}
 
 @layer base {
   html[data-phone] {
@@ -38,6 +45,24 @@
       opacity: 1;
     }
   }
+}
+
+/* Readable secondary text on a phone: the desktop greys are tuned for big panels on a monitor. */
+html[data-phone] {
+  --fg-2: #bfb9cd;
+  --fg-3: #938da3;
+}
+html[data-phone][data-bg='media'] {
+  --fg-2: #cdc8d9;
+  --fg-3: #a39db2;
+}
+
+/* The page-wide surface: the theme's glass, lightly frosted so text over busy wallpapers stays legible. */
+.phone-wash {
+  background: var(--phone-wash, var(--panel));
+}
+html[data-bg='media'] .phone-wash {
+  backdrop-filter: blur(14px) saturate(130%);
 }
 
 /* No scrollbars on a phone (unlayered, so it beats the desktop's unlayered scrollbar rules). */

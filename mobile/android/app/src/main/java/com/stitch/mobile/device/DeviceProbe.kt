@@ -25,6 +25,8 @@ data class DeviceInfo(
     val freeStorageBytes: Long,
     val gpu: String?,
     val backends: Map<String, List<BackendSupport>>,
+    /** Per model format (litertlm, gguf, sd-onnx, sd-cpp, tts-onnx, tts-system): the backends that runtime can use here. */
+    val runtimes: Map<String, List<BackendSupport>>,
 )
 
 /** Chip, memory and per-task backend availability. */
@@ -48,6 +50,7 @@ class DeviceProbe(private val context: Context) {
         val mi = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
         val free = try { StatFs(context.filesDir.absolutePath).availableBytes } catch (_: Exception) { 0L }
         val gpu = SocTable.friendlyGpu(gpu())
+        val backends = backends(soc, gpu)
         return DeviceInfo(
             manufacturer = Build.MANUFACTURER ?: "",
             model = Build.MODEL ?: "",
@@ -58,7 +61,28 @@ class DeviceProbe(private val context: Context) {
             ramBytes = mi.totalMem,
             freeStorageBytes = free,
             gpu = gpu,
-            backends = backends(soc, gpu),
+            backends = backends,
+            runtimes = runtimes(backends, gpu),
+        )
+    }
+
+    /**
+     * Backends per runtime. LiteRT-LM, the ONNX pipeline and the voices match their task's list; llama.cpp ('gguf') and
+     * stable-diffusion.cpp ('sd-cpp') have their own: GPU (ggml's Vulkan, available only where it's offered) and CPU.
+     * They have no NPU path at all, so it isn't listed (custom models take their backends from this list).
+     */
+    private fun runtimes(backends: Map<String, List<BackendSupport>>, gpu: String?): Map<String, List<BackendSupport>> {
+        fun ggml(runtime: String, lib: String, threads: Int) = listOf(
+            GgmlSupport.gpu(context, gpu, lib),
+            GgmlSupport.cpu(runtime, lib, threads),
+        )
+        return mapOf(
+            "litertlm" to backends.getValue("text"),
+            "gguf" to ggml("llama.cpp", "libstitch_llama.so", CpuInfo.ggmlThreads()),
+            "sd-onnx" to backends.getValue("image"),
+            "sd-cpp" to ggml("stable-diffusion.cpp", "libstitch_sd.so", CpuInfo.sdThreads()),
+            "tts-onnx" to backends.getValue("voice"),
+            "tts-system" to listOf(BackendSupport("cpu", true, "Android text-to-speech")),
         )
     }
 

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, ArrowLeft, BookOpen, Clapperboard, ImagePlus, Lock, LockOpen, MoreHorizontal, RefreshCw, ScanEye, Sparkles, Trash2, Unlock } from 'lucide-react'
@@ -18,6 +18,7 @@ import { Menu, MenuItem, MenuSeparator, Tooltip } from '@/components/ui/overlay'
 import { db, useCollection, useDoc } from '@/stores/db'
 import { isActive, useGen } from '@/stores/gen'
 import { toast } from '@/stores/toast'
+import { Grid, isCharacterGeneration } from './Generations'
 import { generateSheet, useSlotJobs } from './sheet'
 import { Silhouette } from './Silhouette'
 
@@ -90,7 +91,8 @@ export function CharacterDetail(): React.JSX.Element {
   const c = useDoc('characters', id)
   const ref = useDoc('assets', c?.referenceAssetId)
   const jobs = useSlotJobs(c?.id)
-  useCollection('assets')
+  const assets = useCollection('assets')
+  const gens = useMemo(() => (c ? assets.filter((a) => isCharacterGeneration(a, c.id)).sort((a, b) => b.createdAt - a.createdAt) : []), [assets, c?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [describing, setDescribing] = useState(false)
   const [name, setName] = useState(c?.name ?? '')
@@ -348,6 +350,15 @@ export function CharacterDetail(): React.JSX.Element {
             })}
             <div className="font-mono text-[9px] tracking-[0.22em] text-fg-3">ONE REFERENCE — EVERY POSE LOCKED</div>
           </div>
+          {gens.length > 0 && (
+            <div className="mt-8 max-md:mt-6">
+              <div className="mb-3 flex items-baseline gap-2">
+                <div className="label-caps">Generations</div>
+                <span className="text-[11.5px] text-fg-3 tabular-nums">{gens.length}</span>
+              </div>
+              <Grid items={gens} onOpen={setLightbox} />
+            </div>
+          )}
         </div>
       </div>
       <AssetLightbox

@@ -5,6 +5,7 @@ import type { Asset, Character, Chat, ChatMessage, ChatToolCall, GenJob, ID, Sce
 import { invoke, streamLlm, type StreamHandle } from '@/lib/api'
 import { animateScene, characterRefs, pickEditRecipe, sceneImageRequest } from '@/lib/characters'
 import { defaultLlm } from '@/lib/llm'
+import { runWebTool, WEB_GUIDE, WEB_TOOL_NAMES, WEB_TOOLS, webEnabled } from '@/lib/web'
 import { db } from '@/stores/db'
 import { useGen, waitForJob } from '@/stores/gen'
 
@@ -148,7 +149,8 @@ How to work:
 - Video prompts (MiniMax H3): write shots like "[Shot 1] … [Shot 2] At 00:02.5 the camera cuts to …", include camera motion, and end with the soundscape: ambient sound, effects, music; put dialogue in quotes with the speaker. Durations 4–8 s work best.
 - To animate a picture you just made, pass its asset id as first_frame_asset_id.
 - Tool results include asset ids you can reuse.
-${projectStyle ? `\nProject style to respect: ${projectStyle}\n` : ''}
+${webEnabled() ? `${WEB_GUIDE}
+` : ''}${projectStyle ? `\nProject style to respect: ${projectStyle}\n` : ''}
 Saved characters:
 ${roster}`
 }
@@ -186,6 +188,8 @@ export async function executeTool(call: ChatToolCall, ctx: { chatId: ID; project
     jobIds.push(...ids)
     ctx.onJobs([...jobIds])
   }
+
+  if (WEB_TOOL_NAMES.has(call.name)) return { result: await runWebTool(call.name, a) }
 
   switch (call.name) {
     case 'generate_image': {
@@ -337,7 +341,7 @@ export async function executeTool(call: ChatToolCall, ctx: { chatId: ID; project
  * instead of using the API's tool channel. Recover them so the agent still acts.
  */
 export function extractTextToolCalls(text: string): { calls: { name: string; args: Record<string, unknown> }[]; rest: string } {
-  const names = new Set(TOOLS.map((t) => t.name))
+  const names = new Set([...TOOLS, ...WEB_TOOLS].map((t) => t.name))
   const calls: { name: string; args: Record<string, unknown> }[] = []
   let rest = text
 
@@ -421,7 +425,8 @@ export interface RunCallbacks {
   approve: (call: ChatToolCall) => Promise<boolean>
 }
 
-const MAX_STEPS = 6
+// Research turns (search → read → answer) need a few more steps than generation alone.
+const MAX_STEPS = 10
 
 /**
  * Run the agent until it stops calling tools. Persists every step so the
@@ -435,6 +440,9 @@ export function runAgent(chatId: ID, cb: RunCallbacks): { abort: () => void; don
     if (next) cb.onUpdate(next)
     return next
   }
+
+  // Wake the web search engine while the model thinks, so a first search doesn't wait for it to start.
+  if (webEnabled()) void invoke('web:start').catch(() => {})
 
   const done = (async () => {
     for (let step = 0; step < MAX_STEPS && !aborted; step++) {
@@ -459,7 +467,7 @@ export function runAgent(chatId: ID, cb: RunCallbacks): { abort: () => void; don
         })
       }
       current = streamLlm(
-        { connectorId: llm.connectorId, model: llm.model, system: systemPrompt(project?.style), messages: toLlmMessages(chat.messages), tools: TOOLS, maxTokens: 4096, temperature: 0.7 },
+        { connectorId: llm.connectorId, model: llm.model, system: systemPrompt(project?.style), messages: toLlmMessages(chat.messages), tools: webEnabled() ? [...TOOLS, ...WEB_TOOLS] : TOOLS, maxTokens: 4096, temperature: 0.7 },
         (full) => {
           liveText = full
           if (full && liveThought && thinkingMs === undefined) thinkingMs = Date.now() - started

@@ -12,6 +12,7 @@ import { app } from 'electron'
 import { randomBytes, randomInt } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { hostname, networkInterfaces } from 'node:os'
+import type { Duplex } from 'node:stream'
 import { WebSocketServer, type WebSocket } from 'ws'
 import type { EventChannel, PairingInfo, RemoteHost } from '@shared/ipc'
 import { invokeHandler, onEmit } from '../ipc'
@@ -43,10 +44,21 @@ export interface RemoteHooks {
   paired: (device: StoredDevice) => void
   /** Public address (Access from anywhere), if one is up. */
   publicUrl: () => string | undefined
+  /** Phones may pair and connect (the server also runs for a node PC with phones off). */
+  phonesAllowed: () => boolean
+  /** Linked-PC endpoints under /api/node/ (src/main/cluster/node.ts). They have their own tokens. */
+  node: () => NodeEndpoints | null
+}
+
+export interface NodeEndpoints {
+  http: (req: IncomingMessage, res: ServerResponse, ctx: { ip: string; limiter: Limiter }) => Promise<boolean>
+  upgrade: (req: IncomingMessage, socket: Duplex, head: Buffer, ctx: { ip: string; limiter: Limiter }) => boolean
+  /** Extra fields for /api/hello. */
+  hello: () => Record<string, unknown>
 }
 
 /** Where a request really came from (tunnels connect from localhost and forward the client IP). */
-function clientIp(req: IncomingMessage): string {
+export function clientIp(req: IncomingMessage): string {
   const cf = req.headers['cf-connecting-ip']
   if (typeof cf === 'string' && cf) return cf
   const xff = req.headers['x-forwarded-for']
@@ -55,7 +67,7 @@ function clientIp(req: IncomingMessage): string {
 }
 
 /** Failed auth/pairing attempts per address: 20 in 10 minutes locks that address out for 10 minutes. */
-class Limiter {
+export class Limiter {
   private hits = new Map<string, number[]>()
   blocked(ip: string): boolean {
     const now = Date.now()
@@ -147,6 +159,11 @@ export class RemoteServer {
     const server = createServer((req, res) => void this.onHttp(req, res))
     const wss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024 * 1024, perMessageDeflate: { threshold: 8192 } })
     server.on('upgrade', (req, socket, head) => {
+      const node = this.hooks.node()
+      if (req.url?.startsWith('/api/node/')) {
+        if (!node?.upgrade(req, socket, head, { ip: clientIp(req), limiter: this.limiter })) socket.destroy()
+        return
+      }
       if (!req.url?.startsWith('/api/ws')) return socket.destroy()
       wss.handleUpgrade(req, socket, head, (ws) => this.onSocket(ws, req))
     })
@@ -251,8 +268,15 @@ export class RemoteServer {
     if (url.pathname !== '/api/hello' && this.limiter.blocked(clientIp(req))) return this.json(res, 429, { error: 'Too many attempts — wait a few minutes.' })
     try {
       if (url.pathname === '/api/hello') {
-        return this.json(res, 200, { app: 'stitch', version: app.getVersion(), pcId: pcId(), pcName: pcName(), pairing: !!this.pairing && this.pairing.expiresAt > Date.now() })
+        return this.json(res, 200, { app: 'stitch', version: app.getVersion(), pcId: pcId(), pcName: pcName(), pairing: !!this.pairing && this.pairing.expiresAt > Date.now(), ...this.hooks.node()?.hello() })
       }
+      if (url.pathname.startsWith('/api/node/')) {
+        const node = this.hooks.node()
+        if (node && (await node.http(req, res, { ip: clientIp(req), limiter: this.limiter }))) return
+        return notFound(res)
+      }
+      // Everything below is for phones.
+      if (!this.hooks.phonesAllowed()) return this.json(res, 403, { error: 'Phones are switched off on this PC (Settings → Phone).' })
       if (url.pathname === '/api/pair' && req.method === 'POST') return await this.onPair(req, res)
 
       if (parts[0] === 'api' && (parts[1] === 'f' || parts[1] === 't' || parts[1] === 'wp')) {
@@ -337,6 +361,7 @@ export class RemoteServer {
       }
       if (!client) {
         if (msg.t !== 'auth') return ws.close(4001, 'Auth first')
+        if (!this.hooks.phonesAllowed()) return ws.close(4003, 'Phones are switched off on this PC')
         const device = deviceForToken(msg.token)
         if (!device) {
           this.limiter.fail(address)

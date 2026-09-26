@@ -23,7 +23,10 @@ function defaults(): AppSettings {
     onboardingDone: false,
     civitai: { hideNsfw: true },
     updates: { autoDownload: true },
-    remote: { enabled: false, port: 47847 }
+    remote: { enabled: false, port: 47847 },
+    web: { enabled: true, safeSearch: 1, maxResults: 6 },
+    cluster: { role: 'main' },
+    llama: { ctx: 8192, devices: [], port: 8480, autoStart: false }
   }
 }
 

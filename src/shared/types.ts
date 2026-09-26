@@ -4,7 +4,7 @@ export type ID = string
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 
-export type BackgroundType = 'gradient' | 'image' | 'video' | 'web' | 'none'
+export type BackgroundType = 'gradient' | 'image' | 'video' | 'web' | 'scene' | 'none'
 
 export interface BackgroundSettings {
   type: BackgroundType
@@ -20,6 +20,8 @@ export interface BackgroundSettings {
   dim: number
   /** Blur in px applied behind content. */
   blur: number
+  /** Audio-reactive wallpapers may listen to what's playing on this PC (default on). */
+  audio?: boolean
 }
 
 export interface ThemeSettings {
@@ -40,13 +42,26 @@ export interface ThemeSettings {
 /** A workload that can be pinned to a GPU. */
 export type GpuWorkload = 'image' | 'video' | 'audio' | 'voice'
 
+/** A GPU on a linked node PC (Settings → Computers). */
+export interface NodeGpu {
+  /** The node's PC id. */
+  node: string
+  /** nvidia-smi index on that PC. */
+  gpu: number
+}
+
+/** Where a workload runs: a local GPU index, a GPU on a linked PC, or 'auto'. */
+export type GpuTarget = number | NodeGpu | 'auto'
+
 export interface GpuSettings {
   /** nvidia-smi indices Stitch may use. Empty = let ComfyUI decide (single instance). */
   enabled: number[]
-  /** Which GPU runs each workload; 'auto' balances across all enabled GPUs. */
-  assign: Record<GpuWorkload, number | 'auto'>
+  /** Which GPU runs each workload; 'auto' balances across all enabled GPUs (voice stays on this PC). */
+  assign: Record<GpuWorkload, GpuTarget>
   /** true: Stitch launches its own ComfyUI per GPU. false: use a ComfyUI you already run. */
   managed: boolean
+  /** GPUs on linked PCs that join the pool (auto-balancing and pinning). */
+  remote?: NodeGpu[]
 }
 
 export interface AppSettings {
@@ -83,6 +98,39 @@ export interface AppSettings {
     /** Access from anywhere: a public HTTPS address for the phone remote. */
     anywhere?: { mode: 'off' | 'cloudflare' | 'tailscale' | 'custom'; customUrl?: string }
   }
+  /** Web search for text models: the bundled SearXNG behind the web_search / open_page tools. */
+  web: {
+    /** Give text models the web_search and open_page tools. */
+    enabled: boolean
+    /** 0 off, 1 moderate, 2 strict. */
+    safeSearch: 0 | 1 | 2
+    /** Results handed to the model per search. */
+    maxResults: number
+  }
+  /** Multi-PC compute (Settings → Computers). */
+  cluster: {
+    /** main: links other Stitch PCs and uses their GPUs. node: offers this PC's GPUs to a main on the LAN. */
+    role: 'main' | 'node'
+    /** Name other PCs see (default: the computer name). */
+    name?: string
+    /** Node: GPUs a linked main may use (nvidia-smi indices); unset = all. */
+    share?: number[]
+  }
+  /** Stitch-managed llama.cpp text engine (Settings → Computers → Text engine). */
+  llama: {
+    /** GGUF file to load. */
+    model?: string
+    /** Context size in tokens. */
+    ctx: number
+    /** Devices that hold layers: 'local:<gpu>' or '<nodeId>:<gpu>'. Empty = CPU only. */
+    devices: string[]
+    /** Relative layer share per device key; unset = by free VRAM. */
+    split?: Record<string, number>
+    /** llama-server port on 127.0.0.1. */
+    port: number
+    /** Start the text engine when Stitch opens. */
+    autoStart: boolean
+  }
 }
 
 // ─── App updates ─────────────────────────────────────────────────────────────
@@ -118,6 +166,8 @@ export type LlmKind =
   | 'openai-compatible'
   /** On-device model in the Stitch phone app (answered on the phone, never by the PC). */
   | 'device'
+  /** Stitch's own llama.cpp server (OpenAI-compatible on 127.0.0.1, layers may span linked PCs). */
+  | 'llamacpp'
 
 /** 'device' = on-device speech in the Stitch phone app (answered on the phone, never by the PC). */
 export type VoiceKind = 'local-qwen' | 'local-kokoro' | 'local-pocket' | 'elevenlabs' | 'openai-tts' | 'azure' | 'device'
@@ -148,6 +198,8 @@ export interface ComfyConnector extends ConnectorBase {
   roles: GenKind[]
   /** When set, Stitch launches and owns this ComfyUI process. */
   managed?: { cudaDevice?: number; port: number }
+  /** ComfyUI run by the Stitch on a linked node PC, reached through the authenticated link (`url` is the local tunnel). */
+  node?: NodeGpu
 }
 
 export interface VoiceConnector extends ConnectorBase {
@@ -195,7 +247,7 @@ export interface Asset {
   tags?: string[]
   favorite?: boolean
   /** Where it was made from, e.g. an adventure turn. `sub: 'cover'` on a scenario/adventure sets its cover. */
-  origin?: { type: 'adventure' | 'scenario' | 'character' | 'chat' | 'studio' | 'timeline'; id: ID; sub?: ID }
+  origin?: { type: 'adventure' | 'scenario' | 'character' | 'chat' | 'studio' | 'timeline' | 'flow'; id: ID; sub?: ID }
 }
 
 // ─── Generation ──────────────────────────────────────────────────────────────
@@ -349,6 +401,39 @@ export interface Character {
   locked: boolean
   voice?: CharacterVoice
   tags: string[]
+}
+
+// ─── Character Studio (node workflows) ───────────────────────────────────────
+
+export type FlowNodeKind = 'idea' | 'reference' | 'model' | 'lora' | 'portrait' | 'edit' | 'character' | 'sheet' | 'voice'
+
+export interface FlowNode {
+  id: string
+  kind: FlowNodeKind
+  x: number
+  y: number
+  /** The node's settings, plus its last results (asset ids, the picked one, pending job ids). */
+  data: Record<string, unknown>
+}
+
+export interface FlowEdge {
+  id: string
+  from: string
+  fromPort: string
+  to: string
+  toPort: string
+}
+
+/** A saved Character Studio workflow: nodes that turn ideas, references, models and LoRAs into characters. */
+export interface CharacterFlow {
+  id: ID
+  name: string
+  nodes: FlowNode[]
+  edges: FlowEdge[]
+  /** Built-in template it started from. */
+  template?: string
+  createdAt: number
+  updatedAt: number
 }
 
 // ─── Stories (scenarios + adventures) ────────────────────────────────────────
@@ -936,6 +1021,7 @@ export type CollectionName =
   | 'timelines'
   | 'jobs'
   | 'scripts'
+  | 'flows'
 
 export interface CollectionMap {
   connectors: Connector
@@ -949,6 +1035,7 @@ export interface CollectionMap {
   timelines: Timeline
   jobs: GenJob
   scripts: StoryScript
+  flows: CharacterFlow
 }
 
 export interface DbChange {

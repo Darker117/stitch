@@ -65,14 +65,21 @@ export function characterRefs(c: Character, max = 3): ID[] {
   return out
 }
 
-/** Build a generation request for one sheet slot. */
-export function sheetSlotRequest(c: Character, slot: SlotDef, recipe: RecipeInfo): GenRequest {
+/** Recipes that take reference images (edit / reference models), so they can render sheets and edits. */
+export function takesImages(recipe: RecipeInfo | undefined): boolean {
+  return !!recipe && recipe.kind === 'image' && recipe.params.some((p) => p.key === 'images')
+}
+
+/** Build a generation request for one sheet slot. `extra` carries a chosen model file / LoRA stack. */
+export function sheetSlotRequest(c: Character, slot: SlotDef, recipe: RecipeInfo, extra?: Record<string, unknown>): GenRequest {
   const ref = c.referenceAssetId ?? c.sheet.front
   if (!ref) throw new Error('Upload a reference image first')
   const prompt = recipe.id === 'flux2-klein' ? `${slot.prompt} ${KEEP.replace(/<image1>/g, 'image 1')}` : `${slot.prompt} ${KEEP}`
+  const words = Array.isArray(extra?.words) && extra.words.length ? ` ${(extra.words as string[]).join(', ')}` : ''
+  const params = Object.fromEntries(Object.entries(extra ?? {}).filter(([k, v]) => k !== 'words' && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)))
   return {
     recipeId: recipe.id,
-    params: { prompt, images: [ref], aspect: slot.aspect, quality: c.sheetDetail === 'studio' ? '1.5' : '1' },
+    params: { prompt: prompt + words, images: [ref], aspect: slot.aspect, quality: c.sheetDetail === 'studio' ? '1.5' : '1', ...params },
     label: `${c.name} · ${slot.label}`,
     origin: { type: 'character', id: c.id, sub: slot.slot },
     characterIds: [c.id],

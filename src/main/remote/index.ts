@@ -10,7 +10,7 @@ import { getSettings, updateSettings } from '../settings'
 import { Anywhere } from './anywhere'
 import { listDevices, pcId, publicDevice } from './devices'
 import { cleanUploads } from './files'
-import { localHosts, pcName, RemoteServer } from './server'
+import { localHosts, pcName, RemoteServer, type NodeEndpoints } from './server'
 
 let lastPublic: string | undefined
 const anywhere = new Anywhere(() => {
@@ -22,11 +22,34 @@ const anywhere = new Anywhere(() => {
   emit('remote:changed', status())
 })
 
+let nodeEndpoints: NodeEndpoints | null = null
+
 const server = new RemoteServer({
   changed: () => emit('remote:changed', status()),
   paired: (d) => emit('remote:paired', publicDevice(d, false)),
-  publicUrl: () => anywhere.url
+  publicUrl: () => anywhere.url,
+  phonesAllowed: () => getSettings().remote.enabled,
+  node: () => nodeEndpoints
 })
+
+/** Settings → Computers: a node answers linked mains on this server (see src/main/cluster/node.ts). */
+export function setNodeEndpoints(e: NodeEndpoints): void {
+  nodeEndpoints = e
+}
+
+const nodeRole = (): boolean => getSettings().cluster?.role === 'node'
+
+export function remoteRunning(): boolean {
+  return server.running
+}
+
+export function remotePort(): number {
+  return server.running ? server.port : getSettings().remote.port
+}
+
+export function remoteError(): string | undefined {
+  return server.error
+}
 
 function status(): RemoteStatus {
   const s = getSettings().remote
@@ -49,9 +72,14 @@ function status(): RemoteStatus {
 
 let anywhereKey = ''
 
+/** Start or stop the server (phones allowed, or this PC is a node) and the public address. */
+export function applyRemote(): Promise<void> {
+  return apply()
+}
+
 async function apply(): Promise<void> {
   const s = getSettings().remote
-  if (s.enabled) {
+  if (s.enabled || nodeRole()) {
     try {
       if (!server.running || server.port !== s.port) await server.start(s.port)
     } catch (err) {

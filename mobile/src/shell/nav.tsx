@@ -22,7 +22,7 @@ export const MORE: (Tab & { hint: string })[] = [
   { to: '/projects', label: 'Projects', hint: 'Worlds and styles', icon: <Layers />, match: (p) => p.startsWith('/projects') },
   { to: '/phone', label: 'This phone', hint: 'On-device models', icon: <Cpu />, match: (p) => p.startsWith('/phone') },
   { to: '/models', label: 'Models', hint: 'PC model library', icon: <Boxes />, match: (p) => p.startsWith('/models') },
-  { to: '/skills', label: 'Skills', hint: 'ComfyUI workflows', icon: <Zap />, match: (p) => p.startsWith('/skills') },
+  { to: '/skills', label: 'Skills', hint: 'Workflows, web search', icon: <Zap />, match: (p) => p.startsWith('/skills') },
   { to: '/connectors', label: 'Connectors', hint: 'Models and voices', icon: <Blocks />, match: (p) => p.startsWith('/connectors') },
   { to: '/settings', label: 'Settings', hint: 'Profile, theme, PC', icon: <Settings />, match: (p) => p.startsWith('/settings') }
 ]

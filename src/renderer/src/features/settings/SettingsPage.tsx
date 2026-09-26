@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { Cpu, FolderCog, Info, Palette, SlidersHorizontal, Smartphone, Sparkles } from 'lucide-react'
+import { Cpu, FolderCog, Info, Network, Palette, SlidersHorizontal, Smartphone, Sparkles } from 'lucide-react'
 import type { DetectResult } from '@shared/ipc'
 import { invoke } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -19,17 +19,19 @@ import { useAppSettings, useSettings } from '@/stores/settings'
 import { useUpdate } from '@/stores/update'
 import { ModelStorageSettings } from '../models/StorageSettings'
 import { AppearanceSettings } from './AppearanceSettings'
+import { ComputersSettings } from './ComputersSettings'
 import { GpuSettings } from './GpuSettings'
 import { PhoneSettings } from './PhoneSettings'
 import { ProfileSettings } from './ProfileSettings'
 import { UpdateSettings } from './UpdateSettings'
 
-type Tab = 'general' | 'appearance' | 'gpus' | 'storage' | 'phone' | 'updates' | 'about'
+type Tab = 'general' | 'appearance' | 'gpus' | 'computers' | 'storage' | 'phone' | 'updates' | 'about'
 
 const TABS: { value: Tab; label: string; icon: React.ReactNode }[] = [
   { value: 'general', label: 'General', icon: <SlidersHorizontal /> },
   { value: 'appearance', label: 'Appearance', icon: <Palette /> },
   { value: 'gpus', label: 'GPUs', icon: <Cpu /> },
+  { value: 'computers', label: 'Computers', icon: <Network /> },
   { value: 'storage', label: 'Models & storage', icon: <FolderCog /> },
   { value: 'phone', label: 'Phone', icon: <Smartphone /> },
   { value: 'updates', label: 'Updates', icon: <Sparkles /> },
@@ -211,6 +213,7 @@ export function SettingsPage(): React.JSX.Element {
             {tab === 'general' && <General />}
             {tab === 'appearance' && <AppearanceSettings />}
             {tab === 'gpus' && <GpuSettings />}
+            {tab === 'computers' && <ComputersSettings />}
             {tab === 'storage' && <Storage />}
             {tab === 'phone' && <PhoneSettings />}
             {tab === 'updates' && <UpdateSettings />}

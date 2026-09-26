@@ -260,6 +260,13 @@ class TextEngine(private val context: Context) {
          * chat templates require alternation). If the chat doesn't end with a user turn, ask the model to continue.
          */
         fun buildConversation(system: String?, messages: List<ChatTurn>): Triple<String?, List<Message>, Message> {
+            val (sys, turns, prompt) = shape(system, messages)
+            val history = turns.map { if (it.role == "assistant") Message.model(it.content) else Message.user(it.content) }
+            return Triple(sys, history, Message.user(prompt))
+        }
+
+        /** The shaping behind [buildConversation] (also used for GGUF chat templates): system, earlier turns, final prompt. */
+        fun shape(system: String?, messages: List<ChatTurn>): Triple<String?, List<ChatTurn>, String> {
             val systemParts = mutableListOf<String>()
             system?.trim()?.takeIf { it.isNotEmpty() }?.let { systemParts += it }
             val turns = mutableListOf<ChatTurn>()
@@ -276,8 +283,7 @@ class TextEngine(private val context: Context) {
             // Templates such as Gemma's require the chat to open with a user turn.
             if (turns.firstOrNull()?.role == "assistant") turns.add(0, ChatTurn("user", "Begin."))
             val prompt = if (turns.lastOrNull()?.role == "user") turns.removeAt(turns.size - 1).content else "Continue."
-            val history = turns.map { if (it.role == "assistant") Message.model(it.content) else Message.user(it.content) }
-            return Triple(systemParts.joinToString("\n\n").ifEmpty { null }, history, Message.user(prompt))
+            return Triple(systemParts.joinToString("\n\n").ifEmpty { null }, turns, prompt)
         }
     }
 }

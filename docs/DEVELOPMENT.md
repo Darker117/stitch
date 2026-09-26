@@ -10,6 +10,16 @@ npm run dist       # build the Windows installer into dist/
 ```
 See [`CLAUDE.md`](../CLAUDE.md) for architecture and conventions.
 
+## Web search (bundled SearXNG)
+Text models search the web through a [SearXNG](https://github.com/searxng/searxng) that ships inside the installer. Build it once (needs network; downloads are cached in `node_modules/.cache/stitch-searxng`):
+```bash
+npm run searxng    # → resources/searxng/ (portable Python 3.13 + SearXNG + stitch_searx.py), ~94 MB, gitignored
+```
+`npm run dist` / `dist:publish` do this first, so installers always include it. Without it the app still runs; `web:status` reports `missing`.
+- **Pinning:** the SearXNG commit is in `searxng/pin.json` (shared with the Android build); the Python build (`PY`) and `tzdata` versions are at the top of `scripts/searxng.mjs`. After bumping either, run `npm run searxng` (it notices and rebuilds; `--force` always rebuilds). The build ends with a smoke test that loads SearXNG and its engines.
+- **Try it without the app:** `resources/searxng/python/python.exe resources/searxng/stitch_searx.py search "who wrote the hobbit" --data <scratch dir>` (also `page <url>`, `check`, and `serve [--port N]` for the HTTP API the app uses: `GET /stitch/health`, `POST /stitch/search`, `GET /stitch/page?url=&max=`).
+- **At runtime** the app starts it on the first search, keeps settings/caches/bytecode in `<userData>/searxng`, logs to `<userData>/logs/searxng.log`, and stops it after 15 idle minutes.
+
 ## Phone app (Android)
 The Android companion lives in [`mobile/`](../mobile) — a Capacitor app that reuses this renderer's pages. Needs the Android SDK (with NDK) and JDK 21.
 ```bash

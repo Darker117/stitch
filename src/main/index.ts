@@ -17,10 +17,16 @@ import { registerSystem } from './services/system'
 import { registerUpdater } from './services/updater'
 import { registerVoice, shutdownVoice } from './services/voice'
 import { registerWallpaper, restoreWallpaperRoot } from './services/wallpaper'
+import { registerWeb, shutdownWeb } from './services/web'
 import { registerRemote, shutdownRemote } from './remote'
+import { registerCluster, shutdownCluster } from './cluster'
+import { registerLlama, shutdownLlama } from './services/llama'
 
 registerSchemePrivileges()
-app.setAppUserModelId('com.stitch.studio')
+// Dev runs are electron.exe: a separate taskbar identity keeps Windows from filing the installed
+// Stitch under Electron's icon.
+const APP_ID = app.isPackaged ? 'com.stitch.studio' : 'com.stitch.studio.dev'
+app.setAppUserModelId(APP_ID)
 nativeTheme.themeSource = 'dark'
 
 // Dev: isolated profile for screenshot/test runs so they never touch real data.
@@ -37,7 +43,8 @@ let quitting = false
 /** Phones need the PC app running: with the remote on, closing the window hides to the tray. */
 function stayInTray(): boolean {
   const r = getSettings().remote
-  return !!r.enabled && r.background !== false
+  // A node PC keeps offering its GPUs to its main with the window closed.
+  return (!!r.enabled && r.background !== false) || getSettings().cluster?.role === 'node'
 }
 
 function showWindow(): void {
@@ -104,6 +111,12 @@ function createWindow(): void {
       backgroundThrottling: false
     }
   })
+
+  // The taskbar button (and a pinned Stitch) take their icon from here, not from the exe hosting the window.
+  const icon = iconPath()
+  if (process.platform === 'win32' && icon) {
+    mainWindow.setAppDetails({ appId: APP_ID, appIconPath: icon, appIconIndex: 0, relaunchDisplayName: 'Stitch', ...(app.isPackaged ? { relaunchCommand: `"${process.execPath}"` } : {}) })
+  }
 
   mainWindow.on('close', (e) => {
     if (!quitting && stayInTray() && !process.env.STITCH_CAPTURE) {
@@ -194,7 +207,10 @@ void app.whenReady().then(() => {
   registerEditor()
   registerModels()
   registerUpdater()
+  registerWeb()
   registerRemote()
+  registerCluster()
+  registerLlama()
 
   createWindow()
   autoLaunchComfy()
@@ -211,6 +227,9 @@ app.on('before-quit', () => {
   flushAll()
   shutdownComfy()
   shutdownVoice()
+  shutdownWeb()
+  shutdownLlama()
+  shutdownCluster()
   void shutdownRemote()
 })
 

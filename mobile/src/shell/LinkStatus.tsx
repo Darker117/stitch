@@ -1,7 +1,7 @@
 // The PC link, visible: a status pill in the top bar, a detail sheet, and a reconnect banner.
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Globe, Laptop, Link2Off, RefreshCw, ScanLine, Unplug } from 'lucide-react'
+import { Globe, Laptop, Link2Off, RefreshCw, ScanLine, Unplug, X } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { spring } from '@/lib/motion'
 import { Button } from '@/components/ui/button'
@@ -12,11 +12,32 @@ import { clearPairing, routeOf } from '@mobile/bridge/pairing'
 import { Sheet } from './Sheet'
 import { tap } from './haptics'
 
-/** The PC link at a glance: a laptop with a live status dot (details in LinkSheet). */
+/** How long the reconnect banner stays before folding into the top bar's PC button. */
+const BANNER_MS = 6000
+
+/** Milliseconds the link has been down (ticks while down, 0 when connected). */
+function useDownFor(): number {
+  const downSince = useLink((s) => s.downSince)
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    if (!downSince) return
+    setNow(Date.now())
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [downSince])
+  return downSince ? Math.max(0, now - downSince) : 0
+}
+
+/**
+ * The PC link at a glance: a laptop with a live status dot (details in LinkSheet). Once the PC has
+ * been away for a while it becomes a small "Offline" chip — the quiet, permanent version of the banner.
+ */
 export function PcPill({ onClick }: { onClick: () => void }): React.JSX.Element {
   const state = useLink((s) => s.state)
   const route = useLink((s) => s.route)
+  const downFor = useDownFor()
   const ready = state === 'ready'
+  const away = !ready && state !== 'idle' && (state === 'unpaired' || downFor > BANNER_MS)
   return (
     <button
       onClick={() => {
@@ -24,12 +45,30 @@ export function PcPill({ onClick }: { onClick: () => void }): React.JSX.Element 
         onClick()
       }}
       aria-label={ready ? 'Connected to your PC' : 'PC connection'}
-      className="relative grid size-10 place-items-center rounded-xl text-fg-2 transition active:scale-90 active:bg-white/[0.06]"
+      className={cn(
+        'relative flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-xl text-fg-2 transition-[transform,background-color] active:scale-90 active:bg-white/[0.06] min-[600px]:h-12 min-[600px]:min-w-12',
+        away && 'px-2.5'
+      )}
     >
-      {route === 'Internet' && ready ? <Globe className="size-[18px]" /> : <Laptop className="size-[18px]" />}
-      <span className="absolute right-[7px] bottom-[9px] flex rounded-full bg-[#110f18] p-[2px]">
-        <StatusDot state={ready ? 'online' : state === 'unpaired' ? 'offline' : 'warn'} />
+      <span className="relative grid place-items-center">
+        {route === 'Internet' && ready ? <Globe className="size-[18px] min-[600px]:size-[22px]" /> : <Laptop className="size-[18px] min-[600px]:size-[22px]" />}
+        <span className="absolute -right-[5px] -bottom-[4px] flex rounded-full bg-[#110f18] p-[2px]">
+          <StatusDot state={ready ? 'online' : state === 'unpaired' ? 'offline' : 'warn'} />
+        </span>
       </span>
+      <AnimatePresence initial={false}>
+        {away && (
+          <motion.span
+            initial={{ opacity: 0, x: -4 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -4 }}
+            transition={spring}
+            className="text-[11.5px] font-semibold whitespace-nowrap text-fg-2 min-[600px]:text-[12.5px]"
+          >
+            {state === 'unpaired' ? 'Unpaired' : 'Offline'}
+          </motion.span>
+        )}
+      </AnimatePresence>
     </button>
   )
 }
@@ -115,18 +154,26 @@ function Info({ label, value, wide }: { label: string; value: string; wide?: boo
   )
 }
 
-/** Slides down under the top bar while the link is down; blocks nothing. */
+/**
+ * Slides down under the top bar when the link drops, then gets out of the way: after a few seconds
+ * (or a tap on ×) it folds into the PC button, and Stitch keeps reconnecting quietly. On-device
+ * features keep working meanwhile.
+ */
 export function LinkBanner({ onPair }: { onPair: () => void }): React.JSX.Element {
   const state = useLink((s) => s.state)
   const downSince = useLink((s) => s.downSince)
   const name = useLink((s) => s.pcName)
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => {
-    if (!downSince) return
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
-  }, [downSince])
-  const show = state === 'unpaired' || (state !== 'ready' && !!downSince && now - downSince > 1200)
+  const error = useLink((s) => s.error)
+  const downFor = useDownFor()
+  // Dismissals last for this outage (or this unpairing) only.
+  const [dismissed, setDismissed] = useState<string | null>(null)
+  const outage = state === 'unpaired' ? `unpaired:${error ?? ''}` : String(downSince ?? '')
+  const show = dismissed !== outage && (state === 'unpaired' || (state !== 'ready' && !!downSince && downFor > 1200 && downFor <= BANNER_MS))
+  const close = (
+    <button onClick={() => setDismissed(outage)} className="grid size-7 place-items-center rounded-full text-fg-3 transition hover:text-fg active:scale-90" aria-label="Hide">
+      <X className="size-3.5" />
+    </button>
+  )
   return (
     <AnimatePresence>
       {show && (
@@ -145,6 +192,7 @@ export function LinkBanner({ onPair }: { onPair: () => void }): React.JSX.Elemen
                 <Button size="xs" variant="primary" icon={<ScanLine className="size-3" />} onClick={onPair}>
                   Pair again
                 </Button>
+                {close}
               </>
             ) : (
               <>
@@ -155,6 +203,7 @@ export function LinkBanner({ onPair }: { onPair: () => void }): React.JSX.Elemen
                 <Button size="xs" variant="ghost" onClick={() => link.kick()}>
                   Retry
                 </Button>
+                {close}
               </>
             )}
           </div>

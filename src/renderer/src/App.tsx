@@ -38,6 +38,7 @@ const ComposerPage = lazyPage(() => import('@/features/stories/composer/Composer
 const PlayScreen = lazyPage(() => import('@/features/stories/PlayScreen'), 'PlayScreen')
 const CharactersPage = lazyPage(() => import('@/features/characters/CharactersPage'), 'CharactersPage')
 const CharacterDetail = lazyPage(() => import('@/features/characters/CharacterDetail'), 'CharacterDetail')
+const StudioPage = lazyPage(() => import('@/features/characters/studio/StudioPage'), 'StudioPage')
 const GeneratePage = lazyPage(() => import('@/features/generate/GeneratePage'), 'GeneratePage')
 const StudioHome = lazyPage(() => import('@/features/studio/StudioHome'), 'StudioHome')
 const EditorPage = lazyPage(() => import('@/features/studio/EditorPage'), 'EditorPage')
@@ -126,6 +127,7 @@ export const shellRoutes: RouteObject[] = [
   { path: '/stories/scenario/:id', element: <ScenarioEditor /> },
   { path: '/stories/compose', element: <ComposerPage /> },
   { path: '/characters', element: <CharactersPage /> },
+  { path: '/characters/studio', element: <StudioPage /> },
   { path: '/characters/:id', element: <CharacterDetail /> },
   { path: '/generate/:kind', element: <GeneratePage /> },
   { path: '/studio', element: <StudioHome /> },

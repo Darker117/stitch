@@ -1,7 +1,8 @@
 // Settings → Phone: let the Stitch Android app drive this PC over the LAN (or Tailscale).
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, Globe, QrCode, Radio, ShieldCheck, Smartphone, Trash2, Wifi, X } from 'lucide-react'
+import { AlertTriangle, Check, Cpu, Globe, QrCode, Radio, ShieldCheck, Smartphone, Trash2, Wifi, X } from 'lucide-react'
 import type { PairingInfo, RemoteDevice, RemoteStatus } from '@shared/ipc'
 import { errorText, invoke, on } from '@/lib/api'
 import { cn, timeAgo } from '@/lib/utils'
@@ -9,7 +10,7 @@ import { ease, pop, spring } from '@/lib/motion'
 import { Button, IconButton } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge, Field, SectionTitle, StatusDot } from '@/components/ui/misc'
-import { SwitchRow } from '@/components/ui/controls'
+import { Switch, SwitchRow } from '@/components/ui/controls'
 import { toast } from '@/stores/toast'
 import { useAppSettings, useSettings } from '@/stores/settings'
 import { RemoteAccess } from './RemoteAccess'
@@ -166,6 +167,48 @@ function BackgroundRow(): React.JSX.Element {
   )
 }
 
+/**
+ * Phone app only: run every generation on the phone's own hardware. The preference lives on the phone
+ * (`phone:deviceOnly` is answered there), so this works even while the PC is away.
+ */
+function GenerateOnPhone(): React.JSX.Element {
+  const navigate = useNavigate()
+  const [state, setState] = useState<{ deviceOnly: boolean; ready: { text: number; image: number; voice: number } } | null>(null)
+  const load = useCallback(() => void invoke('phone:deviceOnly').then(setState, () => setState(null)), [])
+  useEffect(load, [load])
+  if (!state) return <div />
+  const missing = (['text', 'image', 'voice'] as const).filter((k) => !state.ready[k]).map((k) => ({ text: 'chat', image: 'image', voice: 'voice' })[k])
+  return (
+    <div className={cn('rounded-2xl border p-4 transition-colors duration-300', state.deviceOnly ? 'border-[color-mix(in_oklab,var(--accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]' : 'border-line bg-white/[0.02]')}>
+      <label className="flex items-center gap-3.5">
+        <div className={cn('grid size-11 shrink-0 place-items-center rounded-2xl transition-colors', state.deviceOnly ? 'bg-grad text-white' : 'border border-line bg-white/[0.04] text-fg-2')}>
+          <Cpu className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[14px] font-semibold">Only use this phone’s hardware</div>
+          <div className="mt-0.5 text-[12px] leading-snug text-fg-3">Chats, images and voice run on this phone’s NPU, GPU or CPU instead of your PC. Video and music still need the PC.</div>
+        </div>
+        <Switch checked={state.deviceOnly} onChange={(v) => void invoke('phone:deviceOnly', v).then(setState)} />
+      </label>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {(['text', 'image', 'voice'] as const).map((k) => (
+          <Badge key={k} tone={state.ready[k] ? 'success' : 'outline'}>
+            {state.ready[k] ? <Check className="size-3" /> : null} {state.ready[k] ? `${state.ready[k]} ${k === 'text' ? 'chat' : k}` : `No ${k === 'text' ? 'chat' : k} model`}
+          </Badge>
+        ))}
+        <button onClick={() => navigate('/phone')} className="ml-auto text-[12px] font-semibold text-accent hover:brightness-125 max-md:py-1.5">
+          Manage models →
+        </button>
+      </div>
+      {state.deviceOnly && missing.length > 0 && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-warning/25 bg-warning/10 px-3 py-2 text-[11.5px] leading-snug text-warning">
+          <AlertTriangle className="mt-px size-3.5 shrink-0" /> Download a {missing.join(', ')} model in More → This phone — until then those won’t work.
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function PhoneSettings(): React.JSX.Element {
   const [status, setStatus] = useRemote()
   const [pairing, setPairing] = useState<PairingInfo | null>(null)
@@ -205,13 +248,15 @@ export function PhoneSettings(): React.JSX.Element {
   }
 
   const hosts = useMemo(() => status?.hosts ?? [], [status])
-  if (!status) return <div />
+  // The phone's own preference doesn't need the PC.
+  if (!status) return isPhone ? <GenerateOnPhone /> : <div />
 
   // On the phone itself: what it's connected to, and the settings a phone may change.
   // (Turning the server off, the port and unpairing other phones stay on the PC.)
   if (isPhone) {
     return (
       <div className="space-y-6">
+        <GenerateOnPhone />
         <div className="flex items-center gap-3.5 rounded-2xl border border-line bg-white/[0.02] p-4">
           <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-grad text-white shadow-[0_10px_30px_-10px_var(--accent)]">
             <Smartphone className="size-5" />

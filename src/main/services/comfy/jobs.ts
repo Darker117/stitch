@@ -140,15 +140,24 @@ export function knownModels(): Models {
   return out
 }
 
-function checkRequirements(r: RecipeDef, models: Models): string[] {
-  const missing: string[] = []
-  for (const req of r.requires) {
-    if (req.optional) continue
+/** A recipe's required files that `models` lacks. */
+export function recipeUnmet(r: RecipeDef, models: Models): RecipeDef['requires'] {
+  return r.requires.filter((req) => {
+    if (req.optional) return false
     const files = models[req.folder] ?? []
-    const ok = req.name ? files.some((f) => f === req.name || f.endsWith('/' + req.name)) : files.some((f) => req.match!.test(f))
-    if (!ok) missing.push(req.label)
-  }
-  return missing
+    return !(req.name ? files.some((f) => f === req.name || f.endsWith('/' + req.name)) : files.some((f) => req.match!.test(f)))
+  })
+}
+
+function checkRequirements(r: RecipeDef, models: Models): string[] {
+  return recipeUnmet(r, models).map((q) => q.label)
+}
+
+/** Can this instance run the job's recipe with its own models? (Unknown model lists count as yes.) */
+function capable(inst: Instance, job: GenJob): boolean {
+  const r = recipeById(job.recipeId)
+  if (!r || !Object.keys(inst.models).length) return true
+  return recipeUnmet(r, inst.models).length === 0
 }
 
 let libraryScan: Promise<unknown> | null = null
@@ -278,8 +287,11 @@ export function pump(): void {
   try {
     const queued = [...jobs.values()].filter((j) => j.status === 'queued' && !j.promptId).sort((a, b) => a.createdAt - b.createdAt)
     for (const job of queued) {
-      const candidates = getInstances()
-        .filter((i) => eligible(i, job))
+      // Instances (e.g. a linked node) that lack the recipe's models only get the job when none has them —
+      // then ComfyUI's own error explains what's missing.
+      const eligibleNow = getInstances().filter((i) => eligible(i, job))
+      const withModels = eligibleNow.filter((i) => capable(i, job))
+      const candidates = (withModels.length ? withModels : eligibleNow)
         .map((i) => ({ i, load: inflight.get(i.connector.id)?.size ?? 0 }))
         .filter((c) => c.load < MAX_INFLIGHT)
         .sort((a, b) => a.load - b.load || (b.i.vramFree ?? 0) - (a.i.vramFree ?? 0))

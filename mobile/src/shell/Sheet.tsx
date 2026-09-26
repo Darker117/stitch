@@ -46,7 +46,7 @@ export function Sheet({
             role="dialog"
             data-state="open"
             className={cn(
-              'glass-strong absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col overflow-hidden rounded-t-[26px] border-b-0 pb-[var(--sab)] shadow-[0_-30px_80px_-20px_rgb(0_0_0/0.8)]',
+              'glass-strong absolute inset-x-0 bottom-0 mx-auto flex max-h-[88vh] flex-col overflow-hidden rounded-t-[26px] border-b-0 pb-[var(--sab)] shadow-[0_-30px_80px_-20px_rgb(0_0_0/0.8)] min-[600px]:max-w-[680px]',
               full && 'h-[82vh]',
               className
             )}

@@ -103,3 +103,9 @@ app/src/main/res/xml/config.xml
 # Native runtimes fetched at build time (app/native-deps.gradle)
 .native-deps/
 .kotlin/
+
+# SearXNG staged for Chaquopy (scripts/searxng.mjs)
+.searxng/
+
+# llama.cpp / stable-diffusion.cpp sources and shader tools staged for the NDK build (scripts/native.mjs)
+.native/

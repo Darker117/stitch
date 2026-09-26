@@ -390,6 +390,25 @@ export function catalogDest(f: CatalogFile, base?: string): string {
   return dest
 }
 
+/** Queue a Hugging Face file to an exact destination (e.g. a GGUF for the llama.cpp text engine). */
+export function startHubFile(f: { repo: string; path: string; revision?: string; size?: number; sha256?: string; dest: string; folder: string; label?: string }, onDone: () => void): DownloadState {
+  const existing = downloadFor(f.dest)
+  if (existing) return existing
+  if (existsSync(f.dest)) throw new Error(`${f.path.split('/').pop()} is already downloaded.`)
+  const state: DownloadState = {
+    id: nanoid(10),
+    name: f.label ?? f.path.split('/').pop() ?? f.path,
+    folder: f.folder,
+    received: 0,
+    total: f.size ?? 0,
+    status: 'queued',
+    path: f.dest,
+    startedAt: Date.now(),
+    source: 'huggingface'
+  }
+  return enqueue(state, { dest: f.dest, size: f.size || undefined, sha256: f.sha256, open: (signal, offset) => openHf(f.repo, f.path, f.revision, signal, offset) }, () => undefined, onDone)
+}
+
 /** Queue one Hugging Face file into a models base (default: the models home). */
 export function startHfDownload(f: CatalogFile, opts: { base?: string; group?: string; label?: string }, onDone: () => void): DownloadState {
   if (!(f.folder in LAYOUT)) throw new Error(`Unknown models folder "${f.folder}".`)

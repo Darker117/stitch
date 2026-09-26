@@ -7,6 +7,7 @@ import { listAnthropicModels, streamAnthropic } from './anthropic'
 import { listOllamaModels, streamOllama } from './ollama'
 import { listOpenAiModels, streamOpenAi } from './openai'
 import { ThinkSplitter, type ThinkSink } from './think'
+import { llamaModels, llamaReady } from '../llama'
 
 const active = new Map<string, AbortController>()
 
@@ -22,7 +23,12 @@ function connector(id: string): LlmConnector {
  * goes to `sink.reasoning` and never into the returned text.
  */
 export async function runLlm(req: LlmRequest, sink: ThinkSink, signal: AbortSignal): Promise<LlmResult> {
-  const c = connector(req.connectorId)
+  let c = connector(req.connectorId)
+  // Stitch's llama.cpp engine starts on demand (its port may change between runs).
+  if (c.kind === 'llamacpp') {
+    await llamaReady()
+    c = connector(req.connectorId)
+  }
   const key = getSecret(c.id)
   const splitter = new ThinkSplitter(sink)
   let native = ''
@@ -57,6 +63,7 @@ export async function completeLlm(req: LlmRequest): Promise<LlmResult> {
 
 export async function listModels(id: string, refresh = false): Promise<LlmModelInfo[]> {
   const c = connector(id)
+  if (c.kind === 'llamacpp') return llamaModels()
   if (!refresh && c.models?.length) return c.models
   const key = getSecret(c.id)
   let models: LlmModelInfo[]

@@ -312,7 +312,8 @@ function GeneratorPanel({ kind }: { kind: GenKind }): React.JSX.Element {
     }
   }, [kind, incoming, kindRecipes, form])
 
-  const feed = useMemo(() => Object.values(jobs).filter((j) => j.kind === kind).sort((a, b) => b.createdAt - a.createdAt).slice(0, 60), [jobs, kind])
+  // Free-form generations only: character sheets and Character Studio renders live with their characters.
+  const feed = useMemo(() => Object.values(jobs).filter((j) => j.kind === kind && j.origin?.type !== 'character' && j.origin?.type !== 'flow').sort((a, b) => b.createdAt - a.createdAt).slice(0, 60), [jobs, kind])
   const running = feed.filter(isActive).length
 
   const enhance = async (): Promise<void> => {

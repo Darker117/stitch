@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { nanoid } from 'nanoid'
-import type { Character, GenJob, ID, SheetSlot } from '@shared/types'
+import type { Character, GenJob, ID, RecipeInfo, SheetSlot } from '@shared/types'
 import { pickEditRecipe, sheetSlotRequest, slotsFor } from '@/lib/characters'
 import { db } from '@/stores/db'
 import { useGen } from '@/stores/gen'
@@ -25,13 +25,16 @@ export async function createCharacter(opts: { name: string; referenceAssetId?: I
   return c
 }
 
-/** Queue the whole sheet (or a subset of slots). Returns the number of jobs. */
-export async function generateSheet(c: Character, only?: SheetSlot[]): Promise<number> {
-  const recipe = pickEditRecipe()
+/**
+ * Queue the whole sheet (or a subset of slots). Returns the number of jobs.
+ * `opts` picks another edit model and its model file / LoRA stack (Character Studio).
+ */
+export async function generateSheet(c: Character, only?: SheetSlot[], opts?: { recipe?: RecipeInfo; params?: Record<string, unknown> }): Promise<number> {
+  const recipe = opts?.recipe ?? pickEditRecipe()
   if (!recipe) throw new Error('Character sheets need Qwen Image 2.1 Edit or Flux 2 Klein. Start ComfyUI and check that the model is installed.')
   const slots = slotsFor(c.sheetDetail).filter((s) => !only || only.includes(s.slot))
   const { submit } = useGen.getState()
-  for (const s of slots) await submit(sheetSlotRequest(c, s, recipe))
+  for (const s of slots) await submit(sheetSlotRequest(c, s, recipe, opts?.params))
   return slots.length
 }
 
