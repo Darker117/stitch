@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Stitch</string>
+    <string name="title_activity_main">Stitch</string>
+    <string name="package_name">com.stitch.mobile</string>
+    <string name="custom_url_scheme">com.stitch.mobile</string>
+</resources>

@@ -1,0 +1,24 @@
+ext {
+    minSdkVersion = 24
+    compileSdkVersion = 36
+    targetSdkVersion = 36
+    androidxActivityVersion = '1.11.0'
+    androidxAppCompatVersion = '1.7.1'
+    androidxCoordinatorLayoutVersion = '1.3.0'
+    androidxCoreVersion = '1.17.0'
+    androidxFragmentVersion = '1.8.9'
+    coreSplashScreenVersion = '1.2.0'
+    androidxWebkitVersion = '1.14.0'
+    junitVersion = '4.13.2'
+    androidxJunitVersion = '1.3.0'
+    androidxEspressoCoreVersion = '3.7.0'
+    cordovaAndroidVersion = '14.0.1'
+    // On-device AI engines (StitchDevice plugin)
+    litertlmVersion = '0.17.1'
+    onnxruntimeQnnVersion = '1.29.0'
+    qnnRuntimeVersion = '2.50.0'
+    coroutinesVersion = '1.11.0'
+    // Not on Maven: fetched from GitHub releases at build time (see app/native-deps.gradle)
+    sherpaOnnxVersion = '1.13.8'
+    litertNpuRuntimeVersion = '2.2.0'
+}

@@ -1,0 +1,74 @@
+// Native dependencies of the StitchDevice plugin that are not published on Maven.
+// They are downloaded once into android/.native-deps (gitignored) and wired into the build:
+//
+//  - sherpa-onnx (k2-fsa, Apache-2.0): on-device neural TTS (Kokoro / Kitten / Piper-VITS / Matcha) with its
+//    bundled espeak-ng. We use the "static-link-onnxruntime" AAR: its arm64 libsherpa-onnx-jni.so links ONNX
+//    Runtime statically with hidden symbols, so it cannot clash with the libonnxruntime.so (1.29, QNN build) that
+//    the image pipeline loads from com.microsoft.onnxruntime:onnxruntime-android-qnn.
+//  - libLiteRtDispatch_Qualcomm.so / libLiteRtDispatch_GoogleTensor.so (google-ai-edge/LiteRT, Apache-2.0): the
+//    LiteRT NPU dispatch libraries LiteRT-LM loads from Backend.NPU(nativeLibraryDir) to run NPU-compiled .litertlm
+//    models. The Qualcomm one is the same binary for every Hexagon version (the QNN libs themselves come from
+//    com.qualcomm.qti:qnn-runtime); the Tensor one binds to the phone's /vendor/lib64/libedgetpu_litert.so.
+
+def nativeDepsDir = new File(rootDir, '.native-deps')
+def sherpaVersion = rootProject.ext.sherpaOnnxVersion
+def litertNpuVersion = rootProject.ext.litertNpuRuntimeVersion
+def sherpaAar = new File(nativeDepsDir, "sherpa-onnx-static-link-onnxruntime-${sherpaVersion}.aar")
+def litertNpuZip = new File(nativeDepsDir, "litert_npu_runtime_libraries-${litertNpuVersion}.zip")
+def generatedJniDir = new File(buildDir, 'generated/stitch-jni')
+
+ext.stitchSherpaAar = sherpaAar
+ext.stitchGeneratedJniDir = generatedJniDir
+
+def download = { String url, File dest ->
+    if (dest.isFile() && dest.length() > 0) return
+    dest.parentFile.mkdirs()
+    def tmp = new File(dest.path + '.download')
+    logger.lifecycle("Stitch: downloading ${url}")
+    def conn = (HttpURLConnection) new URL(url).openConnection()
+    conn.instanceFollowRedirects = true
+    conn.connectTimeout = 30000
+    conn.readTimeout = 120000
+    conn.setRequestProperty('User-Agent', 'stitch-mobile-build')
+    def code = conn.responseCode
+    if (code != 200) throw new GradleException("Download failed (HTTP ${code}): ${url}")
+    conn.inputStream.withCloseable { input -> tmp.withOutputStream { out -> out << input } }
+    if (!tmp.renameTo(dest)) throw new GradleException("Could not move ${tmp} to ${dest}")
+}
+
+def fetchSherpa = tasks.register('fetchSherpaOnnx') {
+    description = 'Downloads the sherpa-onnx Android AAR (TTS) from GitHub releases.'
+    outputs.file(sherpaAar)
+    doLast {
+        download("https://github.com/k2-fsa/sherpa-onnx/releases/download/v${sherpaVersion}/sherpa-onnx-static-link-onnxruntime-${sherpaVersion}.aar", sherpaAar)
+    }
+}
+
+def npuDispatchLibs = ['libLiteRtDispatch_Qualcomm.so', 'libLiteRtDispatch_GoogleTensor.so']
+
+def fetchLiteRtNpu = tasks.register('fetchLiteRtNpuRuntime') {
+    description = 'Downloads the LiteRT NPU dispatch libraries (Qualcomm QNN, Google Tensor) for LiteRT-LM.'
+    npuDispatchLibs.each { outputs.file(new File(generatedJniDir, "arm64-v8a/${it}")) }
+    doLast {
+        download("https://github.com/google-ai-edge/LiteRT/releases/download/v${litertNpuVersion}/litert_npu_runtime_libraries.zip", litertNpuZip)
+        new java.util.zip.ZipFile(litertNpuZip).withCloseable { zip ->
+            npuDispatchLibs.each { lib ->
+                def entry = zip.entries().find { it.name.endsWith("arm64-v8a/${lib}") }
+                if (entry == null) throw new GradleException("${lib} not found in ${litertNpuZip}")
+                def out = new File(generatedJniDir, "arm64-v8a/${lib}")
+                out.parentFile.mkdirs()
+                zip.getInputStream(entry).withCloseable { input -> out.withOutputStream { o -> o << input } }
+            }
+        }
+    }
+}
+
+// The sherpa AAR must exist before dependency resolution of the app's classpath; fetch it eagerly at configuration
+// time when missing (one-off, ~39 MB) so IDE sync and every Gradle entry point see it.
+try {
+    download("https://github.com/k2-fsa/sherpa-onnx/releases/download/v${sherpaVersion}/sherpa-onnx-static-link-onnxruntime-${sherpaVersion}.aar", sherpaAar)
+} catch (Exception e) {
+    logger.warn("Stitch: could not download sherpa-onnx yet (${e.message}); the fetchSherpaOnnx task will retry.")
+}
+
+tasks.named('preBuild').configure { dependsOn(fetchSherpa, fetchLiteRtNpu) }

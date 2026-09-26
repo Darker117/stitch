@@ -1,0 +1,83 @@
+/* The desktop design system, unchanged, plus phone-specific chrome and touch polish. */
+@import '@/styles.css';
+
+/* Tailwind must see classes in both trees. */
+@source '../../src/renderer/src';
+@source './';
+
+:root {
+  /* Safe areas + keyboard, written by shell/insets.ts from the native side. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --kb: 0px;
+  /* No window title bar on a phone; pages that pad for it get the status bar instead. */
+  --titlebar: var(--sat);
+  --topbar: 52px;
+  --tabbar: 62px;
+}
+
+@layer base {
+  html[data-phone] {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+  html[data-phone] body {
+    overscroll-behavior: none;
+  }
+  /* Lift everything above the keyboard when the WebView doesn't resize for it. */
+  html[data-phone] #root {
+    padding-bottom: var(--kb);
+    transition: padding-bottom 0.22s var(--ease-out);
+  }
+  /* Hover-only affordances stay reachable by touch. */
+  @media (hover: none) {
+    html[data-phone] .group:active .group-hover\:opacity-100 {
+      opacity: 1;
+    }
+  }
+}
+
+/* No scrollbars on a phone (unlayered, so it beats the desktop's unlayered scrollbar rules). */
+html[data-phone] * {
+  scrollbar-width: none;
+}
+html[data-phone] ::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Momentum scrolling everywhere content scrolls. */
+html[data-phone] .overflow-y-auto,
+html[data-phone] .overflow-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Pressed state for tappable rows (no hover on touch). */
+.press {
+  transition: transform 0.18s var(--ease-out), background-color 0.18s var(--ease-out);
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+@keyframes phone-sheen {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+.sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.08), transparent);
+  animation: phone-sheen 2.8s var(--ease-out) infinite;
+}

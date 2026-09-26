@@ -1,0 +1,168 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "types": [
+      "vite/client"
+    ],
+    "paths": {
+      "@mobile/*": [
+        "./src/*"
+      ],
+      "@/*": [
+        "../src/renderer/src/*"
+      ],
+      "@shared/*": [
+        "../src/shared/*"
+      ],
+      "react": [
+        "./node_modules/@types/react"
+      ],
+      "react/*": [
+        "./node_modules/@types/react/*"
+      ],
+      "react-dom": [
+        "./node_modules/@types/react-dom"
+      ],
+      "react-dom/*": [
+        "./node_modules/@types/react-dom/*"
+      ],
+      "motion": [
+        "./node_modules/motion"
+      ],
+      "motion/*": [
+        "./node_modules/motion/*"
+      ],
+      "zustand": [
+        "./node_modules/zustand"
+      ],
+      "zustand/*": [
+        "./node_modules/zustand/*"
+      ],
+      "react-router": [
+        "./node_modules/react-router"
+      ],
+      "react-router/*": [
+        "./node_modules/react-router/*"
+      ],
+      "radix-ui": [
+        "./node_modules/radix-ui"
+      ],
+      "radix-ui/*": [
+        "./node_modules/radix-ui/*"
+      ],
+      "lucide-react": [
+        "./node_modules/lucide-react"
+      ],
+      "lucide-react/*": [
+        "./node_modules/lucide-react/*"
+      ],
+      "clsx": [
+        "./node_modules/clsx"
+      ],
+      "clsx/*": [
+        "./node_modules/clsx/*"
+      ],
+      "tailwind-merge": [
+        "./node_modules/tailwind-merge"
+      ],
+      "tailwind-merge/*": [
+        "./node_modules/tailwind-merge/*"
+      ],
+      "nanoid": [
+        "./node_modules/nanoid"
+      ],
+      "nanoid/*": [
+        "./node_modules/nanoid/*"
+      ],
+      "react-markdown": [
+        "./node_modules/react-markdown"
+      ],
+      "react-markdown/*": [
+        "./node_modules/react-markdown/*"
+      ],
+      "remark-gfm": [
+        "./node_modules/remark-gfm"
+      ],
+      "remark-gfm/*": [
+        "./node_modules/remark-gfm/*"
+      ],
+      "@codemirror/autocomplete": [
+        "./node_modules/@codemirror/autocomplete"
+      ],
+      "@codemirror/autocomplete/*": [
+        "./node_modules/@codemirror/autocomplete/*"
+      ],
+      "@codemirror/commands": [
+        "./node_modules/@codemirror/commands"
+      ],
+      "@codemirror/commands/*": [
+        "./node_modules/@codemirror/commands/*"
+      ],
+      "@codemirror/lang-javascript": [
+        "./node_modules/@codemirror/lang-javascript"
+      ],
+      "@codemirror/lang-javascript/*": [
+        "./node_modules/@codemirror/lang-javascript/*"
+      ],
+      "@codemirror/language": [
+        "./node_modules/@codemirror/language"
+      ],
+      "@codemirror/language/*": [
+        "./node_modules/@codemirror/language/*"
+      ],
+      "@codemirror/lint": [
+        "./node_modules/@codemirror/lint"
+      ],
+      "@codemirror/lint/*": [
+        "./node_modules/@codemirror/lint/*"
+      ],
+      "@codemirror/search": [
+        "./node_modules/@codemirror/search"
+      ],
+      "@codemirror/search/*": [
+        "./node_modules/@codemirror/search/*"
+      ],
+      "@codemirror/state": [
+        "./node_modules/@codemirror/state"
+      ],
+      "@codemirror/state/*": [
+        "./node_modules/@codemirror/state/*"
+      ],
+      "@codemirror/view": [
+        "./node_modules/@codemirror/view"
+      ],
+      "@codemirror/view/*": [
+        "./node_modules/@codemirror/view/*"
+      ],
+      "@lezer/highlight": [
+        "./node_modules/@lezer/highlight"
+      ],
+      "@lezer/highlight/*": [
+        "./node_modules/@lezer/highlight/*"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*",
+    "../src/renderer/src/**/*",
+    "../src/shared/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "android"
+  ]
+}

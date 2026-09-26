@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The web UI (served from http://localhost) talks to the paired PC over plain HTTP/WebSocket on the LAN or
+     Tailscale (ws://<pc>:47847/api/ws, http://<pc>:47847/api/*), so cleartext must be allowed to any address.
+     Model downloads use HTTPS. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

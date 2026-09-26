@@ -1,0 +1,98 @@
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+android {
+    namespace = "com.stitch.mobile"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.stitch.mobile"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "0.1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+        // On-device AI runtimes (LiteRT-LM, ONNX Runtime + QNN, sherpa-onnx) ship native code per ABI; every phone
+        // that can run them is arm64, so only package that ABI.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    packaging {
+        jniLibs {
+            // Extract the .so files to nativeLibraryDir (android:extractNativeLibs="true"): the Hexagon NPU skeleton
+            // libraries (libQnnHtpV*Skel.so) are loaded onto the DSP by FastRPC from a real file path found through
+            // ADSP_LIBRARY_PATH, and LiteRT-LM looks for its NPU dispatch library inside nativeLibraryDir.
+            useLegacyPackaging = true
+            // QNN's legacy HVX "DSP" backend (V66) is unused; the HTP (NPU) and GPU backends are kept.
+            excludes += ['**/libQnnDsp.so', '**/libQnnDspV66Skel.so', '**/libQnnDspV66Stub.so']
+        }
+    }
+    sourceSets {
+        main {
+            jniLibs.srcDirs += [new File(buildDir, 'generated/stitch-jni')]
+        }
+    }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+apply from: 'native-deps.gradle'
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "androidx.core:core-ktx:$androidxCoreVersion"
+    implementation "androidx.activity:activity:$androidxActivityVersion"
+    implementation project(':capacitor-android')
+
+    // On-device AI (StitchDevice plugin)
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutinesVersion"
+    implementation "com.google.ai.edge.litertlm:litertlm-android:$litertlmVersion"
+    implementation "com.microsoft.onnxruntime:onnxruntime-android-qnn:$onnxruntimeQnnVersion"
+    implementation "com.qualcomm.qti:qnn-runtime:$qnnRuntimeVersion"
+    implementation files(stitchSherpaAar).builtBy('fetchSherpaOnnx')
+
+    testImplementation "junit:junit:$junitVersion"
+    // Real org.json for JVM unit tests (android.jar only has stubs).
+    testImplementation "org.json:json:20250517"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
